@@ -54,14 +54,13 @@ Core public sites:
 - `https://langindex.dev`
 - `https://0xvane.dev`
 - `https://debugpath.dev`
-- `https://sealport.cc`
 - `https://status.dunamismax.com`
 - `https://xrayservice.net`
 
 Core host services:
 
 - `dunamismax-site.service`
-- `ferry-site.service`
+- `fileferry-web.service`
 - `callrift.service`
 - `pod-tracker-web.service`
 - `pod-tracker-worker.service`
@@ -69,7 +68,6 @@ Core host services:
 - `vane-ssh.service`
 - `debugpath-site.service`
 - `debugpath-ssh.service`
-- `sealport-web.service`
 - `status-dunamismax.service`
 - `caddy.service`
 - `cloudflare-ddns.service`

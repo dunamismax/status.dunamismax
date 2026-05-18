@@ -459,9 +459,9 @@ mod tests {
                 target: ProjectTarget {
                     id: "fileferry",
                     name: "fileferry",
-                    repo_name: "fileferry",
+                    repo_name: "sealport",
                     public_url: Some("https://fileferry.app"),
-                    repo_path: "/home/sawyer/github/fileferry".to_owned(),
+                    repo_path: "/home/sawyer/github/sealport".to_owned(),
                 },
                 state: StatusState::Operational,
                 checked_at,

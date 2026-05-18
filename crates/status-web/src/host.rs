@@ -87,7 +87,7 @@ pub enum HostProbeError {
 pub fn systemd_targets() -> Vec<SystemdUnitTarget> {
     vec![
         long_running("dunamismax-site", "dunamismax-site.service"),
-        long_running("ferry-site", "ferry-site.service"),
+        long_running("fileferry-web", "fileferry-web.service"),
         long_running("callrift", "callrift.service"),
         long_running("pod-tracker-web", "pod-tracker-web.service"),
         long_running("pod-tracker-worker", "pod-tracker-worker.service"),
@@ -96,7 +96,6 @@ pub fn systemd_targets() -> Vec<SystemdUnitTarget> {
         long_running("vane-ssh", "vane-ssh.service"),
         long_running("debugpath-site", "debugpath-site.service"),
         long_running("debugpath-ssh", "debugpath-ssh.service"),
-        long_running("sealport-web", "sealport-web.service"),
         long_running("status-dunamismax", "status-dunamismax.service"),
         long_running("caddy", "caddy.service"),
         one_shot("cloudflare-ddns", "cloudflare-ddns.service"),
@@ -118,7 +117,7 @@ pub fn service_mappings() -> &'static [ServiceMapping] {
         },
         ServiceMapping {
             public_target_id: "fileferry-app",
-            systemd_units: &["ferry-site.service"],
+            systemd_units: &["fileferry-web.service"],
             compose_services: &[],
         },
         ServiceMapping {
@@ -148,11 +147,6 @@ pub fn service_mappings() -> &'static [ServiceMapping] {
         ServiceMapping {
             public_target_id: "debugpath-dev",
             systemd_units: &["debugpath-site.service", "debugpath-ssh.service"],
-            compose_services: &[],
-        },
-        ServiceMapping {
-            public_target_id: "sealport-cc",
-            systemd_units: &["sealport-web.service"],
             compose_services: &[],
         },
         ServiceMapping {
@@ -929,7 +923,6 @@ InactiveEnterTimestamp=Mon 2026-05-18 12:00:00 UTC
             "langindex-dev",
             "0xvane-dev",
             "debugpath-dev",
-            "sealport-cc",
             "status-dunamismax-com",
             "xrayservice-net",
         ] {

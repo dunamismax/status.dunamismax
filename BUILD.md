@@ -33,8 +33,8 @@ Observed on 2026-05-18:
 - Project status now exists for premier repositories with git branch,
   ahead/behind, dirty state, latest commit age, remote reachability, and
   `BUILD.md` checkbox progress.
-- Public and project inventory now includes `sealport.cc`, `xrayservice.net`,
-  `status.dunamismax`, `sealport`, and the other local project checkouts under
+- Public and project inventory now includes `fileferry.app`, `xrayservice.net`,
+  `status.dunamismax`, FileFerry from the `sealport` checkout, and the other local project checkouts under
   `/home/sawyer/github`.
 - Optional PostgreSQL-backed history now exists with migrations for targets,
   check runs, rollups, incidents, maintenance windows, and deployment events.
@@ -53,7 +53,7 @@ Observed on 2026-05-18:
 - The intended runtime is Rust, Axum, Leptos SSR, Tokio, Caddy, systemd, and
   PostgreSQL when durable history is needed.
 - Reference implementation patterns:
-  - `/home/sawyer/github/fileferry` for the premier Rust Leptos/Axum site and
+  - `/home/sawyer/github/sealport` for the FileFerry Rust Leptos/Axum site and
     repo-doc style.
   - `/home/sawyer/github/dunamismax.com` for Rust website migration,
     Caddy/systemd deployment, and portfolio/project content discipline.
@@ -214,7 +214,7 @@ Goal: show useful public status from explicit inventory plus live HTTP checks.
 - [x] Include initial targets:
       `dunamismax.com`, `fileferry.app`, `callrift.dev`,
       `pod-tracker.app`, `langindex.dev`, `0xvane.dev`, `debugpath.dev`,
-      `sealport.cc`, `status.dunamismax.com`, and `xrayservice.net`.
+      `status.dunamismax.com`, and `xrayservice.net`.
 
 Exit criteria: the page truthfully reports public website health without
 touching private host state.
@@ -244,7 +244,7 @@ Goal: show project health, not just uptime.
       authoritative runtime truth.
 - [x] Add project cards for premier repos first:
       `fileferry`, `dunamismax.com`, `callrift`, `pod-tracker`,
-      `langindex`, `0xvane`, `debugpath`, `sealport`,
+      `langindex`, `0xvane`, `debugpath`,
       `status.dunamismax`, `toolworks`, and the other local project
       checkouts under `/home/sawyer/github`.
 - [x] Add stale-branch and dirty-worktree warnings for server checkouts.
@@ -333,7 +333,6 @@ https://pod-tracker.app/healthz
 https://langindex.dev/healthz
 https://0xvane.dev/health
 https://debugpath.dev/healthz
-https://sealport.cc/healthz
 https://status.dunamismax.com/healthz
 https://xrayservice.net/
 ```
@@ -342,7 +341,7 @@ Host services:
 
 ```text
 dunamismax-site.service
-ferry-site.service
+fileferry-web.service
 callrift.service
 pod-tracker-web.service
 pod-tracker-worker.service
@@ -351,7 +350,6 @@ vane-worker.service
 vane-ssh.service
 debugpath-site.service
 debugpath-ssh.service
-sealport-web.service
 status-dunamismax.service
 caddy.service
 cloudflare-ddns.service

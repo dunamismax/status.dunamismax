@@ -54,13 +54,6 @@ pub fn public_targets() -> Vec<MonitorTarget> {
             "https://debugpath.dev/healthz",
         ),
         target(
-            "sealport-cc",
-            "sealport.cc",
-            "Public websites",
-            "https://sealport.cc",
-            "https://sealport.cc/healthz",
-        ),
-        target(
             "status-dunamismax-com",
             "status.dunamismax.com",
             "Public websites",
@@ -91,7 +84,12 @@ pub fn project_targets() -> Vec<ProjectTarget> {
             Some("https://dunamismax.com"),
         ),
         project("dunamismax", "dunamismax", None),
-        project("fileferry", "fileferry", Some("https://fileferry.app")),
+        project_named(
+            "fileferry",
+            "fileferry",
+            "sealport",
+            Some("https://fileferry.app"),
+        ),
         project("go-web-server", "go-web-server", None),
         project("hello-world-from-hell", "hello-world-from-hell", None),
         project("langindex", "langindex", Some("https://langindex.dev")),
@@ -103,7 +101,6 @@ pub fn project_targets() -> Vec<ProjectTarget> {
             Some("https://pod-tracker.app"),
         ),
         project("rustdesk-selfhosted", "rustdesk-selfhosted", None),
-        project("sealport", "sealport", Some("https://sealport.cc")),
         project(
             "status-dunamismax",
             "status.dunamismax",
@@ -147,9 +144,18 @@ fn project(
     repo_name: &'static str,
     public_url: Option<&'static str>,
 ) -> ProjectTarget {
+    project_named(id, repo_name, repo_name, public_url)
+}
+
+fn project_named(
+    id: &'static str,
+    name: &'static str,
+    repo_name: &'static str,
+    public_url: Option<&'static str>,
+) -> ProjectTarget {
     ProjectTarget {
         id,
-        name: repo_name,
+        name,
         repo_name,
         public_url,
         repo_path: String::new(),
@@ -178,7 +184,7 @@ mod tests {
     fn inventory_contains_initial_public_targets() {
         let targets = public_targets();
 
-        assert_eq!(targets.len(), 10);
+        assert_eq!(targets.len(), 9);
         assert!(
             targets
                 .iter()
@@ -196,9 +202,13 @@ mod tests {
     fn project_inventory_contains_initial_repos_without_public_paths() {
         let targets = project_targets();
 
-        assert_eq!(targets.len(), 18);
+        assert_eq!(targets.len(), 17);
         assert!(targets.iter().any(|target| target.repo_name == "toolworks"));
-        assert!(targets.iter().any(|target| target.repo_name == "sealport"));
+        assert!(
+            targets
+                .iter()
+                .any(|target| target.id == "fileferry" && target.repo_name == "sealport")
+        );
         assert!(
             targets
                 .iter()

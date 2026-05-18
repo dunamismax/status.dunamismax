@@ -347,7 +347,7 @@ mod tests {
     #[test]
     fn host_results_are_projected_without_private_detail() {
         let result = HostCheckResult {
-            target_id: "sealport-web",
+            target_id: "fileferry-web",
             check_kind: HostCheckKind::Systemd,
             state: StatusState::Operational,
             checked_at: Utc::now(),
@@ -357,16 +357,16 @@ mod tests {
             private_detail: Some("/home/sawyer/private.log".to_owned()),
         };
 
-        let service = host_result_to_service(result, "sealport-web.service", "Host services");
+        let service = host_result_to_service(result, "fileferry-web.service", "Host services");
 
-        assert_eq!(service.target.id, "sealport-web");
-        assert_eq!(service.target.name, "sealport-web.service");
+        assert_eq!(service.target.id, "fileferry-web");
+        assert_eq!(service.target.name, "fileferry-web.service");
         assert_eq!(service.check.check_kind, CheckKind::Systemd);
         assert_eq!(service.check.reason, "unit is active");
         assert!(
             serde_json::to_string(&service)
                 .unwrap()
-                .contains("sealport-web.service")
+                .contains("fileferry-web.service")
         );
         assert!(
             !serde_json::to_string(&service)
