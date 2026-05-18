@@ -1,4 +1,5 @@
 use status_web::{
+    alert::{AlertConfig, WebhookNotifier, evaluate_alerts},
     config::Config,
     model::{DeploymentEvent, StatusSnapshot},
     probes::ProbeRunner,
@@ -22,7 +23,7 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
     }
 
     if config.collect_once {
-        collect_once(store.as_ref(), config.retention_days).await?;
+        collect_once(store.as_ref(), config.retention_days, &config.alert).await?;
         return Ok(());
     }
 
@@ -78,6 +79,7 @@ async fn record_deployment(
 async fn collect_once(
     store: Option<&StatusStore>,
     retention_days: u32,
+    alert_config: &AlertConfig,
 ) -> Result<(), Box<dyn std::error::Error>> {
     let runner = ProbeRunner::new();
     let services = runner.collect_monitored_services().await;
@@ -86,13 +88,52 @@ async fn collect_once(
 
     if let Some(store) = store {
         store.record_snapshot(&snapshot).await?;
+        send_alert_notifications(store, alert_config, &snapshot).await?;
         let pruned = store.prune_check_runs(retention_days).await?;
         info!(
             pruned_check_runs = pruned,
             retention_days, "stored one status snapshot"
         );
+    } else if alert_config.notifications_enabled() {
+        return Err(
+            "STATUS_DATABASE_URL is required for alert notifications and duplicate suppression"
+                .into(),
+        );
     } else {
         println!("{}", serde_json::to_string(&snapshot)?);
+    }
+
+    Ok(())
+}
+
+async fn send_alert_notifications(
+    store: &StatusStore,
+    alert_config: &AlertConfig,
+    snapshot: &StatusSnapshot,
+) -> Result<(), Box<dyn std::error::Error>> {
+    let Some(webhook_url) = alert_config.webhook_url.as_deref() else {
+        return Ok(());
+    };
+
+    let alerts = evaluate_alerts(snapshot);
+    let unsuppressed = store
+        .unsuppressed_alerts(
+            &alerts,
+            alert_config.repeat_after_minutes,
+            alert_config.max_notifications_per_run,
+        )
+        .await?;
+    let notifier = WebhookNotifier::new(webhook_url)?;
+
+    for alert in unsuppressed {
+        notifier.send(&alert).await?;
+        store.record_alert_notification(&alert, "webhook").await?;
+        info!(
+            target_id = %alert.target_id,
+            severity = alert.severity.as_str(),
+            state = alert.state.as_str(),
+            "sent alert notification"
+        );
     }
 
     Ok(())

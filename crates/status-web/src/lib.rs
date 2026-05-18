@@ -1,3 +1,4 @@
+pub mod alert;
 pub mod assets;
 pub mod config;
 pub mod host;

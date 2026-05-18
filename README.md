@@ -154,6 +154,8 @@ Set `STATUS_RECORD_DEPLOYMENT=1` with deployment metadata to record an explicit
 deployment event and exit.
 Set `STATUS_OPERATOR_TOKEN` to enable authenticated operator detail at
 `/operator`; leave it unset to keep that route disabled.
+Set `STATUS_ALERT_WEBHOOK_URL` with PostgreSQL history to send public-safe
+collector alerts with durable duplicate suppression and per-run rate limits.
 
 ## Production Shape
 

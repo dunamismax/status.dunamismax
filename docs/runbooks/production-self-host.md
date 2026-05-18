@@ -89,3 +89,45 @@ sudo -u status-dunamismax env \
   DEPLOY_PUBLIC_SUMMARY="status.dunamismax deployed to production" \
   bash -lc 'set -a; . /etc/status-dunamismax/status.env; set +a; export STATUS_RECORD_DEPLOYMENT=true STATUS_DEPLOYMENT_SERVICE_ID="$DEPLOY_SERVICE_ID" STATUS_DEPLOYMENT_REPO_NAME="$DEPLOY_REPO_NAME" STATUS_DEPLOYMENT_COMMIT_SHA="$DEPLOY_COMMIT_SHA" STATUS_DEPLOYMENT_ENVIRONMENT=production STATUS_DEPLOYMENT_PUBLIC_SUMMARY="$DEPLOY_PUBLIC_SUMMARY"; exec /opt/status-dunamismax/status-web'
 ```
+
+## Alerting
+
+Alerts are evaluated only during `STATUS_COLLECT_ONCE=true` collector runs.
+Notifications stay disabled until `STATUS_ALERT_WEBHOOK_URL` is set. Keep
+`STATUS_DATABASE_URL` configured before enabling a webhook because the database
+stores notification history for duplicate suppression.
+
+Severity rules:
+
+- `critical`: a monitored service or project is `down`.
+- `warning`: a monitored service or project is `degraded` or `unknown`.
+- `operational` and `maintenance` do not notify.
+
+Escalation behavior is intentionally narrow:
+
+- each notification carries target id, target name, observed state, severity,
+  observed time, title, and a public-safe summary
+- private repository paths, raw command output, secrets, and host-only details
+  are not sent
+- the same `dedup_key` is suppressed for
+  `STATUS_ALERT_REPEAT_AFTER_MINUTES`, default `60`
+- a single collector run sends at most
+  `STATUS_ALERT_MAX_NOTIFICATIONS_PER_RUN`, default `5`
+- failed webhook delivery fails the collector run so systemd can surface the
+  failure without pretending notification succeeded
+
+Suggested production defaults:
+
+```sh
+STATUS_ALERT_REPEAT_AFTER_MINUTES=60
+STATUS_ALERT_MAX_NOTIFICATIONS_PER_RUN=5
+# STATUS_ALERT_WEBHOOK_URL=...
+```
+
+OpenTelemetry export is not enabled yet. The current request and probe spans
+are still local `tracing` output, and there is no chosen exporter destination.
+Revisit exporter setup only after span names and the receiver are stable.
+
+Layered config loading through `figment` or `config` is also deferred. Explicit
+environment parsing remains sufficient while inventory is repo-owned and the
+operator plus alert settings fit in `/etc/status-dunamismax/status.env`.

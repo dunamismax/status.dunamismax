@@ -54,6 +54,14 @@ Observed on 2026-05-18:
 - The first Phase 8 operator boundary is an authenticated bearer-token route:
   `/operator` stays disabled until `STATUS_OPERATOR_TOKEN` is set and then
   exposes private repository paths only behind that boundary.
+- Phase 8 alerting now evaluates public-safe warning and critical alerts
+  during one-shot collector runs. Webhook notifications are optional and
+  require PostgreSQL-backed duplicate suppression, repeat windows, and per-run
+  rate limits before anything is sent.
+- OpenTelemetry export has been evaluated and deferred until local tracing
+  spans and a concrete exporter destination are stable. Layered config loading
+  through `figment` or `config` has also been evaluated and deferred while
+  explicit environment parsing remains sufficient.
 - The intended runtime is Rust, Axum, Leptos SSR, Tokio, Caddy, systemd, and
   PostgreSQL when durable history is needed.
 - Reference implementation patterns:
@@ -320,14 +328,14 @@ Goal: add private detail and notifications without exposing the host.
 - [x] Choose the first operator boundary: local-only, Tailscale-only, or
       authenticated web route.
 - [x] Add operator detail pages only behind that boundary.
-- [ ] Add alert rules after check stability is proven.
-- [ ] Add notification targets only after rate limits and duplicate
+- [x] Add alert rules after check stability is proven.
+- [x] Add notification targets only after rate limits and duplicate
       suppression exist.
-- [ ] Evaluate OpenTelemetry export after probe/request spans have stable
+- [x] Evaluate OpenTelemetry export after probe/request spans have stable
       names and the destination is known.
-- [ ] Revisit config loading with `figment` or `config` if operator, alert,
+- [x] Revisit config loading with `figment` or `config` if operator, alert,
       and inventory settings need layered files plus environment overrides.
-- [ ] Document alert severity and escalation behavior.
+- [x] Document alert severity and escalation behavior.
 
 Exit criteria: private status detail and alerts are useful without becoming
 noisy or publicly unsafe.
@@ -432,6 +440,23 @@ curl -fsS http://127.0.0.1:8095/api/incidents.json
 curl -fsS http://127.0.0.1:8095/projects
 curl -fsS http://127.0.0.1:8095/incidents
 curl -fsS http://127.0.0.1:8095/deployments
+STATUS_COLLECT_ONCE=1 cargo run -p status-web
+```
+
+Latest Phase 8 alert verification on 2026-05-18:
+
+```sh
+cargo test --workspace --all-features
+STATUS_TEST_DATABASE_URL=postgres://sawyer@localhost/postgres cargo test --workspace --all-features -- --ignored postgres
+STATUS_BIND_ADDR=127.0.0.1:8096 cargo run -p status-web
+curl -fsS http://127.0.0.1:8096/healthz
+curl -fsS http://127.0.0.1:8096/readyz
+curl -fsS http://127.0.0.1:8096/api/status.json
+curl -fsS http://127.0.0.1:8096/api/incidents.json
+curl -fsS http://127.0.0.1:8096/services
+curl -fsS http://127.0.0.1:8096/projects
+curl -fsS http://127.0.0.1:8096/incidents
+curl -fsS http://127.0.0.1:8096/deployments
 STATUS_COLLECT_ONCE=1 cargo run -p status-web
 ```
 

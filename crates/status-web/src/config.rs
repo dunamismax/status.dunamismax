@@ -3,12 +3,14 @@ use std::{env, net::SocketAddr};
 use chrono::{DateTime, Utc};
 use thiserror::Error;
 
-use crate::model::DeploymentEvent;
+use crate::{alert::AlertConfig, model::DeploymentEvent};
 
 pub const DEFAULT_BIND_ADDR: &str = "127.0.0.1:8095";
 pub const DEFAULT_LOG_FILTER: &str = "info,status_web=info,tower_http=info";
 pub const DEFAULT_RETENTION_DAYS: u32 = 30;
 pub const DEFAULT_DEPLOYMENT_ENVIRONMENT: &str = "production";
+pub const DEFAULT_ALERT_REPEAT_AFTER_MINUTES: u32 = 60;
+pub const DEFAULT_ALERT_MAX_NOTIFICATIONS_PER_RUN: u32 = 5;
 
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub struct Config {
@@ -19,6 +21,7 @@ pub struct Config {
     pub collect_once: bool,
     pub operator_token: Option<String>,
     pub deployment_event: Option<DeploymentEvent>,
+    pub alert: AlertConfig,
 }
 
 impl Config {
@@ -31,11 +34,7 @@ impl Config {
         let database_url = env::var("STATUS_DATABASE_URL")
             .ok()
             .filter(|value| !value.trim().is_empty());
-        let retention_days = env::var("STATUS_RETENTION_DAYS")
-            .ok()
-            .filter(|value| !value.trim().is_empty())
-            .map(|value| value.parse().map_err(ConfigError::RetentionDays))
-            .transpose()?
+        let retention_days = env_u32("STATUS_RETENTION_DAYS", ConfigError::RetentionDays)?
             .unwrap_or(DEFAULT_RETENTION_DAYS);
         let collect_once = env_bool("STATUS_COLLECT_ONCE")?;
         let operator_token = env_string("STATUS_OPERATOR_TOKEN");
@@ -43,6 +42,19 @@ impl Config {
             Some(deployment_event_from_env()?)
         } else {
             None
+        };
+        let alert = AlertConfig {
+            webhook_url: env_string("STATUS_ALERT_WEBHOOK_URL"),
+            repeat_after_minutes: env_u32(
+                "STATUS_ALERT_REPEAT_AFTER_MINUTES",
+                ConfigError::AlertRepeatAfterMinutes,
+            )?
+            .unwrap_or(DEFAULT_ALERT_REPEAT_AFTER_MINUTES),
+            max_notifications_per_run: env_u32(
+                "STATUS_ALERT_MAX_NOTIFICATIONS_PER_RUN",
+                ConfigError::AlertMaxNotificationsPerRun,
+            )?
+            .unwrap_or(DEFAULT_ALERT_MAX_NOTIFICATIONS_PER_RUN),
         };
 
         Ok(Self {
@@ -53,6 +65,7 @@ impl Config {
             collect_once,
             operator_token,
             deployment_event,
+            alert,
         })
     }
 }
@@ -63,6 +76,10 @@ pub enum ConfigError {
     BindAddr(#[from] std::net::AddrParseError),
     #[error("STATUS_RETENTION_DAYS must be a positive integer: {0}")]
     RetentionDays(std::num::ParseIntError),
+    #[error("STATUS_ALERT_REPEAT_AFTER_MINUTES must be a positive integer: {0}")]
+    AlertRepeatAfterMinutes(std::num::ParseIntError),
+    #[error("STATUS_ALERT_MAX_NOTIFICATIONS_PER_RUN must be a positive integer: {0}")]
+    AlertMaxNotificationsPerRun(std::num::ParseIntError),
     #[error("STATUS_DEPLOYMENT_DEPLOYED_AT must be an RFC3339 timestamp: {0}")]
     DeploymentTime(chrono::ParseError),
     #[error("{0} must be true, false, 1, 0, yes, or no")]
@@ -106,6 +123,17 @@ fn env_string(name: &'static str) -> Option<String> {
         .filter(|value| !value.is_empty())
 }
 
+fn env_u32(
+    name: &'static str,
+    error: fn(std::num::ParseIntError) -> ConfigError,
+) -> Result<Option<u32>, ConfigError> {
+    env::var(name)
+        .ok()
+        .filter(|value| !value.trim().is_empty())
+        .map(|value| value.parse().map_err(error))
+        .transpose()
+}
+
 fn env_bool(name: &'static str) -> Result<bool, ConfigError> {
     match env::var(name).ok().as_deref() {
         None | Some("") | Some("0") | Some("false") | Some("False") | Some("no") | Some("No") => {
@@ -130,6 +158,12 @@ mod tests {
     #[test]
     fn default_retention_is_thirty_days() {
         assert_eq!(DEFAULT_RETENTION_DAYS, 30);
+    }
+
+    #[test]
+    fn default_alert_policy_has_suppression_and_rate_limit() {
+        assert_eq!(DEFAULT_ALERT_REPEAT_AFTER_MINUTES, 60);
+        assert_eq!(DEFAULT_ALERT_MAX_NOTIFICATIONS_PER_RUN, 5);
     }
 
     #[test]
@@ -177,6 +211,33 @@ mod tests {
 
         unsafe {
             env::remove_var("STATUS_COLLECT_ONCE");
+        }
+    }
+
+    #[test]
+    fn parses_alert_env_values() {
+        unsafe {
+            env::set_var(
+                "STATUS_ALERT_WEBHOOK_URL",
+                "https://example.com/status-alerts",
+            );
+            env::set_var("STATUS_ALERT_REPEAT_AFTER_MINUTES", "120");
+            env::set_var("STATUS_ALERT_MAX_NOTIFICATIONS_PER_RUN", "3");
+        }
+
+        let config = Config::from_env().expect("config");
+
+        assert_eq!(
+            config.alert.webhook_url.as_deref(),
+            Some("https://example.com/status-alerts")
+        );
+        assert_eq!(config.alert.repeat_after_minutes, 120);
+        assert_eq!(config.alert.max_notifications_per_run, 3);
+
+        unsafe {
+            env::remove_var("STATUS_ALERT_WEBHOOK_URL");
+            env::remove_var("STATUS_ALERT_REPEAT_AFTER_MINUTES");
+            env::remove_var("STATUS_ALERT_MAX_NOTIFICATIONS_PER_RUN");
         }
     }
 }

@@ -5,9 +5,12 @@ use serde_json::json;
 use sqlx::{PgPool, postgres::PgPoolOptions};
 use thiserror::Error;
 
-use crate::model::{
-    DeploymentEvent, IncidentRecord, MaintenanceWindow, ProjectStatus, ServiceStatus,
-    StatusSnapshot,
+use crate::{
+    alert::AlertCandidate,
+    model::{
+        DeploymentEvent, IncidentRecord, MaintenanceWindow, ProjectStatus, ServiceStatus,
+        StatusSnapshot,
+    },
 };
 
 const CONNECT_TIMEOUT: Duration = Duration::from_secs(5);
@@ -162,6 +165,78 @@ impl StatusStore {
         .bind(&deployment.environment)
         .bind(deployment.deployed_at)
         .bind(&deployment.public_summary)
+        .execute(&self.pool)
+        .await?;
+
+        Ok(())
+    }
+
+    pub async fn unsuppressed_alerts(
+        &self,
+        alerts: &[AlertCandidate],
+        repeat_after_minutes: u32,
+        max_notifications: u32,
+    ) -> Result<Vec<AlertCandidate>, StoreError> {
+        let mut unsuppressed = Vec::new();
+
+        for alert in alerts {
+            if unsuppressed.len() >= max_notifications as usize {
+                break;
+            }
+
+            let recently_sent: bool = sqlx::query_scalar(
+                r#"
+                select exists (
+                    select 1
+                    from alert_notifications
+                    where dedup_key = $1
+                      and sent_at >= now() - make_interval(mins => $2)
+                )
+                "#,
+            )
+            .bind(&alert.dedup_key)
+            .bind(repeat_after_minutes as i32)
+            .fetch_one(&self.pool)
+            .await?;
+
+            if !recently_sent {
+                unsuppressed.push(alert.clone());
+            }
+        }
+
+        Ok(unsuppressed)
+    }
+
+    pub async fn record_alert_notification(
+        &self,
+        alert: &AlertCandidate,
+        notification_target: &str,
+    ) -> Result<(), StoreError> {
+        sqlx::query(
+            r#"
+            insert into alert_notifications (
+                dedup_key,
+                target_id,
+                severity,
+                observed_state,
+                title,
+                public_summary,
+                observed_at,
+                notification_target,
+                public_payload
+            )
+            values ($1, $2, $3, $4, $5, $6, $7, $8, $9)
+            "#,
+        )
+        .bind(&alert.dedup_key)
+        .bind(&alert.target_id)
+        .bind(alert.severity.as_str())
+        .bind(alert.state.as_str())
+        .bind(&alert.title)
+        .bind(&alert.public_summary)
+        .bind(alert.observed_at)
+        .bind(notification_target)
+        .bind(serde_json::to_value(alert)?)
         .execute(&self.pool)
         .await?;
 
@@ -342,6 +417,7 @@ pub enum StoreError {
 #[cfg(test)]
 mod tests {
     use super::*;
+    use crate::alert::evaluate_alerts;
     use crate::model::{
         BuildProgress, CheckKind, CheckResult, GitStatus, MonitorTarget, ProjectTarget, StatusState,
     };
@@ -387,6 +463,13 @@ mod tests {
             let incidents = store.recent_incidents().await?;
             let maintenance = store.maintenance_windows().await?;
             let deployments = store.recent_deployments().await?;
+            let alerts = evaluate_alerts(&snapshot_fixture());
+            let unsuppressed = store.unsuppressed_alerts(&alerts, 60, 10).await?;
+            assert_eq!(unsuppressed.len(), 1);
+            store
+                .record_alert_notification(&unsuppressed[0], "webhook")
+                .await?;
+            let repeated = store.unsuppressed_alerts(&alerts, 60, 10).await?;
 
             assert_eq!(target_count, 2);
             assert_eq!(check_count, 2);
@@ -394,6 +477,7 @@ mod tests {
             assert!(incidents.is_empty());
             assert!(maintenance.is_empty());
             assert_eq!(deployments.len(), 1);
+            assert!(repeated.is_empty());
             assert_eq!(
                 deployments[0].service_id.as_deref(),
                 Some("status-dunamismax")
@@ -448,10 +532,10 @@ mod tests {
                 check: CheckResult {
                     target_id: "fileferry-app",
                     check_kind: CheckKind::Http,
-                    state: StatusState::Operational,
+                    state: StatusState::Degraded,
                     checked_at,
                     latency_ms: Some(42),
-                    reason: "HTTP 200".to_owned(),
+                    reason: "expected HTTP 200, got HTTP 503".to_owned(),
                     probe_version: "test",
                 },
             }],
