@@ -5,7 +5,10 @@ use axum::{
 use leptos::prelude::*;
 use leptos::tachys::view::RenderHtml;
 
-use crate::model::{ProjectStatus, ServiceStatus, StatusSnapshot, StatusState};
+use crate::model::{
+    DeploymentEvent, IncidentRecord, MaintenanceWindow, ProjectStatus, ServiceStatus,
+    StatusSnapshot, StatusState,
+};
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub enum NavSection {
@@ -100,6 +103,67 @@ pub fn projects(projects: &[ProjectStatus]) -> Response {
         "Projects",
         "Repository and project health for the dunamismax ecosystem.",
         NavSection::Projects,
+        body,
+    )
+}
+
+pub fn incidents(incidents: &[IncidentRecord], maintenance: &[MaintenanceWindow]) -> Response {
+    let body = format!(
+        r#"
+<section class="section first-section">
+  <div class="section-heading">
+    <div>
+      <p class="eyebrow">Operational context</p>
+      <h1>Incidents</h1>
+    </div>
+    <p class="timestamp">{} incident records</p>
+  </div>
+  {}
+</section>
+<section class="section">
+  <div class="section-heading">
+    <h2>Maintenance</h2>
+    <p class="timestamp">{} recent or upcoming windows</p>
+  </div>
+  {}
+</section>
+"#,
+        incidents.len(),
+        incident_table_html(incidents),
+        maintenance.len(),
+        maintenance_table_html(maintenance),
+    );
+
+    render_page(
+        "Incidents",
+        "Incident and maintenance history for the dunamismax ecosystem.",
+        NavSection::Incidents,
+        body,
+    )
+}
+
+pub fn deployments(deployments: &[DeploymentEvent]) -> Response {
+    let body = format!(
+        r#"
+<section class="section first-section">
+  <div class="section-heading">
+    <div>
+      <p class="eyebrow">Release evidence</p>
+      <h1>Deployments</h1>
+    </div>
+    <p class="timestamp">{} deployment records</p>
+  </div>
+  {}
+</section>
+"#,
+        deployments.len(),
+        deployment_table_html(deployments),
+    );
+
+    render_page(
+        "Deployments",
+        "Recent deployment evidence for the dunamismax ecosystem.",
+        NavSection::Deployments,
         body,
     )
 }
@@ -370,6 +434,153 @@ fn project_card_html(project: &ProjectStatus) -> String {
     )
 }
 
+fn incident_table_html(incidents: &[IncidentRecord]) -> String {
+    if incidents.is_empty() {
+        return empty_state("No incident records are stored yet.");
+    }
+
+    let rows = incidents
+        .iter()
+        .map(|incident| {
+            let resolved = incident
+                .resolved_at
+                .map(format_time)
+                .unwrap_or_else(|| "open".to_owned());
+            format!(
+                r#"<tr>
+  <th scope="row">{}</th>
+  <td>{}</td>
+  <td>{}</td>
+  <td>{}</td>
+  <td>{}</td>
+  <td>{}</td>
+</tr>"#,
+                escape_html(&incident.title),
+                escape_html(&incident.state),
+                escape_html(&incident.affected_targets.join(", ")),
+                format_time(incident.started_at),
+                escape_html(&resolved),
+                escape_html(&incident.public_notes),
+            )
+        })
+        .collect::<Vec<_>>()
+        .join("");
+
+    table_html(
+        &[
+            "Incident", "State", "Affected", "Started", "Resolved", "Notes",
+        ],
+        rows,
+    )
+}
+
+fn maintenance_table_html(windows: &[MaintenanceWindow]) -> String {
+    if windows.is_empty() {
+        return empty_state("No maintenance windows are stored yet.");
+    }
+
+    let rows = windows
+        .iter()
+        .map(|window| {
+            format!(
+                r#"<tr>
+  <th scope="row">{}</th>
+  <td>{}</td>
+  <td>{}</td>
+  <td>{}</td>
+  <td>{}</td>
+  <td>{}</td>
+</tr>"#,
+                escape_html(&window.title),
+                escape_html(&window.state),
+                escape_html(&window.affected_targets.join(", ")),
+                format_time(window.starts_at),
+                format_time(window.ends_at),
+                escape_html(&window.public_notes),
+            )
+        })
+        .collect::<Vec<_>>()
+        .join("");
+
+    table_html(
+        &["Window", "State", "Affected", "Starts", "Ends", "Notes"],
+        rows,
+    )
+}
+
+fn deployment_table_html(deployments: &[DeploymentEvent]) -> String {
+    if deployments.is_empty() {
+        return empty_state("No deployment records are stored yet.");
+    }
+
+    let rows = deployments
+        .iter()
+        .map(|deployment| {
+            let service = deployment.service_id.as_deref().unwrap_or("unknown");
+            let repo = deployment.repo_name.as_deref().unwrap_or("unknown");
+            let commit = deployment
+                .commit_sha
+                .as_deref()
+                .map(short_commit)
+                .unwrap_or_else(|| "unknown".to_owned());
+            format!(
+                r#"<tr>
+  <th scope="row">{}</th>
+  <td>{}</td>
+  <td>{}</td>
+  <td>{}</td>
+  <td>{}</td>
+  <td>{}</td>
+</tr>"#,
+                escape_html(service),
+                escape_html(repo),
+                escape_html(&commit),
+                escape_html(&deployment.environment),
+                format_time(deployment.deployed_at),
+                escape_html(&deployment.public_summary),
+            )
+        })
+        .collect::<Vec<_>>()
+        .join("");
+
+    table_html(
+        &[
+            "Service",
+            "Repo",
+            "Commit",
+            "Environment",
+            "Deployed",
+            "Summary",
+        ],
+        rows,
+    )
+}
+
+fn table_html(headings: &[&str], rows: String) -> String {
+    let heading_html = headings
+        .iter()
+        .map(|heading| format!(r#"<th scope="col">{}</th>"#, escape_html(heading)))
+        .collect::<Vec<_>>()
+        .join("");
+
+    format!(
+        r#"<div class="table-wrap">
+  <table class="status-table">
+    <thead><tr>{heading_html}</tr></thead>
+    <tbody>{rows}</tbody>
+  </table>
+</div>"#
+    )
+}
+
+fn empty_state(message: &str) -> String {
+    format!(r#"<p class="empty-state">{}</p>"#, escape_html(message))
+}
+
+fn short_commit(commit: &str) -> String {
+    commit.chars().take(12).collect()
+}
+
 fn state_headline(state: StatusState) -> &'static str {
     match state {
         StatusState::Operational => "All monitored public services are operational",
@@ -465,5 +676,37 @@ mod tests {
         assert!(card.contains("&lt;dirty&gt;"));
         assert!(!card.contains("<dirty>"));
         assert!(!card.contains("/home/sawyer"));
+    }
+
+    #[test]
+    fn incident_pages_escape_public_notes() {
+        let checked_at = chrono::Utc.with_ymd_and_hms(2026, 5, 18, 12, 0, 0).unwrap();
+        let html = incident_table_html(&[IncidentRecord {
+            title: "Example".to_owned(),
+            affected_targets: vec!["fileferry-app".to_owned()],
+            state: "resolved".to_owned(),
+            started_at: checked_at,
+            resolved_at: Some(checked_at),
+            public_notes: "<private>".to_owned(),
+        }]);
+
+        assert!(html.contains("&lt;private&gt;"));
+        assert!(!html.contains("<private>"));
+    }
+
+    #[test]
+    fn deployment_pages_shorten_commit_hashes() {
+        let checked_at = chrono::Utc.with_ymd_and_hms(2026, 5, 18, 12, 0, 0).unwrap();
+        let html = deployment_table_html(&[DeploymentEvent {
+            service_id: Some("fileferry-app".to_owned()),
+            repo_name: Some("fileferry".to_owned()),
+            commit_sha: Some("abcdef1234567890".to_owned()),
+            environment: "production".to_owned(),
+            deployed_at: checked_at,
+            public_summary: "deployed".to_owned(),
+        }]);
+
+        assert!(html.contains("abcdef123456"));
+        assert!(!html.contains("abcdef1234567890"));
     }
 }

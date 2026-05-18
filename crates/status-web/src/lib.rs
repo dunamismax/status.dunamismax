@@ -7,3 +7,4 @@ pub mod pages;
 pub mod probes;
 pub mod project;
 pub mod router;
+pub mod store;

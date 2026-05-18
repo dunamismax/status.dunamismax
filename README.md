@@ -93,10 +93,12 @@ docs/
   inventory/
 ```
 
-The current first cut is one `status-web` binary with embedded assets, explicit
-public inventory, live public HTTP probes, project/git status, and typed
-host-probe primitives for future operator use. The crate boundaries can split
-once host probes, persistence, and worker behavior grow.
+The current implementation is one `status-web` binary with embedded assets,
+explicit public inventory, live public HTTP probes, project/git status, typed
+host-probe primitives for future operator use, optional PostgreSQL-backed
+history, and a one-shot collector mode for timer-friendly snapshot writes. The
+crate boundaries can split once host probes, persistence, and worker behavior
+grow.
 
 ## Public Routes
 
@@ -115,11 +117,10 @@ GET /robots.txt
 GET /icon.svg
 ```
 
-The current implementation serves `/`, `/services`, `/projects`, `/healthz`,
-`/readyz`, `/api/status.json`, `/robots.txt`, and `/icon.svg`. `/incidents`
-and `/deployments` are present as public placeholders until their history
-phases land. Operator-only routes can come later behind a simple local-only,
-Tailscale, or login-protected boundary.
+The current implementation serves all target public routes. `/incidents` and
+`/deployments` render empty public-safe history views until PostgreSQL contains
+incident, maintenance, or deployment records. Operator-only routes can come
+later behind a simple local-only, Tailscale, or login-protected boundary.
 
 ## Local Development
 
@@ -137,6 +138,11 @@ The app should bind to `127.0.0.1:8095` by default in production-like local
 mode so Caddy can reverse-proxy `status.dunamismax.com` to it. Override the
 bind address with `STATUS_BIND_ADDR` and logging with `STATUS_LOG`.
 
+PostgreSQL history is optional. Set `STATUS_DATABASE_URL` to run migrations at
+startup and make `/readyz` check the database. Set `STATUS_COLLECT_ONCE=1` to
+collect one public service and project snapshot, persist it when the database
+is configured, prune old check rows with `STATUS_RETENTION_DAYS`, and exit.
+
 ## Production Shape
 
 Production target:
@@ -146,7 +152,7 @@ Production target:
 - unprivileged `status-dunamismax` service user
 - `status-dunamismax.service` on `127.0.0.1:8095`
 - Caddy site block for `status.dunamismax.com`
-- PostgreSQL database only after persistence is needed
+- optional PostgreSQL database for durable status history
 
 Deployment templates live under `deploy/` for the systemd unit, environment
 file, and Caddy reverse proxy. They are repo-owned templates; installing them

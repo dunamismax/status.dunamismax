@@ -40,6 +40,15 @@ pub enum CheckKind {
     Git,
 }
 
+impl CheckKind {
+    pub fn as_str(self) -> &'static str {
+        match self {
+            Self::Http => "http",
+            Self::Git => "git",
+        }
+    }
+}
+
 #[derive(Debug, Clone, PartialEq, Eq, Serialize)]
 pub struct MonitorTarget {
     pub id: &'static str,
@@ -106,6 +115,36 @@ pub struct ProjectStatus {
     pub git: GitStatus,
     pub build: Option<BuildProgress>,
     pub probe_version: &'static str,
+}
+
+#[derive(Debug, Clone, PartialEq, Eq, Serialize, sqlx::FromRow)]
+pub struct IncidentRecord {
+    pub title: String,
+    pub affected_targets: Vec<String>,
+    pub state: String,
+    pub started_at: DateTime<Utc>,
+    pub resolved_at: Option<DateTime<Utc>>,
+    pub public_notes: String,
+}
+
+#[derive(Debug, Clone, PartialEq, Eq, Serialize, sqlx::FromRow)]
+pub struct MaintenanceWindow {
+    pub title: String,
+    pub affected_targets: Vec<String>,
+    pub state: String,
+    pub starts_at: DateTime<Utc>,
+    pub ends_at: DateTime<Utc>,
+    pub public_notes: String,
+}
+
+#[derive(Debug, Clone, PartialEq, Eq, Serialize, sqlx::FromRow)]
+pub struct DeploymentEvent {
+    pub service_id: Option<String>,
+    pub repo_name: Option<String>,
+    pub commit_sha: Option<String>,
+    pub environment: String,
+    pub deployed_at: DateTime<Utc>,
+    pub public_summary: String,
 }
 
 #[derive(Debug, Clone, PartialEq, Eq, Serialize)]

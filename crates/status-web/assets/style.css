@@ -237,6 +237,15 @@ h2 {
   margin-top: .15rem;
 }
 
+.empty-state {
+  background: var(--panel);
+  border: 1px solid var(--line);
+  border-radius: 8px;
+  color: var(--muted);
+  margin: 0;
+  padding: 1rem;
+}
+
 .project-grid {
   display: grid;
   gap: .8rem;

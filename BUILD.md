@@ -33,6 +33,12 @@ Observed on 2026-05-18:
 - Project status now exists for premier repositories with git branch,
   ahead/behind, dirty state, latest commit age, remote reachability, and
   `BUILD.md` checkbox progress.
+- Optional PostgreSQL-backed history now exists with migrations for targets,
+  check runs, rollups, incidents, maintenance windows, and deployment events.
+- `STATUS_COLLECT_ONCE=1` runs a timer-friendly one-shot collection path that
+  records a snapshot when `STATUS_DATABASE_URL` is configured.
+- `/incidents` and `/deployments` render public-safe history views backed by
+  PostgreSQL when records exist.
 - Deployment templates exist under `deploy/` for systemd, Caddy, and the
   runtime environment file.
 - The intended runtime is Rust, Axum, Leptos SSR, Tokio, Caddy, systemd, and
@@ -239,14 +245,14 @@ needing a coding pass.
 
 Goal: store enough history to make incidents and deploys visible over time.
 
-- [ ] Add PostgreSQL database config and pool.
-- [ ] Add `sqlx` migrations for targets, check runs, rollups, incidents, and
+- [x] Add PostgreSQL database config and pool.
+- [x] Add `sqlx` migrations for targets, check runs, rollups, incidents, and
       deployment events.
-- [ ] Add worker loop or systemd timer-friendly one-shot collector.
-- [ ] Retain raw private probe details only if there is a clear operator need
+- [x] Add worker loop or systemd timer-friendly one-shot collector.
+- [x] Retain raw private probe details only if there is a clear operator need
       and access boundary.
-- [ ] Add retention policy for noisy check rows.
-- [ ] Add tests against a real PostgreSQL instance.
+- [x] Add retention policy for noisy check rows.
+- [x] Add tests against a real PostgreSQL instance.
 
 Exit criteria: status history survives app restarts and supports incident and
 deployment timelines.
@@ -255,11 +261,11 @@ deployment timelines.
 
 Goal: make the status site operationally useful during change windows.
 
-- [ ] Add incident model: title, affected services, state, started, resolved,
+- [x] Add incident model: title, affected services, state, started, resolved,
       and public notes.
-- [ ] Add maintenance windows.
+- [x] Add maintenance windows.
 - [ ] Add deployment event records from Toolworks or explicit CLI/xtask input.
-- [ ] Render `/incidents` and `/deployments`.
+- [x] Render `/incidents` and `/deployments`.
 - [ ] Add RSS or JSON feed for incident updates if useful.
 
 Exit criteria: the site explains both current state and recent operational
@@ -365,6 +371,7 @@ Last verified on 2026-05-18:
 cargo fmt --all --check
 cargo clippy --workspace --all-targets --all-features -- -D warnings
 cargo test --workspace --all-features
+STATUS_TEST_DATABASE_URL=postgres://sawyer@localhost/postgres cargo test --workspace --all-features -- --ignored postgres
 cargo build --workspace
 ```
 
@@ -373,8 +380,12 @@ Local web smoke after Phase 1:
 ```sh
 cargo run -p status-web
 curl -fsS http://127.0.0.1:8095/healthz
+curl -fsS http://127.0.0.1:8095/readyz
 curl -fsS http://127.0.0.1:8095/api/status.json
 curl -fsS http://127.0.0.1:8095/projects
+curl -fsS http://127.0.0.1:8095/incidents
+curl -fsS http://127.0.0.1:8095/deployments
+STATUS_COLLECT_ONCE=1 cargo run -p status-web
 ```
 
 Last local smoke on 2026-05-18:
@@ -382,14 +393,20 @@ Last local smoke on 2026-05-18:
 ```sh
 cargo run -p status-web
 curl -fsS http://127.0.0.1:8095/healthz
+curl -fsS http://127.0.0.1:8095/readyz
 curl -fsS http://127.0.0.1:8095/api/status.json
 curl -fsS http://127.0.0.1:8095/projects
+curl -fsS http://127.0.0.1:8095/incidents
+curl -fsS http://127.0.0.1:8095/deployments
+STATUS_COLLECT_ONCE=1 cargo run -p status-web
 ```
 
 Observed JSON rollup during that smoke: 7 public targets operational and
 `status.dunamismax.com` down because DNS, TLS, or connection failed. This is
 expected until the public domain serves this app. The smoke also returned 8
-project records and rendered `/projects` with `BUILD.md` progress.
+project records, rendered `/projects` with `BUILD.md` progress, rendered empty
+public-safe `/incidents` and `/deployments` history views, and emitted valid
+one-shot collector JSON.
 
 Production smoke after Phase 7:
 

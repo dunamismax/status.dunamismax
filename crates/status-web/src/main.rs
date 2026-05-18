@@ -1,4 +1,11 @@
-use status_web::{config::Config, router::router};
+use status_web::{
+    config::Config,
+    model::StatusSnapshot,
+    probes::ProbeRunner,
+    project,
+    router::{AppState, router_with_state},
+    store::StatusStore,
+};
 use tokio::net::TcpListener;
 use tracing::info;
 use tracing_subscriber::{EnvFilter, fmt, layer::SubscriberExt, util::SubscriberInitExt};
@@ -7,13 +14,58 @@ use tracing_subscriber::{EnvFilter, fmt, layer::SubscriberExt, util::SubscriberI
 async fn main() -> Result<(), Box<dyn std::error::Error>> {
     let config = Config::from_env()?;
     init_tracing(&config.log_filter)?;
+    let store = connect_store(config.database_url.as_deref()).await?;
+
+    if config.collect_once {
+        collect_once(store.as_ref(), config.retention_days).await?;
+        return Ok(());
+    }
 
     let listener = TcpListener::bind(config.bind_addr).await?;
     info!(addr = %config.bind_addr, "starting status-web");
 
-    axum::serve(listener, router().into_make_service())
-        .with_graceful_shutdown(shutdown_signal())
-        .await?;
+    axum::serve(
+        listener,
+        router_with_state(AppState::live_with_store(store)).into_make_service(),
+    )
+    .with_graceful_shutdown(shutdown_signal())
+    .await?;
+
+    Ok(())
+}
+
+async fn connect_store(
+    database_url: Option<&str>,
+) -> Result<Option<StatusStore>, Box<dyn std::error::Error>> {
+    let Some(database_url) = database_url else {
+        return Ok(None);
+    };
+
+    let store = StatusStore::connect(database_url).await?;
+    store.migrate().await?;
+    info!("postgresql status history is configured");
+    Ok(Some(store))
+}
+
+async fn collect_once(
+    store: Option<&StatusStore>,
+    retention_days: u32,
+) -> Result<(), Box<dyn std::error::Error>> {
+    let runner = ProbeRunner::new();
+    let services = runner.collect_public_services().await;
+    let projects = project::collect_project_status().await;
+    let snapshot = StatusSnapshot::from_services_and_projects(services, projects);
+
+    if let Some(store) = store {
+        store.record_snapshot(&snapshot).await?;
+        let pruned = store.prune_check_runs(retention_days).await?;
+        info!(
+            pruned_check_runs = pruned,
+            retention_days, "stored one status snapshot"
+        );
+    } else {
+        println!("{}", serde_json::to_string(&snapshot)?);
+    }
 
     Ok(())
 }

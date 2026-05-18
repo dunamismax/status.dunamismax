@@ -5,14 +5,16 @@ use tower_http::{compression::CompressionLayer, trace::TraceLayer};
 use crate::{
     assets,
     model::{ProjectStatus, StatusSnapshot},
-    pages::{self, NavSection},
+    pages,
     probes::ProbeRunner,
     project,
+    store::StatusStore,
 };
 
 #[derive(Debug, Clone)]
 pub struct AppState {
     source: StatusSource,
+    store: Option<StatusStore>,
 }
 
 #[derive(Debug, Clone)]
@@ -25,12 +27,21 @@ impl AppState {
     pub fn live() -> Self {
         Self {
             source: StatusSource::Live(ProbeRunner::new()),
+            store: None,
+        }
+    }
+
+    pub fn live_with_store(store: Option<StatusStore>) -> Self {
+        Self {
+            source: StatusSource::Live(ProbeRunner::new()),
+            store,
         }
     }
 
     pub fn fixed(snapshot: StatusSnapshot) -> Self {
         Self {
             source: StatusSource::Fixed(snapshot),
+            store: None,
         }
     }
 
@@ -56,6 +67,73 @@ impl AppState {
         match &self.source {
             StatusSource::Live(_) => project::collect_project_status().await,
             StatusSource::Fixed(snapshot) => snapshot.projects.clone(),
+        }
+    }
+
+    async fn incidents(
+        &self,
+    ) -> (
+        Vec<crate::model::IncidentRecord>,
+        Vec<crate::model::MaintenanceWindow>,
+    ) {
+        let Some(store) = &self.store else {
+            return (Vec::new(), Vec::new());
+        };
+
+        let incidents = match store.recent_incidents().await {
+            Ok(incidents) => incidents,
+            Err(error) => {
+                tracing::warn!(%error, "incident history query failed");
+                Vec::new()
+            }
+        };
+        let maintenance = match store.maintenance_windows().await {
+            Ok(maintenance) => maintenance,
+            Err(error) => {
+                tracing::warn!(%error, "maintenance history query failed");
+                Vec::new()
+            }
+        };
+
+        (incidents, maintenance)
+    }
+
+    async fn deployments(&self) -> Vec<crate::model::DeploymentEvent> {
+        let Some(store) = &self.store else {
+            return Vec::new();
+        };
+
+        match store.recent_deployments().await {
+            Ok(deployments) => deployments,
+            Err(error) => {
+                tracing::warn!(%error, "deployment history query failed");
+                Vec::new()
+            }
+        }
+    }
+
+    async fn readiness(&self) -> ReadyResponse {
+        match &self.store {
+            Some(store) => match store.ready().await {
+                Ok(()) => ReadyResponse {
+                    status: "ready",
+                    dependencies: "postgresql-ready,public-http-probes-configured",
+                    database: "ready",
+                },
+                Err(error) => {
+                    tracing::warn!(%error, "database readiness check failed");
+                    ReadyResponse {
+                        status: "degraded",
+                        dependencies: "postgresql-unavailable,public-http-probes-configured",
+                        database: "unavailable",
+                    }
+                }
+            },
+            None => ReadyResponse {
+                status: "ready",
+                dependencies: "postgresql-not-configured,public-http-probes-configured",
+                database: "not_configured",
+            },
         }
     }
 }
@@ -99,23 +177,21 @@ async fn projects(State(state): State<AppState>) -> impl IntoResponse {
     pages::projects(&state.projects().await)
 }
 
-async fn incidents() -> impl IntoResponse {
-    pages::placeholder(NavSection::Incidents)
+async fn incidents(State(state): State<AppState>) -> impl IntoResponse {
+    let (incidents, maintenance) = state.incidents().await;
+    pages::incidents(&incidents, &maintenance)
 }
 
-async fn deployments() -> impl IntoResponse {
-    pages::placeholder(NavSection::Deployments)
+async fn deployments(State(state): State<AppState>) -> impl IntoResponse {
+    pages::deployments(&state.deployments().await)
 }
 
 async fn healthz() -> &'static str {
     "ok\n"
 }
 
-async fn readyz() -> Json<ReadyResponse> {
-    Json(ReadyResponse {
-        status: "ready",
-        dependencies: "public-http-probes-configured",
-    })
+async fn readyz(State(state): State<AppState>) -> Json<ReadyResponse> {
+    Json(state.readiness().await)
 }
 
 async fn status_json(State(state): State<AppState>) -> Json<StatusSnapshot> {
@@ -130,6 +206,7 @@ async fn not_found() -> impl IntoResponse {
 struct ReadyResponse {
     status: &'static str,
     dependencies: &'static str,
+    database: &'static str,
 }
 
 #[cfg(test)]
@@ -185,6 +262,7 @@ mod tests {
         assert_eq!(status, StatusCode::OK);
         assert!(body.contains("ready"));
         assert!(body.contains("public-http-probes-configured"));
+        assert!(body.contains("postgresql-not-configured"));
     }
 
     #[tokio::test]
@@ -241,6 +319,24 @@ mod tests {
         assert!(body.contains("fileferry"));
         assert!(body.contains("BUILD progress"));
         assert!(!body.contains("/home/sawyer"));
+    }
+
+    #[tokio::test]
+    async fn incidents_route_renders_empty_history() {
+        let (status, body, _) = get("/incidents").await;
+
+        assert_eq!(status, StatusCode::OK);
+        assert!(body.contains("Incidents"));
+        assert!(body.contains("No incident records are stored yet."));
+    }
+
+    #[tokio::test]
+    async fn deployments_route_renders_empty_history() {
+        let (status, body, _) = get("/deployments").await;
+
+        assert_eq!(status, StatusCode::OK);
+        assert!(body.contains("Deployments"));
+        assert!(body.contains("No deployment records are stored yet."));
     }
 
     #[tokio::test]
