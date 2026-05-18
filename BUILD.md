@@ -21,8 +21,11 @@ Observed on 2026-05-18:
 - `origin` is configured for dual push to GitHub and Codeberg.
 - Domain target is `https://status.dunamismax.com`.
 - DNS is already routed to the Ubuntu host.
-- Only foundational repository files exist so far: `LICENSE`, `README.md`,
-  `BUILD.md`, and `AGENTS.md`.
+- Foundational repository files exist: `LICENSE`, `README.md`, `BUILD.md`,
+  and `AGENTS.md`.
+- The first Rust workspace pass now exists with `crates/status-web`, live
+  public HTTP probes, embedded assets, and Axum routes for the public status
+  shell.
 - The intended runtime is Rust, Axum, Leptos SSR, Tokio, Caddy, systemd, and
   PostgreSQL when durable history is needed.
 - Reference implementation patterns:
@@ -160,14 +163,15 @@ the product, stack, deployment target, or safety boundaries.
 Goal: create the smallest deployable Rust web app for
 `status.dunamismax.com`.
 
-- [ ] Add root `Cargo.toml` workspace and `rust-toolchain.toml`.
-- [ ] Add `crates/status-web` with Axum, Leptos SSR, Tokio, tracing, and
+- [x] Add root `Cargo.toml` workspace and `rust-toolchain.toml`.
+- [x] Add `crates/status-web` with Axum, Leptos SSR, Tokio, tracing, and
       graceful shutdown.
-- [ ] Add config for `STATUS_BIND_ADDR`, defaulting to `127.0.0.1:8095`.
-- [ ] Add `/healthz`, `/readyz`, `/`, `/services`, and `/api/status.json`.
-- [ ] Embed CSS and icon assets in the binary for the first pass.
-- [ ] Add route tests for health, home, services, and status JSON.
-- [ ] Add `justfile` or `xtask` only if it reduces repeated commands.
+- [x] Add config for `STATUS_BIND_ADDR`, defaulting to `127.0.0.1:8095`.
+- [x] Add `/healthz`, `/readyz`, `/`, `/services`, and `/api/status.json`.
+- [x] Embed CSS and icon assets in the binary for the first pass.
+- [x] Add route tests for health, home, services, and status JSON.
+- [x] Evaluate `justfile` or `xtask`; plain Cargo commands are sufficient for
+      now.
 
 Exit criteria: `cargo fmt`, `cargo clippy`, `cargo test`, and `cargo build`
 pass, and `cargo run -p status-web` serves a real status shell.
@@ -176,14 +180,14 @@ pass, and `cargo run -p status-web` serves a real status shell.
 
 Goal: show useful public status from explicit inventory plus live HTTP checks.
 
-- [ ] Define typed monitor targets for each public website.
-- [ ] Add public HTTP probes with timeout, expected status, and optional
+- [x] Define typed monitor targets for each public website.
+- [x] Add public HTTP probes with timeout, expected status, and optional
       expected body token.
-- [ ] Add rollup logic for operational/degraded/down/unknown.
-- [ ] Render service cards with last checked time, latency, status, and short
+- [x] Add rollup logic for operational/degraded/down/unknown.
+- [x] Render service table with last checked time, latency, status, and short
       reason.
-- [ ] Add JSON output for machines and future automation.
-- [ ] Include initial targets:
+- [x] Add JSON output for machines and future automation.
+- [x] Include initial targets:
       `dunamismax.com`, `fileferry.app`, `callrift.dev`,
       `pod-tracker.app`, `langindex.dev`, `0xvane.dev`, `debugpath.dev`,
       and `status.dunamismax.com`.
@@ -346,6 +350,15 @@ cargo test --workspace --all-features
 cargo build --workspace
 ```
 
+Last verified on 2026-05-18:
+
+```sh
+cargo fmt --all --check
+cargo clippy --workspace --all-targets --all-features -- -D warnings
+cargo test --workspace --all-features
+cargo build --workspace
+```
+
 Local web smoke after Phase 1:
 
 ```sh
@@ -353,6 +366,18 @@ cargo run -p status-web
 curl -fsS http://127.0.0.1:8095/healthz
 curl -fsS http://127.0.0.1:8095/api/status.json
 ```
+
+Last local smoke on 2026-05-18:
+
+```sh
+cargo run -p status-web
+curl -fsS http://127.0.0.1:8095/healthz
+curl -fsS http://127.0.0.1:8095/api/status.json
+```
+
+Observed JSON rollup during that smoke: 7 public targets operational and
+`status.dunamismax.com` down because DNS, TLS, or connection failed. This is
+expected until the public domain serves this app.
 
 Production smoke after Phase 7:
 

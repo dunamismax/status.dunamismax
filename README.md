@@ -93,8 +93,9 @@ docs/
   inventory/
 ```
 
-Start smaller than that if needed. The first useful cut can be one
-`status-web` binary with embedded static inventory and live HTTP probes.
+The current first cut is one `status-web` binary with embedded assets, explicit
+public inventory, and live public HTTP probes. The crate boundaries can split
+once host probes, persistence, and worker behavior arrive.
 
 ## Public Routes
 
@@ -113,13 +114,15 @@ GET /robots.txt
 GET /icon.svg
 ```
 
-Operator-only routes can come later behind a simple local-only, Tailscale, or
-login-protected boundary.
+The current implementation serves `/`, `/services`, `/healthz`, `/readyz`,
+`/api/status.json`, `/robots.txt`, and `/icon.svg`. `/projects`,
+`/incidents`, and `/deployments` are present as public placeholders until their
+probe and history phases land. Operator-only routes can come later behind a
+simple local-only, Tailscale, or login-protected boundary.
 
 ## Local Development
 
-The Rust workspace does not exist yet. Once Phase 1 in [`BUILD.md`](BUILD.md)
-lands, the expected loop should become:
+The Rust workspace is live. The expected local verification loop is:
 
 ```sh
 cargo fmt --all --check
@@ -130,7 +133,8 @@ cargo run -p status-web
 ```
 
 The app should bind to `127.0.0.1:8095` by default in production-like local
-mode so Caddy can reverse-proxy `status.dunamismax.com` to it.
+mode so Caddy can reverse-proxy `status.dunamismax.com` to it. Override the
+bind address with `STATUS_BIND_ADDR` and logging with `STATUS_LOG`.
 
 ## Production Shape
 
