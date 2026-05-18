@@ -4,6 +4,7 @@ use axum::{
 };
 use leptos::prelude::*;
 use leptos::tachys::view::RenderHtml;
+use std::collections::BTreeMap;
 
 use crate::model::{
     DeploymentEvent, IncidentRecord, MaintenanceWindow, ProjectStatus, ServiceStatus,
@@ -21,15 +22,23 @@ pub enum NavSection {
 }
 
 pub fn overview(snapshot: &StatusSnapshot) -> Response {
-    let affected = snapshot.summary.degraded + snapshot.summary.down + snapshot.summary.unknown;
     let body = format!(
         r#"
 <section class="status-band">
   <div>
     <p class="eyebrow">Self-hosted ecosystem status</p>
     <h1>{}</h1>
-    <p class="lede">{} of {} monitored checks need attention. Last checked {}.</p>
+    <p class="lede">{}</p>
+    <dl class="status-meta" aria-label="Snapshot metadata">
+      <div><dt>Last checked</dt><dd>{}</dd></div>
+      <div><dt>Checks</dt><dd>{}</dd></div>
+      <div><dt>Attention</dt><dd>{}</dd></div>
+    </dl>
   </div>
+  {}
+</section>
+<section class="overview-grid" aria-label="Status detail">
+  {}
   {}
 </section>
 <section class="section">
@@ -41,10 +50,13 @@ pub fn overview(snapshot: &StatusSnapshot) -> Response {
 </section>
 "#,
         state_headline(snapshot.overall_state),
-        affected,
-        snapshot.services.len(),
+        state_lede(snapshot),
         format_time(snapshot.checked_at),
+        snapshot.services.len(),
+        attention_count(snapshot),
         summary_html(snapshot),
+        attention_panel_html(snapshot),
+        group_panel_html(snapshot),
         service_table_html(&snapshot.services),
     );
 
@@ -385,12 +397,97 @@ fn summary_html(snapshot: &StatusSnapshot) -> String {
   <div><dt>Operational</dt><dd>{}</dd></div>
   <div><dt>Degraded</dt><dd>{}</dd></div>
   <div><dt>Down</dt><dd>{}</dd></div>
+  <div><dt>Maintenance</dt><dd>{}</dd></div>
   <div><dt>Unknown</dt><dd>{}</dd></div>
 </dl>"#,
         snapshot.summary.operational,
         snapshot.summary.degraded,
         snapshot.summary.down,
+        snapshot.summary.maintenance,
         snapshot.summary.unknown,
+    )
+}
+
+fn attention_panel_html(snapshot: &StatusSnapshot) -> String {
+    let rows = snapshot
+        .services
+        .iter()
+        .filter(|service| service.check.state != StatusState::Operational)
+        .take(6)
+        .map(|service| {
+            let state = service.check.state.as_str();
+            format!(
+                r#"<li>
+  <span class="state state-{}">{}</span>
+  <strong>{}</strong>
+  <span>{}</span>
+</li>"#,
+                state,
+                state,
+                escape_html(service.target.name),
+                escape_html(&service.check.reason),
+            )
+        })
+        .collect::<Vec<_>>();
+
+    if rows.is_empty() {
+        return r#"<article class="overview-panel">
+  <div class="section-heading compact">
+    <h2>Attention</h2>
+    <span class="state state-operational">clear</span>
+  </div>
+  <p class="panel-note">No monitored checks currently need attention.</p>
+</article>"#
+            .to_owned();
+    }
+
+    format!(
+        r#"<article class="overview-panel">
+  <div class="section-heading compact">
+    <h2>Attention</h2>
+    <a href="/services">View all</a>
+  </div>
+  <ul class="attention-list">{}</ul>
+</article>"#,
+        rows.join("")
+    )
+}
+
+fn group_panel_html(snapshot: &StatusSnapshot) -> String {
+    let mut groups: BTreeMap<&str, StatusState> = BTreeMap::new();
+    for service in &snapshot.services {
+        groups
+            .entry(service.target.group)
+            .and_modify(|state| {
+                if service.check.state.rank() > state.rank() {
+                    *state = service.check.state;
+                }
+            })
+            .or_insert(service.check.state);
+    }
+
+    let rows = groups
+        .into_iter()
+        .map(|(group, state)| {
+            let state_name = state.as_str();
+            format!(
+                r#"<li><span>{}</span><span class="state state-{}">{}</span></li>"#,
+                escape_html(group),
+                state_name,
+                state_name,
+            )
+        })
+        .collect::<Vec<_>>()
+        .join("");
+
+    format!(
+        r#"<article class="overview-panel">
+  <div class="section-heading compact">
+    <h2>Groups</h2>
+    <a href="/projects">Projects</a>
+  </div>
+  <ul class="group-list">{rows}</ul>
+</article>"#
     )
 }
 
@@ -682,6 +779,13 @@ fn short_commit(commit: &str) -> String {
     commit.chars().take(12).collect()
 }
 
+fn attention_count(snapshot: &StatusSnapshot) -> usize {
+    snapshot.summary.degraded
+        + snapshot.summary.down
+        + snapshot.summary.maintenance
+        + snapshot.summary.unknown
+}
+
 fn state_headline(state: StatusState) -> &'static str {
     match state {
         StatusState::Operational => "All monitored services are operational",
@@ -689,6 +793,21 @@ fn state_headline(state: StatusState) -> &'static str {
         StatusState::Down => "One or more monitored services are down",
         StatusState::Maintenance => "Maintenance is in progress",
         StatusState::Unknown => "Monitored service status is unknown",
+    }
+}
+
+fn state_lede(snapshot: &StatusSnapshot) -> String {
+    let affected = attention_count(snapshot);
+    if affected == 0 {
+        format!(
+            "All {} monitored checks are reporting normally.",
+            snapshot.services.len()
+        )
+    } else {
+        format!(
+            "{affected} of {} monitored checks need attention. The list below names the affected checks and public-safe reasons.",
+            snapshot.services.len()
+        )
     }
 }
 

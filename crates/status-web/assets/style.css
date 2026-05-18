@@ -2,6 +2,7 @@
   color-scheme: light dark;
   --bg: #f7f8fb;
   --panel: #ffffff;
+  --panel-soft: #eef2f7;
   --text: #18202f;
   --muted: #5b6472;
   --line: #d9dee8;
@@ -17,6 +18,7 @@
   :root {
     --bg: #111318;
     --panel: #181b22;
+    --panel-soft: #20242d;
     --text: #f0f3f7;
     --muted: #a8b0bd;
     --line: #303642;
@@ -40,6 +42,7 @@ body {
   font-family:
     Inter, ui-sans-serif, system-ui, -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif;
   line-height: 1.5;
+  min-width: 320px;
 }
 
 a {
@@ -71,6 +74,10 @@ a {
   margin: 0 auto;
   max-width: 1120px;
   padding: 1rem;
+}
+
+.site-header {
+  padding-bottom: .75rem;
 }
 
 .brand {
@@ -121,15 +128,55 @@ main {
 }
 
 .status-band {
-  align-items: end;
+  align-items: stretch;
   background: var(--panel);
   border: 1px solid var(--line);
   border-radius: 8px;
   display: grid;
-  gap: 1rem;
+  gap: 1.2rem;
   grid-template-columns: 1.3fr .9fr;
   margin-top: .5rem;
-  padding: 1.25rem;
+  padding: 1.35rem;
+}
+
+.status-meta {
+  display: flex;
+  flex-wrap: wrap;
+  gap: .6rem;
+  margin: 1rem 0 0;
+}
+
+.status-meta div {
+  background: var(--panel-soft);
+  border: 1px solid var(--line);
+  border-radius: 8px;
+  min-width: 9rem;
+  padding: .65rem .75rem;
+}
+
+.status-meta dt {
+  color: var(--muted);
+  font-size: .78rem;
+  font-weight: 700;
+}
+
+.status-meta dd {
+  font-weight: 800;
+  margin: .1rem 0 0;
+}
+
+.overview-grid {
+  display: grid;
+  gap: .8rem;
+  grid-template-columns: minmax(0, 1.15fr) minmax(18rem, .85fr);
+  margin-top: 1rem;
+}
+
+.overview-panel {
+  background: var(--panel);
+  border: 1px solid var(--line);
+  border-radius: 8px;
+  padding: 1rem;
 }
 
 .section {
@@ -146,6 +193,15 @@ main {
   gap: 1rem;
   justify-content: space-between;
   margin-bottom: .75rem;
+}
+
+.section-heading.compact {
+  align-items: center;
+  margin-bottom: .65rem;
+}
+
+.section-heading.compact h2 {
+  font-size: 1.05rem;
 }
 
 .eyebrow {
@@ -182,11 +238,12 @@ h2 {
 .summary {
   display: grid;
   gap: .6rem;
-  grid-template-columns: repeat(2, minmax(0, 1fr));
+  grid-template-columns: repeat(auto-fit, minmax(8rem, 1fr));
   margin: 0;
 }
 
 .summary div {
+  background: var(--panel-soft);
   border: 1px solid var(--line);
   border-radius: 8px;
   padding: .75rem;
@@ -201,6 +258,54 @@ h2 {
   font-size: 1.7rem;
   font-weight: 800;
   margin: 0;
+}
+
+.attention-list,
+.group-list {
+  display: grid;
+  gap: .55rem;
+  list-style: none;
+  margin: 0;
+  padding: 0;
+}
+
+.attention-list li,
+.group-list li {
+  align-items: start;
+  border-top: 1px solid var(--line);
+  display: grid;
+  gap: .35rem .7rem;
+  padding-top: .55rem;
+}
+
+.attention-list li {
+  grid-template-columns: minmax(6.6rem, auto) minmax(8rem, .6fr) minmax(12rem, 1fr);
+}
+
+.attention-list li:first-child,
+.group-list li:first-child {
+  border-top: 0;
+  padding-top: 0;
+}
+
+.attention-list strong,
+.attention-list span:last-child,
+.group-list span:first-child {
+  overflow-wrap: anywhere;
+}
+
+.attention-list span:last-child,
+.panel-note {
+  color: var(--muted);
+}
+
+.panel-note {
+  margin: 0;
+}
+
+.group-list li {
+  align-items: center;
+  grid-template-columns: 1fr auto;
 }
 
 .table-wrap {
@@ -219,9 +324,16 @@ h2 {
 .status-table th,
 .status-table td {
   border-bottom: 1px solid var(--line);
-  padding: .8rem;
+  padding: .72rem .8rem;
   text-align: left;
   vertical-align: top;
+}
+
+.status-table thead th {
+  background: var(--panel-soft);
+  color: var(--muted);
+  font-size: .82rem;
+  font-weight: 800;
 }
 
 .status-table tbody tr:last-child th,
@@ -377,7 +489,38 @@ h2 {
     grid-template-columns: 1fr;
   }
 
+  .overview-grid {
+    grid-template-columns: 1fr;
+  }
+
   .summary {
     grid-template-columns: repeat(2, minmax(7rem, 1fr));
+  }
+
+  .attention-list li {
+    grid-template-columns: 1fr;
+  }
+}
+
+@media (max-width: 480px) {
+  .site-header,
+  .site-footer,
+  main {
+    padding-left: .75rem;
+    padding-right: .75rem;
+  }
+
+  .status-band,
+  .overview-panel,
+  .project-card {
+    padding: .85rem;
+  }
+
+  .summary {
+    grid-template-columns: 1fr;
+  }
+
+  .status-meta div {
+    width: 100%;
   }
 }
