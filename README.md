@@ -54,7 +54,9 @@ Core public sites:
 - `https://langindex.dev`
 - `https://0xvane.dev`
 - `https://debugpath.dev`
+- `https://sealport.cc`
 - `https://status.dunamismax.com`
+- `https://xrayservice.net`
 
 Core host services:
 
@@ -67,8 +69,12 @@ Core host services:
 - `vane-ssh.service`
 - `debugpath-site.service`
 - `debugpath-ssh.service`
+- `sealport-web.service`
+- `status-dunamismax.service`
 - `caddy.service`
 - `cloudflare-ddns.service`
+- `rustdesk-preconfig-build.service`
+- backup timers for Callrift and Pod Tracker
 
 Repository and deployment inventory should start from
 `/home/sawyer/github/toolworks/automation/self-hosted-rust-deploy/deploy-all.sh`

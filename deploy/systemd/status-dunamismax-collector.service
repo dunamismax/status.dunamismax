@@ -10,8 +10,7 @@ User=status-dunamismax
 Group=status-dunamismax
 WorkingDirectory=/opt/status-dunamismax
 EnvironmentFile=-/etc/status-dunamismax/status.env
-Environment=STATUS_COLLECT_ONCE=true
-ExecStart=/opt/status-dunamismax/status-web
+ExecStart=/usr/bin/env STATUS_COLLECT_ONCE=true /opt/status-dunamismax/status-web
 NoNewPrivileges=true
 PrivateTmp=true
 ProtectHome=read-only

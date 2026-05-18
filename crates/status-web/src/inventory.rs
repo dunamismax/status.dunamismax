@@ -54,11 +54,25 @@ pub fn public_targets() -> Vec<MonitorTarget> {
             "https://debugpath.dev/healthz",
         ),
         target(
+            "sealport-cc",
+            "sealport.cc",
+            "Public websites",
+            "https://sealport.cc",
+            "https://sealport.cc/healthz",
+        ),
+        target(
             "status-dunamismax-com",
             "status.dunamismax.com",
             "Public websites",
             "https://status.dunamismax.com",
             "https://status.dunamismax.com/healthz",
+        ),
+        target(
+            "xrayservice-net",
+            "xrayservice.net",
+            "Public websites",
+            "https://xrayservice.net",
+            "https://xrayservice.net/",
         ),
     ]
 }
@@ -67,22 +81,40 @@ pub fn project_targets() -> Vec<ProjectTarget> {
     let root = repository_root();
 
     [
-        project("fileferry", "fileferry", Some("https://fileferry.app")),
+        project("0xvane", "0xvane", Some("https://0xvane.dev")),
+        project("callrift", "callrift", Some("https://callrift.dev")),
+        project("c-from-the-ground-up", "c-from-the-ground-up", None),
+        project("debugpath", "debugpath", Some("https://debugpath.dev")),
         project(
             "dunamismax-com",
             "dunamismax.com",
             Some("https://dunamismax.com"),
         ),
-        project("callrift", "callrift", Some("https://callrift.dev")),
+        project("dunamismax", "dunamismax", None),
+        project("fileferry", "fileferry", Some("https://fileferry.app")),
+        project("go-web-server", "go-web-server", None),
+        project("hello-world-from-hell", "hello-world-from-hell", None),
+        project("langindex", "langindex", Some("https://langindex.dev")),
+        project("mtg-card-bot", "mtg-card-bot", None),
+        project("myliferpg", "myliferpg", None),
         project(
             "pod-tracker",
             "pod-tracker",
             Some("https://pod-tracker.app"),
         ),
-        project("langindex", "langindex", Some("https://langindex.dev")),
-        project("0xvane", "0xvane", Some("https://0xvane.dev")),
-        project("debugpath", "debugpath", Some("https://debugpath.dev")),
+        project("rustdesk-selfhosted", "rustdesk-selfhosted", None),
+        project("sealport", "sealport", Some("https://sealport.cc")),
+        project(
+            "status-dunamismax",
+            "status.dunamismax",
+            Some("https://status.dunamismax.com"),
+        ),
         project("toolworks", "toolworks", None),
+        project(
+            "xrayservice",
+            "xrayservice",
+            Some("https://xrayservice.net"),
+        ),
     ]
     .into_iter()
     .map(|mut target| {
@@ -146,7 +178,7 @@ mod tests {
     fn inventory_contains_initial_public_targets() {
         let targets = public_targets();
 
-        assert_eq!(targets.len(), 8);
+        assert_eq!(targets.len(), 10);
         assert!(
             targets
                 .iter()
@@ -164,8 +196,14 @@ mod tests {
     fn project_inventory_contains_initial_repos_without_public_paths() {
         let targets = project_targets();
 
-        assert_eq!(targets.len(), 8);
+        assert_eq!(targets.len(), 18);
         assert!(targets.iter().any(|target| target.repo_name == "toolworks"));
+        assert!(targets.iter().any(|target| target.repo_name == "sealport"));
+        assert!(
+            targets
+                .iter()
+                .any(|target| target.repo_name == "status.dunamismax")
+        );
         assert!(targets.iter().all(|target| !target.repo_path.is_empty()));
 
         let json = serde_json::to_string(&targets[0]).expect("project target JSON");

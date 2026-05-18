@@ -96,8 +96,16 @@ pub fn systemd_targets() -> Vec<SystemdUnitTarget> {
         long_running("vane-ssh", "vane-ssh.service"),
         long_running("debugpath-site", "debugpath-site.service"),
         long_running("debugpath-ssh", "debugpath-ssh.service"),
+        long_running("sealport-web", "sealport-web.service"),
+        long_running("status-dunamismax", "status-dunamismax.service"),
         long_running("caddy", "caddy.service"),
         one_shot("cloudflare-ddns", "cloudflare-ddns.service"),
+        one_shot(
+            "rustdesk-preconfig-build",
+            "rustdesk-preconfig-build.service",
+        ),
+        one_shot("callrift-backup", "callrift-backup.service"),
+        one_shot("pod-tracker-backup", "pod-tracker-backup.service"),
     ]
 }
 
@@ -143,8 +151,18 @@ pub fn service_mappings() -> &'static [ServiceMapping] {
             compose_services: &[],
         },
         ServiceMapping {
+            public_target_id: "sealport-cc",
+            systemd_units: &["sealport-web.service"],
+            compose_services: &[],
+        },
+        ServiceMapping {
             public_target_id: "status-dunamismax-com",
             systemd_units: &["status-dunamismax.service"],
+            compose_services: &[],
+        },
+        ServiceMapping {
+            public_target_id: "xrayservice-net",
+            systemd_units: &["rustdesk-preconfig-build.service"],
             compose_services: &[],
         },
     ];
@@ -911,7 +929,9 @@ InactiveEnterTimestamp=Mon 2026-05-18 12:00:00 UTC
             "langindex-dev",
             "0xvane-dev",
             "debugpath-dev",
+            "sealport-cc",
             "status-dunamismax-com",
+            "xrayservice-net",
         ] {
             assert!(
                 mappings

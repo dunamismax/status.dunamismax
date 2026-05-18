@@ -33,6 +33,9 @@ Observed on 2026-05-18:
 - Project status now exists for premier repositories with git branch,
   ahead/behind, dirty state, latest commit age, remote reachability, and
   `BUILD.md` checkbox progress.
+- Public and project inventory now includes `sealport.cc`, `xrayservice.net`,
+  `status.dunamismax`, `sealport`, and the other local project checkouts under
+  `/home/sawyer/github`.
 - Optional PostgreSQL-backed history now exists with migrations for targets,
   check runs, rollups, incidents, maintenance windows, and deployment events.
 - `STATUS_COLLECT_ONCE=1` runs a timer-friendly one-shot collection path that
@@ -211,7 +214,7 @@ Goal: show useful public status from explicit inventory plus live HTTP checks.
 - [x] Include initial targets:
       `dunamismax.com`, `fileferry.app`, `callrift.dev`,
       `pod-tracker.app`, `langindex.dev`, `0xvane.dev`, `debugpath.dev`,
-      and `status.dunamismax.com`.
+      `sealport.cc`, `status.dunamismax.com`, and `xrayservice.net`.
 
 Exit criteria: the page truthfully reports public website health without
 touching private host state.
@@ -241,7 +244,9 @@ Goal: show project health, not just uptime.
       authoritative runtime truth.
 - [x] Add project cards for premier repos first:
       `fileferry`, `dunamismax.com`, `callrift`, `pod-tracker`,
-      `langindex`, `0xvane`, `debugpath`, and `toolworks`.
+      `langindex`, `0xvane`, `debugpath`, `sealport`,
+      `status.dunamismax`, `toolworks`, and the other local project
+      checkouts under `/home/sawyer/github`.
 - [x] Add stale-branch and dirty-worktree warnings for server checkouts.
 
 Exit criteria: Stephen can see which projects are live, changing, stale, or
@@ -328,7 +333,9 @@ https://pod-tracker.app/healthz
 https://langindex.dev/healthz
 https://0xvane.dev/health
 https://debugpath.dev/healthz
+https://sealport.cc/healthz
 https://status.dunamismax.com/healthz
+https://xrayservice.net/
 ```
 
 Host services:
@@ -344,8 +351,13 @@ vane-worker.service
 vane-ssh.service
 debugpath-site.service
 debugpath-ssh.service
+sealport-web.service
+status-dunamismax.service
 caddy.service
 cloudflare-ddns.service
+rustdesk-preconfig-build.service
+callrift-backup.service
+pod-tracker-backup.service
 ```
 
 `vane-worker.service` and `cloudflare-ddns.service` may be successful
