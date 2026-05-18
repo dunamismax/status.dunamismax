@@ -1,6 +1,6 @@
 use status_web::{
     config::Config,
-    model::StatusSnapshot,
+    model::{DeploymentEvent, StatusSnapshot},
     probes::ProbeRunner,
     project,
     router::{AppState, router_with_state},
@@ -15,6 +15,11 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
     let config = Config::from_env()?;
     init_tracing(&config.log_filter)?;
     let store = connect_store(config.database_url.as_deref()).await?;
+
+    if let Some(deployment_event) = &config.deployment_event {
+        record_deployment(store.as_ref(), deployment_event).await?;
+        return Ok(());
+    }
 
     if config.collect_once {
         collect_once(store.as_ref(), config.retention_days).await?;
@@ -45,6 +50,25 @@ async fn connect_store(
     store.migrate().await?;
     info!("postgresql status history is configured");
     Ok(Some(store))
+}
+
+async fn record_deployment(
+    store: Option<&StatusStore>,
+    deployment: &DeploymentEvent,
+) -> Result<(), Box<dyn std::error::Error>> {
+    let Some(store) = store else {
+        return Err("STATUS_DATABASE_URL is required when STATUS_RECORD_DEPLOYMENT is true".into());
+    };
+
+    store.record_deployment(deployment).await?;
+    info!(
+        service_id = deployment.service_id.as_deref().unwrap_or("unknown"),
+        repo_name = deployment.repo_name.as_deref().unwrap_or("unknown"),
+        environment = %deployment.environment,
+        deployed_at = %deployment.deployed_at,
+        "recorded deployment event"
+    );
+    Ok(())
 }
 
 async fn collect_once(

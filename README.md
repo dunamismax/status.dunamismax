@@ -113,6 +113,7 @@ GET /deployments              recent deploy evidence
 GET /healthz                  shallow app health
 GET /readyz                   database and probe readiness
 GET /api/status.json          machine-readable current rollup
+GET /api/incidents.json       machine-readable incident and maintenance feed
 GET /robots.txt
 GET /icon.svg
 ```
@@ -142,6 +143,8 @@ PostgreSQL history is optional. Set `STATUS_DATABASE_URL` to run migrations at
 startup and make `/readyz` check the database. Set `STATUS_COLLECT_ONCE=1` to
 collect one public service and project snapshot, persist it when the database
 is configured, prune old check rows with `STATUS_RETENTION_DAYS`, and exit.
+Set `STATUS_RECORD_DEPLOYMENT=1` with deployment metadata to record an explicit
+deployment event and exit.
 
 ## Production Shape
 
@@ -155,8 +158,9 @@ Production target:
 - optional PostgreSQL database for durable status history
 
 Deployment templates live under `deploy/` for the systemd unit, environment
-file, and Caddy reverse proxy. They are repo-owned templates; installing them
-and reloading host services remains an explicit production step.
+file, collector timer, and Caddy reverse proxy. They are repo-owned templates;
+installing them and reloading host services remains an explicit production
+step. A host runbook lives at `docs/runbooks/production-self-host.md`.
 
 Do not publish host-sensitive details publicly by default. Public status should
 show enough to be useful without exposing private paths, secrets, internal IPs,

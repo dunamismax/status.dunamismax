@@ -1,25 +1,19 @@
 [Unit]
-Description=Dunamis Status web service
+Description=Dunamis Status one-shot collector
 Documentation=https://status.dunamismax.com/
-After=network-online.target
+After=network-online.target postgresql.service
 Wants=network-online.target
 
 [Service]
-Type=simple
+Type=oneshot
 User=status-dunamismax
 Group=status-dunamismax
 WorkingDirectory=/opt/status-dunamismax
 EnvironmentFile=-/etc/status-dunamismax/status.env
+Environment=STATUS_COLLECT_ONCE=true
 ExecStart=/opt/status-dunamismax/status-web
-Restart=on-failure
-RestartSec=5s
-TimeoutStopSec=20s
-KillSignal=SIGTERM
 NoNewPrivileges=true
 PrivateTmp=true
 ProtectHome=read-only
 ProtectSystem=strict
 ReadWritePaths=/opt/status-dunamismax
-
-[Install]
-WantedBy=multi-user.target

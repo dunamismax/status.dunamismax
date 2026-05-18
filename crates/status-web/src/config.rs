@@ -1,10 +1,14 @@
 use std::{env, net::SocketAddr};
 
+use chrono::{DateTime, Utc};
 use thiserror::Error;
+
+use crate::model::DeploymentEvent;
 
 pub const DEFAULT_BIND_ADDR: &str = "127.0.0.1:8095";
 pub const DEFAULT_LOG_FILTER: &str = "info,status_web=info,tower_http=info";
 pub const DEFAULT_RETENTION_DAYS: u32 = 30;
+pub const DEFAULT_DEPLOYMENT_ENVIRONMENT: &str = "production";
 
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub struct Config {
@@ -13,6 +17,7 @@ pub struct Config {
     pub database_url: Option<String>,
     pub retention_days: u32,
     pub collect_once: bool,
+    pub deployment_event: Option<DeploymentEvent>,
 }
 
 impl Config {
@@ -32,6 +37,11 @@ impl Config {
             .transpose()?
             .unwrap_or(DEFAULT_RETENTION_DAYS);
         let collect_once = env_bool("STATUS_COLLECT_ONCE")?;
+        let deployment_event = if env_bool("STATUS_RECORD_DEPLOYMENT")? {
+            Some(deployment_event_from_env()?)
+        } else {
+            None
+        };
 
         Ok(Self {
             bind_addr,
@@ -39,6 +49,7 @@ impl Config {
             database_url,
             retention_days,
             collect_once,
+            deployment_event,
         })
     }
 }
@@ -49,8 +60,47 @@ pub enum ConfigError {
     BindAddr(#[from] std::net::AddrParseError),
     #[error("STATUS_RETENTION_DAYS must be a positive integer: {0}")]
     RetentionDays(std::num::ParseIntError),
+    #[error("STATUS_DEPLOYMENT_DEPLOYED_AT must be an RFC3339 timestamp: {0}")]
+    DeploymentTime(chrono::ParseError),
     #[error("{0} must be true, false, 1, 0, yes, or no")]
     Bool(&'static str),
+}
+
+fn deployment_event_from_env() -> Result<DeploymentEvent, ConfigError> {
+    let service_id = env_string("STATUS_DEPLOYMENT_SERVICE_ID");
+    let repo_name = env_string("STATUS_DEPLOYMENT_REPO_NAME");
+    let commit_sha = env_string("STATUS_DEPLOYMENT_COMMIT_SHA");
+    let environment = env_string("STATUS_DEPLOYMENT_ENVIRONMENT")
+        .unwrap_or_else(|| DEFAULT_DEPLOYMENT_ENVIRONMENT.to_owned());
+    let deployed_at = match env_string("STATUS_DEPLOYMENT_DEPLOYED_AT") {
+        Some(value) => DateTime::parse_from_rfc3339(&value)
+            .map_err(ConfigError::DeploymentTime)?
+            .with_timezone(&Utc),
+        None => Utc::now(),
+    };
+    let public_summary = env_string("STATUS_DEPLOYMENT_PUBLIC_SUMMARY").unwrap_or_else(|| {
+        let subject = service_id
+            .as_deref()
+            .or(repo_name.as_deref())
+            .unwrap_or("service");
+        format!("{subject} deployed to {environment}")
+    });
+
+    Ok(DeploymentEvent {
+        service_id,
+        repo_name,
+        commit_sha,
+        environment,
+        deployed_at,
+        public_summary,
+    })
+}
+
+fn env_string(name: &'static str) -> Option<String> {
+    env::var(name)
+        .ok()
+        .map(|value| value.trim().to_owned())
+        .filter(|value| !value.is_empty())
 }
 
 fn env_bool(name: &'static str) -> Result<bool, ConfigError> {
@@ -77,6 +127,37 @@ mod tests {
     #[test]
     fn default_retention_is_thirty_days() {
         assert_eq!(DEFAULT_RETENTION_DAYS, 30);
+    }
+
+    #[test]
+    fn parses_deployment_event_env_values() {
+        unsafe {
+            env::set_var("STATUS_RECORD_DEPLOYMENT", "true");
+            env::set_var("STATUS_DEPLOYMENT_SERVICE_ID", "status-dunamismax");
+            env::set_var("STATUS_DEPLOYMENT_REPO_NAME", "status.dunamismax");
+            env::set_var("STATUS_DEPLOYMENT_COMMIT_SHA", "abcdef1234567890");
+            env::set_var("STATUS_DEPLOYMENT_ENVIRONMENT", "production");
+            env::set_var("STATUS_DEPLOYMENT_DEPLOYED_AT", "2026-05-18T12:00:00Z");
+            env::set_var("STATUS_DEPLOYMENT_PUBLIC_SUMMARY", "status deployed");
+        }
+
+        let config = Config::from_env().expect("config");
+        let deployment = config.deployment_event.expect("deployment event");
+
+        assert_eq!(deployment.service_id.as_deref(), Some("status-dunamismax"));
+        assert_eq!(deployment.repo_name.as_deref(), Some("status.dunamismax"));
+        assert_eq!(deployment.environment, "production");
+        assert_eq!(deployment.public_summary, "status deployed");
+
+        unsafe {
+            env::remove_var("STATUS_RECORD_DEPLOYMENT");
+            env::remove_var("STATUS_DEPLOYMENT_SERVICE_ID");
+            env::remove_var("STATUS_DEPLOYMENT_REPO_NAME");
+            env::remove_var("STATUS_DEPLOYMENT_COMMIT_SHA");
+            env::remove_var("STATUS_DEPLOYMENT_ENVIRONMENT");
+            env::remove_var("STATUS_DEPLOYMENT_DEPLOYED_AT");
+            env::remove_var("STATUS_DEPLOYMENT_PUBLIC_SUMMARY");
+        }
     }
 
     #[test]

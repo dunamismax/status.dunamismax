@@ -4,7 +4,7 @@ use tower_http::{compression::CompressionLayer, trace::TraceLayer};
 
 use crate::{
     assets,
-    model::{ProjectStatus, StatusSnapshot},
+    model::{IncidentRecord, MaintenanceWindow, ProjectStatus, StatusSnapshot},
     pages,
     probes::ProbeRunner,
     project,
@@ -155,6 +155,7 @@ pub fn router_with_state(state: AppState) -> Router {
         .route("/deployments", get(deployments))
         .route("/healthz", get(healthz))
         .route("/readyz", get(readyz))
+        .route("/api/incidents.json", get(incidents_json))
         .route("/api/status.json", get(status_json))
         .route("/assets/status.css", get(assets::style_css))
         .route("/icon.svg", get(assets::icon_svg))
@@ -198,6 +199,14 @@ async fn status_json(State(state): State<AppState>) -> Json<StatusSnapshot> {
     Json(state.status_snapshot().await)
 }
 
+async fn incidents_json(State(state): State<AppState>) -> Json<IncidentFeed> {
+    let (incidents, maintenance) = state.incidents().await;
+    Json(IncidentFeed {
+        incidents,
+        maintenance,
+    })
+}
+
 async fn not_found() -> impl IntoResponse {
     pages::not_found()
 }
@@ -207,6 +216,12 @@ struct ReadyResponse {
     status: &'static str,
     dependencies: &'static str,
     database: &'static str,
+}
+
+#[derive(Debug, Serialize)]
+struct IncidentFeed {
+    incidents: Vec<IncidentRecord>,
+    maintenance: Vec<MaintenanceWindow>,
 }
 
 #[cfg(test)]
@@ -308,6 +323,25 @@ mod tests {
         assert_eq!(json["summary"]["degraded"], 1);
         assert_eq!(json["projects"][0]["target"]["repo_name"], "fileferry");
         assert!(json["projects"][0]["target"]["repo_path"].is_null());
+    }
+
+    #[tokio::test]
+    async fn incidents_json_returns_public_feed_shape() {
+        let (status, body, headers) = get("/api/incidents.json").await;
+
+        assert_eq!(status, StatusCode::OK);
+        assert_eq!(
+            headers.get(header::CONTENT_TYPE).unwrap(),
+            "application/json"
+        );
+        let json: serde_json::Value = serde_json::from_str(&body).expect("json");
+        assert!(json["incidents"].as_array().expect("incidents").is_empty());
+        assert!(
+            json["maintenance"]
+                .as_array()
+                .expect("maintenance")
+                .is_empty()
+        );
     }
 
     #[tokio::test]

@@ -141,6 +141,32 @@ impl StatusStore {
 
         Ok(deployments)
     }
+
+    pub async fn record_deployment(&self, deployment: &DeploymentEvent) -> Result<(), StoreError> {
+        sqlx::query(
+            r#"
+            insert into deployment_events (
+                service_id,
+                repo_name,
+                commit_sha,
+                environment,
+                deployed_at,
+                public_summary
+            )
+            values ($1, $2, $3, $4, $5, $6)
+            "#,
+        )
+        .bind(&deployment.service_id)
+        .bind(&deployment.repo_name)
+        .bind(&deployment.commit_sha)
+        .bind(&deployment.environment)
+        .bind(deployment.deployed_at)
+        .bind(&deployment.public_summary)
+        .execute(&self.pool)
+        .await?;
+
+        Ok(())
+    }
 }
 
 async fn upsert_service_target(
@@ -339,6 +365,16 @@ mod tests {
             let store = StatusStore::connect(&database_url).await?;
             store.migrate().await?;
             store.record_snapshot(&snapshot_fixture()).await?;
+            store
+                .record_deployment(&DeploymentEvent {
+                    service_id: Some("status-dunamismax".to_owned()),
+                    repo_name: Some("status.dunamismax".to_owned()),
+                    commit_sha: Some("abcdef1234567890".to_owned()),
+                    environment: "production".to_owned(),
+                    deployed_at: Utc.with_ymd_and_hms(2026, 5, 18, 12, 30, 0).unwrap(),
+                    public_summary: "status deployed".to_owned(),
+                })
+                .await?;
             let target_count: i64 = sqlx::query_scalar("select count(*) from targets")
                 .fetch_one(&store.pool)
                 .await?;
@@ -357,7 +393,11 @@ mod tests {
             assert_eq!(rollup_count, 1);
             assert!(incidents.is_empty());
             assert!(maintenance.is_empty());
-            assert!(deployments.is_empty());
+            assert_eq!(deployments.len(), 1);
+            assert_eq!(
+                deployments[0].service_id.as_deref(),
+                Some("status-dunamismax")
+            );
             assert_eq!(store.prune_check_runs(30).await?, 0);
             Ok::<(), StoreError>(())
         }

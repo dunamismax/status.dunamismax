@@ -1,0 +1,11 @@
+[Unit]
+Description=Collect Dunamis Status history
+
+[Timer]
+OnBootSec=2min
+OnUnitActiveSec=5min
+RandomizedDelaySec=30s
+Unit=status-dunamismax-collector.service
+
+[Install]
+WantedBy=timers.target
