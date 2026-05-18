@@ -237,6 +237,58 @@ h2 {
   margin-top: .15rem;
 }
 
+.project-grid {
+  display: grid;
+  gap: .8rem;
+  grid-template-columns: repeat(auto-fit, minmax(18rem, 1fr));
+}
+
+.project-card {
+  background: var(--panel);
+  border: 1px solid var(--line);
+  border-radius: 8px;
+  padding: 1rem;
+}
+
+.project-card-header {
+  align-items: flex-start;
+  display: flex;
+  gap: .75rem;
+  justify-content: space-between;
+}
+
+.project-card h2 {
+  font-size: 1.1rem;
+  overflow-wrap: anywhere;
+}
+
+.project-card p {
+  color: var(--muted);
+  margin: .7rem 0;
+}
+
+.project-card dl {
+  display: grid;
+  gap: .45rem;
+  margin: 0;
+}
+
+.project-card dl div {
+  display: grid;
+  gap: .5rem;
+  grid-template-columns: minmax(7rem, .7fr) 1fr;
+}
+
+.project-card dt {
+  color: var(--muted);
+  font-size: .82rem;
+}
+
+.project-card dd {
+  margin: 0;
+  overflow-wrap: anywhere;
+}
+
 .state {
   align-items: center;
   display: inline-flex;

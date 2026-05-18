@@ -37,6 +37,7 @@ impl StatusState {
 #[serde(rename_all = "lowercase")]
 pub enum CheckKind {
     Http,
+    Git,
 }
 
 #[derive(Debug, Clone, PartialEq, Eq, Serialize)]
@@ -69,6 +70,45 @@ pub struct ServiceStatus {
 }
 
 #[derive(Debug, Clone, PartialEq, Eq, Serialize)]
+pub struct ProjectTarget {
+    pub id: &'static str,
+    pub name: &'static str,
+    pub repo_name: &'static str,
+    pub public_url: Option<&'static str>,
+    #[serde(skip_serializing)]
+    pub repo_path: String,
+}
+
+#[derive(Debug, Clone, PartialEq, Eq, Serialize)]
+pub struct BuildProgress {
+    pub checked: usize,
+    pub total: usize,
+    pub next_phase: Option<String>,
+}
+
+#[derive(Debug, Clone, PartialEq, Eq, Serialize)]
+pub struct GitStatus {
+    pub branch: Option<String>,
+    pub upstream: Option<String>,
+    pub ahead: Option<u32>,
+    pub behind: Option<u32>,
+    pub dirty: Option<bool>,
+    pub latest_commit_age_days: Option<i64>,
+    pub remote_reachable: Option<bool>,
+}
+
+#[derive(Debug, Clone, PartialEq, Eq, Serialize)]
+pub struct ProjectStatus {
+    pub target: ProjectTarget,
+    pub state: StatusState,
+    pub checked_at: DateTime<Utc>,
+    pub reason: String,
+    pub git: GitStatus,
+    pub build: Option<BuildProgress>,
+    pub probe_version: &'static str,
+}
+
+#[derive(Debug, Clone, PartialEq, Eq, Serialize)]
 pub struct StatusSummary {
     pub operational: usize,
     pub degraded: usize,
@@ -83,21 +123,32 @@ pub struct StatusSnapshot {
     pub checked_at: DateTime<Utc>,
     pub summary: StatusSummary,
     pub services: Vec<ServiceStatus>,
+    pub projects: Vec<ProjectStatus>,
 }
 
 impl StatusSnapshot {
-    pub fn from_services(mut services: Vec<ServiceStatus>) -> Self {
+    pub fn from_services(services: Vec<ServiceStatus>) -> Self {
+        Self::from_services_and_projects(services, Vec::new())
+    }
+
+    pub fn from_services_and_projects(
+        mut services: Vec<ServiceStatus>,
+        mut projects: Vec<ProjectStatus>,
+    ) -> Self {
         services.sort_by(|left, right| left.target.name.cmp(right.target.name));
+        projects.sort_by(|left, right| left.target.name.cmp(right.target.name));
 
         let checked_at = services
             .iter()
             .map(|service| service.check.checked_at)
+            .chain(projects.iter().map(|project| project.checked_at))
             .max()
             .unwrap_or_else(Utc::now);
         let summary = StatusSummary::from_services(&services);
         let overall_state = services
             .iter()
             .map(|service| service.check.state)
+            .chain(projects.iter().map(|project| project.state))
             .max_by_key(|state| state.rank())
             .unwrap_or(StatusState::Unknown);
 
@@ -106,6 +157,7 @@ impl StatusSnapshot {
             checked_at,
             summary,
             services,
+            projects,
         }
     }
 }

@@ -5,7 +5,7 @@ use axum::{
 use leptos::prelude::*;
 use leptos::tachys::view::RenderHtml;
 
-use crate::model::{ServiceStatus, StatusSnapshot, StatusState};
+use crate::model::{ProjectStatus, ServiceStatus, StatusSnapshot, StatusState};
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub enum NavSection {
@@ -74,6 +74,32 @@ pub fn services(snapshot: &StatusSnapshot) -> Response {
         "Services",
         "Public service check results for the dunamismax ecosystem.",
         NavSection::Services,
+        body,
+    )
+}
+
+pub fn projects(projects: &[ProjectStatus]) -> Response {
+    let body = format!(
+        r#"
+<section class="section first-section">
+  <div class="section-heading">
+    <div>
+      <p class="eyebrow">Repository status</p>
+      <h1>Projects</h1>
+    </div>
+    <p class="timestamp">{} monitored repositories</p>
+  </div>
+  {}
+</section>
+"#,
+        projects.len(),
+        project_grid_html(projects),
+    );
+
+    render_page(
+        "Projects",
+        "Repository and project health for the dunamismax ecosystem.",
+        NavSection::Projects,
         body,
     )
 }
@@ -263,6 +289,87 @@ fn service_row_html(service: &ServiceStatus) -> String {
     )
 }
 
+fn project_grid_html(projects: &[ProjectStatus]) -> String {
+    let cards = projects
+        .iter()
+        .map(project_card_html)
+        .collect::<Vec<_>>()
+        .join("");
+
+    format!(r#"<div class="project-grid">{cards}</div>"#)
+}
+
+fn project_card_html(project: &ProjectStatus) -> String {
+    let state = project.state.as_str();
+    let branch = project.git.branch.as_deref().unwrap_or("unknown");
+    let upstream = project.git.upstream.as_deref().unwrap_or("none");
+    let dirty = match project.git.dirty {
+        Some(true) => "dirty",
+        Some(false) => "clean",
+        None => "unknown",
+    };
+    let remote = match project.git.remote_reachable {
+        Some(true) => "reachable",
+        Some(false) => "unreachable",
+        None => "unknown",
+    };
+    let commit_age = project
+        .git
+        .latest_commit_age_days
+        .map(|age| format!("{age} days"))
+        .unwrap_or_else(|| "unknown".to_owned());
+    let ahead = project.git.ahead.unwrap_or(0);
+    let behind = project.git.behind.unwrap_or(0);
+    let progress = project
+        .build
+        .as_ref()
+        .map(|build| {
+            let phase = build.next_phase.as_deref().unwrap_or("No open phase found");
+            format!("{}/{} checked · {}", build.checked, build.total, phase)
+        })
+        .unwrap_or_else(|| "BUILD progress unavailable".to_owned());
+    let title = if let Some(url) = project.target.public_url {
+        format!(
+            r#"<a href="{}">{}</a>"#,
+            escape_html(url),
+            escape_html(project.target.name),
+        )
+    } else {
+        escape_html(project.target.name)
+    };
+
+    format!(
+        r#"<article class="project-card">
+  <div class="project-card-header">
+    <h2>{}</h2>
+    <span class="state state-{}">{}</span>
+  </div>
+  <p>{}</p>
+  <dl>
+    <div><dt>Branch</dt><dd>{}</dd></div>
+    <div><dt>Upstream</dt><dd>{}</dd></div>
+    <div><dt>Ahead / behind</dt><dd>{} / {}</dd></div>
+    <div><dt>Worktree</dt><dd>{}</dd></div>
+    <div><dt>Latest commit</dt><dd>{}</dd></div>
+    <div><dt>Origin</dt><dd>{}</dd></div>
+    <div><dt>BUILD progress</dt><dd>{}</dd></div>
+  </dl>
+</article>"#,
+        title,
+        state,
+        state,
+        escape_html(&project.reason),
+        escape_html(branch),
+        escape_html(upstream),
+        ahead,
+        behind,
+        dirty,
+        escape_html(&commit_age),
+        remote,
+        escape_html(&progress),
+    )
+}
+
 fn state_headline(state: StatusState) -> &'static str {
     match state {
         StatusState::Operational => "All monitored public services are operational",
@@ -320,5 +427,43 @@ mod tests {
 
         assert!(row.contains("&lt;bad&gt;"));
         assert!(!row.contains("<bad>"));
+    }
+
+    #[test]
+    fn project_cards_escape_public_reason_text() {
+        let checked_at = chrono::Utc.with_ymd_and_hms(2026, 5, 18, 12, 0, 0).unwrap();
+        let project = ProjectStatus {
+            target: crate::model::ProjectTarget {
+                id: "example",
+                name: "Example",
+                repo_name: "example",
+                public_url: Some("https://example.com"),
+                repo_path: "/home/sawyer/github/example".to_owned(),
+            },
+            state: StatusState::Degraded,
+            checked_at,
+            reason: "<dirty>".to_owned(),
+            git: crate::model::GitStatus {
+                branch: Some("main".to_owned()),
+                upstream: Some("origin/main".to_owned()),
+                ahead: Some(0),
+                behind: Some(1),
+                dirty: Some(true),
+                latest_commit_age_days: Some(3),
+                remote_reachable: Some(true),
+            },
+            build: Some(crate::model::BuildProgress {
+                checked: 1,
+                total: 2,
+                next_phase: Some("Phase 2".to_owned()),
+            }),
+            probe_version: "test",
+        };
+
+        let card = project_card_html(&project);
+
+        assert!(card.contains("&lt;dirty&gt;"));
+        assert!(!card.contains("<dirty>"));
+        assert!(!card.contains("/home/sawyer"));
     }
 }

@@ -27,8 +27,12 @@ Observed on 2026-05-18:
   public HTTP probes, embedded assets, and Axum routes for the public status
   shell.
 - Typed host-probe primitives now exist for systemd units, Docker Compose JSON,
+  Caddy validation/reload evidence, Cloudflare DDNS last-success status,
   public-safe host reasons, and service-to-public-site mapping. They are not
   exposed on public routes yet because the operator boundary is a later phase.
+- Project status now exists for premier repositories with git branch,
+  ahead/behind, dirty state, latest commit age, remote reachability, and
+  `BUILD.md` checkbox progress.
 - Deployment templates exist under `deploy/` for systemd, Caddy, and the
   runtime environment file.
 - The intended runtime is Rust, Axum, Leptos SSR, Tokio, Caddy, systemd, and
@@ -206,8 +210,8 @@ Goal: add local operator-grade host health while keeping public output safe.
 
 - [x] Add typed systemd probe wrapper for selected units.
 - [x] Add Docker Compose probe for LangIndex and any future compose services.
-- [ ] Add Caddy validate/reload recency probe.
-- [ ] Add Cloudflare DDNS last-success probe from systemd journal or status.
+- [x] Add Caddy validate/reload recency probe.
+- [x] Add Cloudflare DDNS last-success probe from systemd journal or status.
 - [x] Add service-to-public-site mapping.
 - [x] Keep raw command output private and summarize public-safe reasons.
 
@@ -218,15 +222,15 @@ private host details.
 
 Goal: show project health, not just uptime.
 
-- [ ] Add git probe for branch, clean/dirty state, ahead/behind, latest commit
+- [x] Add git probe for branch, clean/dirty state, ahead/behind, latest commit
       age, and remote reachability.
-- [ ] Read project phase metadata from repo files where practical.
-- [ ] Summarize `BUILD.md` checkbox progress without pretending it is
+- [x] Read project phase metadata from repo files where practical.
+- [x] Summarize `BUILD.md` checkbox progress without pretending it is
       authoritative runtime truth.
-- [ ] Add project cards for premier repos first:
+- [x] Add project cards for premier repos first:
       `fileferry`, `dunamismax.com`, `callrift`, `pod-tracker`,
       `langindex`, `0xvane`, `debugpath`, and `toolworks`.
-- [ ] Add stale-branch and dirty-worktree warnings for server checkouts.
+- [x] Add stale-branch and dirty-worktree warnings for server checkouts.
 
 Exit criteria: Stephen can see which projects are live, changing, stale, or
 needing a coding pass.
@@ -370,6 +374,7 @@ Local web smoke after Phase 1:
 cargo run -p status-web
 curl -fsS http://127.0.0.1:8095/healthz
 curl -fsS http://127.0.0.1:8095/api/status.json
+curl -fsS http://127.0.0.1:8095/projects
 ```
 
 Last local smoke on 2026-05-18:
@@ -378,11 +383,13 @@ Last local smoke on 2026-05-18:
 cargo run -p status-web
 curl -fsS http://127.0.0.1:8095/healthz
 curl -fsS http://127.0.0.1:8095/api/status.json
+curl -fsS http://127.0.0.1:8095/projects
 ```
 
 Observed JSON rollup during that smoke: 7 public targets operational and
 `status.dunamismax.com` down because DNS, TLS, or connection failed. This is
-expected until the public domain serves this app.
+expected until the public domain serves this app. The smoke also returned 8
+project records and rendered `/projects` with `BUILD.md` progress.
 
 Production smoke after Phase 7:
 

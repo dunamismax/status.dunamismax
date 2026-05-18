@@ -9,6 +9,8 @@ use crate::model::StatusState;
 
 const SYSTEMD_PROBE_VERSION: &str = "systemd-v1";
 const DOCKER_COMPOSE_PROBE_VERSION: &str = "docker-compose-v1";
+const CADDY_PROBE_VERSION: &str = "caddy-v1";
+const CLOUDFLARE_DDNS_PROBE_VERSION: &str = "cloudflare-ddns-v1";
 const HOST_COMMAND_TIMEOUT: Duration = Duration::from_secs(5);
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize)]
@@ -16,6 +18,8 @@ const HOST_COMMAND_TIMEOUT: Duration = Duration::from_secs(5);
 pub enum HostCheckKind {
     Systemd,
     DockerCompose,
+    Caddy,
+    CloudflareDdns,
 }
 
 #[derive(Debug, Clone, PartialEq, Eq, Serialize)]
@@ -48,6 +52,19 @@ pub struct SystemdUnitTarget {
 pub struct DockerComposeServiceTarget {
     pub id: &'static str,
     pub service: &'static str,
+}
+
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub struct CaddyProbeTarget {
+    pub id: &'static str,
+    pub config_path: &'static str,
+    pub unit: &'static str,
+}
+
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub struct CloudflareDdnsTarget {
+    pub id: &'static str,
+    pub unit: &'static str,
 }
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize)]
@@ -135,6 +152,21 @@ pub fn service_mappings() -> &'static [ServiceMapping] {
     MAPPINGS
 }
 
+pub fn caddy_probe_target() -> CaddyProbeTarget {
+    CaddyProbeTarget {
+        id: "caddy",
+        config_path: "/etc/caddy/Caddyfile",
+        unit: "caddy.service",
+    }
+}
+
+pub fn cloudflare_ddns_target() -> CloudflareDdnsTarget {
+    CloudflareDdnsTarget {
+        id: "cloudflare-ddns",
+        unit: "cloudflare-ddns.service",
+    }
+}
+
 pub async fn probe_systemd_unit(target: SystemdUnitTarget) -> HostCheckResult {
     let checked_at = Utc::now();
     let started = Instant::now();
@@ -172,6 +204,106 @@ pub async fn probe_systemd_unit(target: SystemdUnitTarget) -> HostCheckResult {
             Some(started.elapsed()),
             SYSTEMD_PROBE_VERSION,
             "systemd state unavailable",
+            Some(error.to_string()),
+        ),
+    }
+}
+
+pub async fn probe_caddy_validate_reload(target: CaddyProbeTarget) -> HostCheckResult {
+    let checked_at = Utc::now();
+    let started = Instant::now();
+    let validate_args = ["validate", "--config", target.config_path];
+
+    match run_command("caddy", &validate_args).await {
+        Ok(output) if output.status.success() => {
+            let show_args = [
+                "show",
+                target.unit,
+                "--property=ActiveState",
+                "--property=Result",
+                "--property=ActiveEnterTimestamp",
+            ];
+            match run_command("systemctl", &show_args).await {
+                Ok(output) if output.status.success() => {
+                    let facts = SystemdFacts::parse(&output.stdout);
+                    evaluate_caddy_facts(target.id, checked_at, Some(started.elapsed()), facts)
+                }
+                Ok(output) => command_failed_result(
+                    target.id,
+                    HostCheckKind::Caddy,
+                    checked_at,
+                    Some(started.elapsed()),
+                    CADDY_PROBE_VERSION,
+                    "caddy reload evidence unavailable",
+                    output.private_detail(),
+                ),
+                Err(error) => command_failed_result(
+                    target.id,
+                    HostCheckKind::Caddy,
+                    checked_at,
+                    Some(started.elapsed()),
+                    CADDY_PROBE_VERSION,
+                    "caddy reload evidence unavailable",
+                    Some(error.to_string()),
+                ),
+            }
+        }
+        Ok(output) => HostCheckResult {
+            target_id: target.id,
+            check_kind: HostCheckKind::Caddy,
+            state: StatusState::Down,
+            checked_at,
+            duration_ms: Some(duration_ms(started.elapsed())),
+            reason: "caddy config is invalid".to_owned(),
+            probe_version: CADDY_PROBE_VERSION,
+            private_detail: output.private_detail(),
+        },
+        Err(error) => command_failed_result(
+            target.id,
+            HostCheckKind::Caddy,
+            checked_at,
+            Some(started.elapsed()),
+            CADDY_PROBE_VERSION,
+            "caddy validation unavailable",
+            Some(error.to_string()),
+        ),
+    }
+}
+
+pub async fn probe_cloudflare_ddns_last_success(target: CloudflareDdnsTarget) -> HostCheckResult {
+    let checked_at = Utc::now();
+    let started = Instant::now();
+    let args = [
+        "show",
+        target.unit,
+        "--property=LoadState",
+        "--property=ActiveState",
+        "--property=Result",
+        "--property=ExecMainStatus",
+        "--property=InactiveEnterTimestamp",
+    ];
+
+    match run_command("systemctl", &args).await {
+        Ok(output) if output.status.success() => {
+            let facts = SystemdFacts::parse(&output.stdout);
+            evaluate_cloudflare_ddns_facts(target.id, checked_at, Some(started.elapsed()), facts)
+        }
+        Ok(output) => command_failed_result(
+            target.id,
+            HostCheckKind::CloudflareDdns,
+            checked_at,
+            Some(started.elapsed()),
+            CLOUDFLARE_DDNS_PROBE_VERSION,
+            "Cloudflare DDNS status unavailable",
+            output.private_detail(),
+        ),
+        Err(error) => command_failed_result(
+            target.id,
+            HostCheckKind::CloudflareDdns,
+            checked_at,
+            Some(started.elapsed()),
+            CLOUDFLARE_DDNS_PROBE_VERSION,
+            "Cloudflare DDNS status unavailable",
             Some(error.to_string()),
         ),
     }
@@ -348,6 +480,98 @@ fn evaluate_compose_service(
         duration_ms: duration.map(duration_ms),
         reason: reason.to_owned(),
         probe_version: DOCKER_COMPOSE_PROBE_VERSION,
+        private_detail: None,
+    }
+}
+
+fn evaluate_caddy_facts(
+    target_id: &'static str,
+    checked_at: DateTime<Utc>,
+    duration: Option<Duration>,
+    facts: SystemdFacts,
+) -> HostCheckResult {
+    let active_state = facts.value("ActiveState");
+    let result = facts.value("Result").unwrap_or("success");
+    let active_timestamp = facts.value("ActiveEnterTimestamp").unwrap_or_default();
+
+    let (state, reason) = match (active_state, result, active_timestamp.is_empty()) {
+        (Some("active"), "success", false) => (
+            StatusState::Operational,
+            "caddy config is valid and reload evidence is present",
+        ),
+        (Some("active"), "success", true) => (
+            StatusState::Degraded,
+            "caddy config is valid but reload recency is unavailable",
+        ),
+        (Some("failed"), _, _) => (StatusState::Down, "caddy service failed"),
+        _ => (StatusState::Unknown, "caddy service state is unknown"),
+    };
+
+    HostCheckResult {
+        target_id,
+        check_kind: HostCheckKind::Caddy,
+        state,
+        checked_at,
+        duration_ms: duration.map(duration_ms),
+        reason: reason.to_owned(),
+        probe_version: CADDY_PROBE_VERSION,
+        private_detail: None,
+    }
+}
+
+fn evaluate_cloudflare_ddns_facts(
+    target_id: &'static str,
+    checked_at: DateTime<Utc>,
+    duration: Option<Duration>,
+    facts: SystemdFacts,
+) -> HostCheckResult {
+    let load_state = facts.value("LoadState");
+    let active_state = facts.value("ActiveState");
+    let result = facts.value("Result").unwrap_or("success");
+    let exec_status = facts
+        .value("ExecMainStatus")
+        .and_then(|value| value.parse::<i32>().ok())
+        .unwrap_or(0);
+    let last_success = facts
+        .value("InactiveEnterTimestamp")
+        .filter(|value| !value.is_empty());
+
+    let (state, reason) = if load_state != Some("loaded") {
+        (StatusState::Unknown, "Cloudflare DDNS unit is not loaded")
+    } else {
+        match (active_state, result, exec_status, last_success) {
+            (Some("active" | "activating"), _, _, _) => (
+                StatusState::Operational,
+                "Cloudflare DDNS update is running",
+            ),
+            (_, "success", 0, Some(_)) => (
+                StatusState::Operational,
+                "latest Cloudflare DDNS run succeeded",
+            ),
+            (_, "success", 0, None) => (
+                StatusState::Degraded,
+                "Cloudflare DDNS success time is unavailable",
+            ),
+            (Some("failed"), _, _, _)
+            | (_, _, 1.., _)
+            | (_, "exit-code" | "signal" | "timeout", _, _) => {
+                (StatusState::Down, "latest Cloudflare DDNS run failed")
+            }
+            _ => (
+                StatusState::Unknown,
+                "latest Cloudflare DDNS result is unknown",
+            ),
+        }
+    };
+
+    HostCheckResult {
+        target_id,
+        check_kind: HostCheckKind::CloudflareDdns,
+        state,
+        checked_at,
+        duration_ms: duration.map(duration_ms),
+        reason: reason.to_owned(),
+        probe_version: CLOUDFLARE_DDNS_PROBE_VERSION,
         private_detail: None,
     }
 }
@@ -606,6 +830,73 @@ ExecMainStatus=0
 
         assert_eq!(result.state, StatusState::Down);
         assert_eq!(result.reason, "container health is unhealthy");
+    }
+
+    #[test]
+    fn caddy_valid_config_with_active_service_is_operational() {
+        let facts = SystemdFacts::parse(
+            r#"ActiveState=active
+Result=success
+ActiveEnterTimestamp=Mon 2026-05-18 12:00:00 UTC
+"#,
+        );
+
+        let result = evaluate_caddy_facts("caddy", checked_at(), None, facts);
+
+        assert_eq!(result.state, StatusState::Operational);
+        assert_eq!(
+            result.reason,
+            "caddy config is valid and reload evidence is present"
+        );
+    }
+
+    #[test]
+    fn caddy_valid_config_without_reload_recency_is_degraded() {
+        let facts = SystemdFacts::parse(
+            r#"ActiveState=active
+Result=success
+ActiveEnterTimestamp=
+"#,
+        );
+
+        let result = evaluate_caddy_facts("caddy", checked_at(), None, facts);
+
+        assert_eq!(result.state, StatusState::Degraded);
+        assert!(result.reason.contains("reload recency"));
+    }
+
+    #[test]
+    fn cloudflare_ddns_success_with_timestamp_is_operational() {
+        let facts = SystemdFacts::parse(
+            r#"LoadState=loaded
+ActiveState=inactive
+Result=success
+ExecMainStatus=0
+InactiveEnterTimestamp=Mon 2026-05-18 12:00:00 UTC
+"#,
+        );
+
+        let result = evaluate_cloudflare_ddns_facts("cloudflare-ddns", checked_at(), None, facts);
+
+        assert_eq!(result.state, StatusState::Operational);
+        assert_eq!(result.reason, "latest Cloudflare DDNS run succeeded");
+    }
+
+    #[test]
+    fn cloudflare_ddns_failure_is_down() {
+        let facts = SystemdFacts::parse(
+            r#"LoadState=loaded
+ActiveState=failed
+Result=exit-code
+ExecMainStatus=1
+InactiveEnterTimestamp=Mon 2026-05-18 12:00:00 UTC
+"#,
+        );
+
+        let result = evaluate_cloudflare_ddns_facts("cloudflare-ddns", checked_at(), None, facts);
+
+        assert_eq!(result.state, StatusState::Down);
+        assert_eq!(result.reason, "latest Cloudflare DDNS run failed");
     }
 
     #[test]

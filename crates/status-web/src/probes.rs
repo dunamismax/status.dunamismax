@@ -33,6 +33,10 @@ impl ProbeRunner {
     }
 
     pub async fn collect_public_status(&self) -> StatusSnapshot {
+        StatusSnapshot::from_services(self.collect_public_services().await)
+    }
+
+    pub async fn collect_public_services(&self) -> Vec<ServiceStatus> {
         collect_targets(public_targets(), self.client.clone(), self.timeout).await
     }
 }
@@ -47,7 +51,7 @@ async fn collect_targets(
     targets: Vec<MonitorTarget>,
     client: Client,
     timeout: Duration,
-) -> StatusSnapshot {
+) -> Vec<ServiceStatus> {
     let client = Arc::new(client);
     let mut checks = JoinSet::new();
 
@@ -66,7 +70,7 @@ async fn collect_targets(
         }
     }
 
-    StatusSnapshot::from_services(services)
+    services
 }
 
 async fn probe_http_target(

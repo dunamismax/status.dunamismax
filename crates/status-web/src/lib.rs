@@ -5,4 +5,5 @@ pub mod inventory;
 pub mod model;
 pub mod pages;
 pub mod probes;
+pub mod project;
 pub mod router;

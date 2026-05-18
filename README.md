@@ -94,9 +94,9 @@ docs/
 ```
 
 The current first cut is one `status-web` binary with embedded assets, explicit
-public inventory, live public HTTP probes, and typed host-probe primitives for
-future operator use. The crate boundaries can split once host probes,
-persistence, and worker behavior grow.
+public inventory, live public HTTP probes, project/git status, and typed
+host-probe primitives for future operator use. The crate boundaries can split
+once host probes, persistence, and worker behavior grow.
 
 ## Public Routes
 
@@ -115,11 +115,11 @@ GET /robots.txt
 GET /icon.svg
 ```
 
-The current implementation serves `/`, `/services`, `/healthz`, `/readyz`,
-`/api/status.json`, `/robots.txt`, and `/icon.svg`. `/projects`,
-`/incidents`, and `/deployments` are present as public placeholders until their
-probe and history phases land. Operator-only routes can come later behind a
-simple local-only, Tailscale, or login-protected boundary.
+The current implementation serves `/`, `/services`, `/projects`, `/healthz`,
+`/readyz`, `/api/status.json`, `/robots.txt`, and `/icon.svg`. `/incidents`
+and `/deployments` are present as public placeholders until their history
+phases land. Operator-only routes can come later behind a simple local-only,
+Tailscale, or login-protected boundary.
 
 ## Local Development
 

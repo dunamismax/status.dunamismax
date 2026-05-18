@@ -4,9 +4,10 @@ use tower_http::{compression::CompressionLayer, trace::TraceLayer};
 
 use crate::{
     assets,
-    model::StatusSnapshot,
+    model::{ProjectStatus, StatusSnapshot},
     pages::{self, NavSection},
     probes::ProbeRunner,
+    project,
 };
 
 #[derive(Debug, Clone)]
@@ -33,10 +34,28 @@ impl AppState {
         }
     }
 
-    async fn snapshot(&self) -> StatusSnapshot {
+    async fn public_snapshot(&self) -> StatusSnapshot {
         match &self.source {
             StatusSource::Live(runner) => runner.collect_public_status().await,
             StatusSource::Fixed(snapshot) => snapshot.clone(),
+        }
+    }
+
+    async fn status_snapshot(&self) -> StatusSnapshot {
+        match &self.source {
+            StatusSource::Live(runner) => {
+                let services = runner.collect_public_services().await;
+                let projects = project::collect_project_status().await;
+                StatusSnapshot::from_services_and_projects(services, projects)
+            }
+            StatusSource::Fixed(snapshot) => snapshot.clone(),
+        }
+    }
+
+    async fn projects(&self) -> Vec<ProjectStatus> {
+        match &self.source {
+            StatusSource::Live(_) => project::collect_project_status().await,
+            StatusSource::Fixed(snapshot) => snapshot.projects.clone(),
         }
     }
 }
@@ -69,15 +88,15 @@ pub fn router_with_state(state: AppState) -> Router {
 }
 
 async fn home(State(state): State<AppState>) -> impl IntoResponse {
-    pages::overview(&state.snapshot().await)
+    pages::overview(&state.public_snapshot().await)
 }
 
 async fn services(State(state): State<AppState>) -> impl IntoResponse {
-    pages::services(&state.snapshot().await)
+    pages::services(&state.public_snapshot().await)
 }
 
-async fn projects() -> impl IntoResponse {
-    pages::placeholder(NavSection::Projects)
+async fn projects(State(state): State<AppState>) -> impl IntoResponse {
+    pages::projects(&state.projects().await)
 }
 
 async fn incidents() -> impl IntoResponse {
@@ -100,7 +119,7 @@ async fn readyz() -> Json<ReadyResponse> {
 }
 
 async fn status_json(State(state): State<AppState>) -> Json<StatusSnapshot> {
-    Json(state.snapshot().await)
+    Json(state.status_snapshot().await)
 }
 
 async fn not_found() -> impl IntoResponse {
@@ -124,7 +143,8 @@ mod tests {
     use tower::ServiceExt;
 
     use crate::model::{
-        CheckKind, CheckResult, MonitorTarget, ServiceStatus, StatusSnapshot, StatusState,
+        BuildProgress, CheckKind, CheckResult, GitStatus, MonitorTarget, ProjectStatus,
+        ProjectTarget, ServiceStatus, StatusSnapshot, StatusState,
     };
 
     async fn get(path: &str) -> (StatusCode, String, axum::http::HeaderMap) {
@@ -208,6 +228,19 @@ mod tests {
         assert_eq!(json["overall_state"], "degraded");
         assert_eq!(json["summary"]["operational"], 1);
         assert_eq!(json["summary"]["degraded"], 1);
+        assert_eq!(json["projects"][0]["target"]["repo_name"], "fileferry");
+        assert!(json["projects"][0]["target"]["repo_path"].is_null());
+    }
+
+    #[tokio::test]
+    async fn projects_route_renders_project_cards() {
+        let (status, body, _) = get("/projects").await;
+
+        assert_eq!(status, StatusCode::OK);
+        assert!(body.contains("Repository status"));
+        assert!(body.contains("fileferry"));
+        assert!(body.contains("BUILD progress"));
+        assert!(!body.contains("/home/sawyer"));
     }
 
     #[tokio::test]
@@ -235,47 +268,76 @@ mod tests {
 
     fn snapshot_fixture() -> StatusSnapshot {
         let checked_at = chrono::Utc.with_ymd_and_hms(2026, 5, 18, 12, 0, 0).unwrap();
-        StatusSnapshot::from_services(vec![
-            ServiceStatus {
-                target: MonitorTarget {
-                    id: "fileferry-app",
-                    name: "fileferry.app",
-                    group: "Public websites",
-                    public_url: "https://fileferry.app",
-                    probe_url: "https://fileferry.app/healthz",
-                    expected_status: 200,
-                    expected_body_token: None,
+        StatusSnapshot::from_services_and_projects(
+            vec![
+                ServiceStatus {
+                    target: MonitorTarget {
+                        id: "fileferry-app",
+                        name: "fileferry.app",
+                        group: "Public websites",
+                        public_url: "https://fileferry.app",
+                        probe_url: "https://fileferry.app/healthz",
+                        expected_status: 200,
+                        expected_body_token: None,
+                    },
+                    check: CheckResult {
+                        target_id: "fileferry-app",
+                        check_kind: CheckKind::Http,
+                        state: StatusState::Operational,
+                        checked_at,
+                        latency_ms: Some(42),
+                        reason: "HTTP 200".to_owned(),
+                        probe_version: "test",
+                    },
                 },
-                check: CheckResult {
-                    target_id: "fileferry-app",
-                    check_kind: CheckKind::Http,
-                    state: StatusState::Operational,
-                    checked_at,
-                    latency_ms: Some(42),
-                    reason: "HTTP 200".to_owned(),
-                    probe_version: "test",
+                ServiceStatus {
+                    target: MonitorTarget {
+                        id: "status-dunamismax-com",
+                        name: "status.dunamismax.com",
+                        group: "Public websites",
+                        public_url: "https://status.dunamismax.com",
+                        probe_url: "https://status.dunamismax.com/healthz",
+                        expected_status: 200,
+                        expected_body_token: None,
+                    },
+                    check: CheckResult {
+                        target_id: "status-dunamismax-com",
+                        check_kind: CheckKind::Http,
+                        state: StatusState::Degraded,
+                        checked_at,
+                        latency_ms: Some(88),
+                        reason: "expected HTTP 200, got HTTP 503".to_owned(),
+                        probe_version: "test",
+                    },
                 },
-            },
-            ServiceStatus {
-                target: MonitorTarget {
-                    id: "status-dunamismax-com",
-                    name: "status.dunamismax.com",
-                    group: "Public websites",
-                    public_url: "https://status.dunamismax.com",
-                    probe_url: "https://status.dunamismax.com/healthz",
-                    expected_status: 200,
-                    expected_body_token: None,
+            ],
+            vec![ProjectStatus {
+                target: ProjectTarget {
+                    id: "fileferry",
+                    name: "fileferry",
+                    repo_name: "fileferry",
+                    public_url: Some("https://fileferry.app"),
+                    repo_path: "/home/sawyer/github/fileferry".to_owned(),
                 },
-                check: CheckResult {
-                    target_id: "status-dunamismax-com",
-                    check_kind: CheckKind::Http,
-                    state: StatusState::Degraded,
-                    checked_at,
-                    latency_ms: Some(88),
-                    reason: "expected HTTP 200, got HTTP 503".to_owned(),
-                    probe_version: "test",
+                state: StatusState::Operational,
+                checked_at,
+                reason: "repository is current; BUILD progress 2/3".to_owned(),
+                git: GitStatus {
+                    branch: Some("main".to_owned()),
+                    upstream: Some("origin/main".to_owned()),
+                    ahead: Some(0),
+                    behind: Some(0),
+                    dirty: Some(false),
+                    latest_commit_age_days: Some(1),
+                    remote_reachable: Some(true),
                 },
-            },
-        ])
+                build: Some(BuildProgress {
+                    checked: 2,
+                    total: 3,
+                    next_phase: Some("Phase 4: Repository And Project Status".to_owned()),
+                }),
+                probe_version: "test",
+            }],
+        )
     }
 }
