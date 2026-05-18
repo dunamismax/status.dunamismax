@@ -402,18 +402,18 @@ cargo test --workspace --all-features
 cargo build --workspace
 ```
 
-Last verified on 2026-05-18:
+Latest local verification pass on 2026-05-18 from
+`/Users/sawyer/github/status.dunamismax`:
 
 ```sh
 cargo fmt --all --check
 cargo clippy --workspace --all-targets --all-features -- -D warnings
 cargo test --workspace --all-features
-STATUS_TEST_DATABASE_URL=postgres://sawyer@localhost/postgres cargo test --workspace --all-features -- --ignored postgres
 cargo build --workspace
-bash -n /home/sawyer/github/toolworks/automation/self-hosted-rust-deploy/deploy-all.sh
-curl -fsS https://status.dunamismax.com/healthz
-curl -fsS https://status.dunamismax.com/api/status.json
 ```
+
+The PostgreSQL integration test remains ignored unless
+`STATUS_TEST_DATABASE_URL` is provided.
 
 Local web smoke after Phase 1:
 
@@ -429,17 +429,20 @@ curl -fsS http://127.0.0.1:8095/deployments
 STATUS_COLLECT_ONCE=1 cargo run -p status-web
 ```
 
-Last local smoke on 2026-05-18:
+Last local smoke on 2026-05-18 used port `8096` to avoid the production
+default:
 
 ```sh
-cargo run -p status-web
-curl -fsS http://127.0.0.1:8095/healthz
-curl -fsS http://127.0.0.1:8095/readyz
-curl -fsS http://127.0.0.1:8095/api/status.json
-curl -fsS http://127.0.0.1:8095/api/incidents.json
-curl -fsS http://127.0.0.1:8095/projects
-curl -fsS http://127.0.0.1:8095/incidents
-curl -fsS http://127.0.0.1:8095/deployments
+STATUS_BIND_ADDR=127.0.0.1:8096 cargo run -p status-web
+curl -fsS http://127.0.0.1:8096/
+curl -fsS http://127.0.0.1:8096/healthz
+curl -fsS http://127.0.0.1:8096/readyz
+curl -fsS http://127.0.0.1:8096/api/status.json
+curl -fsS http://127.0.0.1:8096/api/incidents.json
+curl -fsS http://127.0.0.1:8096/services
+curl -fsS http://127.0.0.1:8096/projects
+curl -fsS http://127.0.0.1:8096/incidents
+curl -fsS http://127.0.0.1:8096/deployments
 STATUS_COLLECT_ONCE=1 cargo run -p status-web
 ```
 
@@ -471,10 +474,12 @@ curl -fsS -H 'Authorization: Bearer local-test-token' http://127.0.0.1:8096/oper
 
 Observed JSON rollup during the latest public smoke:
 `https://status.dunamismax.com/api/status.json` returned
-`"overall_state":"operational"`. The latest Phase 8 local operator smoke
-returned `ok` from `/healthz`, returned `401 Unauthorized` from `/operator`
-without a bearer token, and rendered the authenticated operator page with a
-valid token.
+`"overall_state":"operational"`. Local macOS smoke returned
+`"overall_state":"degraded"` because host-only probes such as systemd, Docker
+Compose, Caddy, and Cloudflare DDNS are unavailable off the Ubuntu host. The
+latest Phase 8 local operator smoke returned `ok` from `/healthz`, returned
+`401 Unauthorized` from `/operator` without a bearer token, and rendered the
+authenticated operator page with a valid token.
 
 Production smoke after Phase 7:
 
