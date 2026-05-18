@@ -124,8 +124,10 @@ GET /icon.svg
 
 The current implementation serves all target public routes. `/incidents` and
 `/deployments` render empty public-safe history views until PostgreSQL contains
-incident, maintenance, or deployment records. Operator-only routes can come
-later behind a simple local-only, Tailscale, or login-protected boundary.
+incident, maintenance, or deployment records. Operator-only routes are
+deliberately limited. The first operator route is `GET /operator`, which stays
+disabled until `STATUS_OPERATOR_TOKEN` is set and then requires an
+`Authorization: Bearer` token before showing private repository paths.
 
 ## Local Development
 
@@ -150,6 +152,8 @@ database is configured, prune old check rows with `STATUS_RETENTION_DAYS`, and
 exit.
 Set `STATUS_RECORD_DEPLOYMENT=1` with deployment metadata to record an explicit
 deployment event and exit.
+Set `STATUS_OPERATOR_TOKEN` to enable authenticated operator detail at
+`/operator`; leave it unset to keep that route disabled.
 
 ## Production Shape
 

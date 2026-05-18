@@ -31,7 +31,11 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
 
     axum::serve(
         listener,
-        router_with_state(AppState::live_with_store(store)).into_make_service(),
+        router_with_state(AppState::live_with_store(
+            store,
+            config.operator_token.clone(),
+        ))
+        .into_make_service(),
     )
     .with_graceful_shutdown(shutdown_signal())
     .await?;

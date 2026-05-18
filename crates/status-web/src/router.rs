@@ -1,4 +1,10 @@
-use axum::{Json, Router, extract::State, response::IntoResponse, routing::get};
+use axum::{
+    Json, Router,
+    extract::State,
+    http::{HeaderMap, StatusCode, header},
+    response::{IntoResponse, Response},
+    routing::get,
+};
 use serde::Serialize;
 use tower_http::{compression::CompressionLayer, trace::TraceLayer};
 
@@ -15,6 +21,7 @@ use crate::{
 pub struct AppState {
     source: StatusSource,
     store: Option<StatusStore>,
+    operator_token: Option<String>,
 }
 
 #[derive(Debug, Clone)]
@@ -28,13 +35,15 @@ impl AppState {
         Self {
             source: StatusSource::Live(ProbeRunner::new()),
             store: None,
+            operator_token: None,
         }
     }
 
-    pub fn live_with_store(store: Option<StatusStore>) -> Self {
+    pub fn live_with_store(store: Option<StatusStore>, operator_token: Option<String>) -> Self {
         Self {
             source: StatusSource::Live(ProbeRunner::new()),
             store,
+            operator_token,
         }
     }
 
@@ -42,6 +51,15 @@ impl AppState {
         Self {
             source: StatusSource::Fixed(snapshot),
             store: None,
+            operator_token: None,
+        }
+    }
+
+    pub fn fixed_with_operator_token(snapshot: StatusSnapshot, operator_token: String) -> Self {
+        Self {
+            source: StatusSource::Fixed(snapshot),
+            store: None,
+            operator_token: Some(operator_token),
         }
     }
 
@@ -136,6 +154,34 @@ impl AppState {
             },
         }
     }
+
+    fn operator_denial(&self, headers: &HeaderMap) -> Option<Response> {
+        let Some(token) = self.operator_token.as_deref() else {
+            return Some(pages::not_found());
+        };
+
+        let authorized = headers
+            .get(header::AUTHORIZATION)
+            .and_then(|value| value.to_str().ok())
+            .and_then(|value| value.trim().strip_prefix("Bearer "))
+            .is_some_and(|candidate| candidate == token);
+
+        if authorized {
+            None
+        } else {
+            Some(
+                (
+                    StatusCode::UNAUTHORIZED,
+                    [(
+                        header::WWW_AUTHENTICATE,
+                        r#"Bearer realm="status-operator""#,
+                    )],
+                    "operator authorization required\n",
+                )
+                    .into_response(),
+            )
+        }
+    }
 }
 
 pub fn router() -> Router {
@@ -153,6 +199,7 @@ pub fn router_with_state(state: AppState) -> Router {
         .route("/projects", get(projects))
         .route("/incidents", get(incidents))
         .route("/deployments", get(deployments))
+        .route("/operator", get(operator))
         .route("/healthz", get(healthz))
         .route("/readyz", get(readyz))
         .route("/api/incidents.json", get(incidents_json))
@@ -185,6 +232,16 @@ async fn incidents(State(state): State<AppState>) -> impl IntoResponse {
 
 async fn deployments(State(state): State<AppState>) -> impl IntoResponse {
     pages::deployments(&state.deployments().await)
+}
+
+async fn operator(State(state): State<AppState>, headers: HeaderMap) -> Response {
+    if let Some(response) = state.operator_denial(&headers) {
+        return response;
+    }
+
+    let readiness = state.readiness().await;
+    let snapshot = state.status_snapshot().await;
+    pages::operator(&snapshot, readiness.status, readiness.database)
 }
 
 async fn healthz() -> &'static str {
@@ -240,15 +297,21 @@ mod tests {
     };
 
     async fn get(path: &str) -> (StatusCode, String, axum::http::HeaderMap) {
-        let response = router_with_snapshot(snapshot_fixture())
-            .oneshot(
-                Request::builder()
-                    .uri(path)
-                    .body(Body::empty())
-                    .expect("request"),
-            )
-            .await
-            .expect("route response");
+        send(
+            router_with_snapshot(snapshot_fixture()),
+            Request::builder()
+                .uri(path)
+                .body(Body::empty())
+                .expect("request"),
+        )
+        .await
+    }
+
+    async fn send(
+        router: Router,
+        request: Request<Body>,
+    ) -> (StatusCode, String, axum::http::HeaderMap) {
+        let response = router.oneshot(request).await.expect("route response");
         let status = response.status();
         let headers = response.headers().clone();
         let bytes = to_bytes(response.into_body(), usize::MAX)
@@ -371,6 +434,56 @@ mod tests {
         assert_eq!(status, StatusCode::OK);
         assert!(body.contains("Deployments"));
         assert!(body.contains("No deployment records are stored yet."));
+    }
+
+    #[tokio::test]
+    async fn operator_route_is_disabled_without_token() {
+        let (status, body, _) = get("/operator").await;
+
+        assert_eq!(status, StatusCode::NOT_FOUND);
+        assert!(!body.contains("/home/sawyer"));
+    }
+
+    #[tokio::test]
+    async fn operator_route_requires_bearer_token() {
+        let (status, body, headers) = send(
+            router_with_state(AppState::fixed_with_operator_token(
+                snapshot_fixture(),
+                "secret-token".to_owned(),
+            )),
+            Request::builder()
+                .uri("/operator")
+                .body(Body::empty())
+                .expect("request"),
+        )
+        .await;
+
+        assert_eq!(status, StatusCode::UNAUTHORIZED);
+        assert_eq!(
+            headers.get(header::WWW_AUTHENTICATE).unwrap(),
+            r#"Bearer realm="status-operator""#
+        );
+        assert!(!body.contains("/home/sawyer"));
+    }
+
+    #[tokio::test]
+    async fn operator_route_renders_private_detail_with_valid_token() {
+        let (status, body, _) = send(
+            router_with_state(AppState::fixed_with_operator_token(
+                snapshot_fixture(),
+                "secret-token".to_owned(),
+            )),
+            Request::builder()
+                .uri("/operator")
+                .header(header::AUTHORIZATION, "Bearer secret-token")
+                .body(Body::empty())
+                .expect("request"),
+        )
+        .await;
+
+        assert_eq!(status, StatusCode::OK);
+        assert!(body.contains("Private status detail"));
+        assert!(body.contains("/home/sawyer/github/fileferry"));
     }
 
     #[tokio::test]

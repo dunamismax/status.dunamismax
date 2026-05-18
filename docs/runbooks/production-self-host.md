@@ -32,7 +32,9 @@ sudo install -m 0644 deploy/caddy/status.dunamismax.caddy /etc/caddy/status.duna
 ```
 
 Edit `/etc/status-dunamismax/status.env` only for local runtime values. Add
-`STATUS_DATABASE_URL` when PostgreSQL history is ready.
+`STATUS_DATABASE_URL` when PostgreSQL history is ready. Add
+`STATUS_OPERATOR_TOKEN` only when the authenticated operator view should be
+available.
 
 ## Enable
 
@@ -61,6 +63,18 @@ sudo systemctl is-active status-dunamismax-collector.timer
 `/readyz` is still ready when PostgreSQL is not configured. Once
 `STATUS_DATABASE_URL` is set, `/readyz` reports database readiness and the timer
 persists snapshots.
+
+## Operator View
+
+`/operator` is disabled unless `STATUS_OPERATOR_TOKEN` is present in
+`/etc/status-dunamismax/status.env`. When enabled, it requires a bearer token
+and shows private repository paths that public pages and JSON omit:
+
+```sh
+curl -fsS \
+  -H "Authorization: Bearer $STATUS_OPERATOR_TOKEN" \
+  http://127.0.0.1:8095/operator
+```
 
 ## Deployment Evidence
 

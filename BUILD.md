@@ -50,6 +50,10 @@ Observed on 2026-05-18:
 - Toolworks' all-in-one self-hosted Rust deploy workflow includes
   `status.dunamismax.com` and records deployment events when status history is
   configured.
+- Phase 7 production deploy has been completed on the host.
+- The first Phase 8 operator boundary is an authenticated bearer-token route:
+  `/operator` stays disabled until `STATUS_OPERATOR_TOKEN` is set and then
+  exposes private repository paths only behind that boundary.
 - The intended runtime is Rust, Axum, Leptos SSR, Tokio, Caddy, systemd, and
   PostgreSQL when durable history is needed.
 - Reference implementation patterns:
@@ -295,15 +299,15 @@ Goal: serve the app at `https://status.dunamismax.com`.
 - [x] Add `deploy/status.env.example`.
 - [x] Add `deploy/caddy/status.dunamismax.caddy` proxying to
       `127.0.0.1:8095`.
-- [ ] Create unprivileged `status-dunamismax` user on the host.
-- [ ] Install release binary under `/opt/status-dunamismax`.
-- [ ] Append or import the Caddy site block.
-- [ ] Validate and reload Caddy.
+- [x] Create unprivileged `status-dunamismax` user on the host.
+- [x] Install release binary under `/opt/status-dunamismax`.
+- [x] Append or import the Caddy site block.
+- [x] Validate and reload Caddy.
 - [x] Add this service to Toolworks
       `automation/self-hosted-rust-deploy/deploy-all.sh`.
 - [x] Local smoke:
       `curl -fsS http://127.0.0.1:8095/healthz`.
-- [ ] Public smoke:
+- [x] Public smoke:
       `curl -fsS https://status.dunamismax.com/healthz`.
 
 Exit criteria: the public domain serves the Rust status app through Caddy and
@@ -313,9 +317,9 @@ the all-in-one deploy workflow includes it.
 
 Goal: add private detail and notifications without exposing the host.
 
-- [ ] Choose the first operator boundary: local-only, Tailscale-only, or
+- [x] Choose the first operator boundary: local-only, Tailscale-only, or
       authenticated web route.
-- [ ] Add operator detail pages only behind that boundary.
+- [x] Add operator detail pages only behind that boundary.
 - [ ] Add alert rules after check stability is proven.
 - [ ] Add notification targets only after rate limits and duplicate
       suppression exist.
@@ -399,6 +403,8 @@ cargo test --workspace --all-features
 STATUS_TEST_DATABASE_URL=postgres://sawyer@localhost/postgres cargo test --workspace --all-features -- --ignored postgres
 cargo build --workspace
 bash -n /home/sawyer/github/toolworks/automation/self-hosted-rust-deploy/deploy-all.sh
+curl -fsS https://status.dunamismax.com/healthz
+curl -fsS https://status.dunamismax.com/api/status.json
 ```
 
 Local web smoke after Phase 1:
@@ -429,13 +435,21 @@ curl -fsS http://127.0.0.1:8095/deployments
 STATUS_COLLECT_ONCE=1 cargo run -p status-web
 ```
 
-Observed JSON rollup during the latest smoke: 7 public targets operational and
-`status.dunamismax.com` down because DNS, TLS, or connection failed. This is
-expected until the public domain serves this app. The smoke also returned 8
-project records, rendered `/projects` with `BUILD.md` progress, rendered empty
-public-safe `/incidents` and `/deployments` history views, returned an empty
-public-safe `/api/incidents.json` feed, and emitted valid one-shot collector
-JSON.
+Latest Phase 8 operator smoke on 2026-05-18:
+
+```sh
+STATUS_BIND_ADDR=127.0.0.1:8096 STATUS_OPERATOR_TOKEN=local-test-token cargo run -p status-web
+curl -fsS http://127.0.0.1:8096/healthz
+curl -i -sS http://127.0.0.1:8096/operator
+curl -fsS -H 'Authorization: Bearer local-test-token' http://127.0.0.1:8096/operator
+```
+
+Observed JSON rollup during the latest public smoke:
+`https://status.dunamismax.com/api/status.json` returned
+`"overall_state":"operational"`. The latest Phase 8 local operator smoke
+returned `ok` from `/healthz`, returned `401 Unauthorized` from `/operator`
+without a bearer token, and rendered the authenticated operator page with a
+valid token.
 
 Production smoke after Phase 7:
 

@@ -17,6 +17,7 @@ pub struct Config {
     pub database_url: Option<String>,
     pub retention_days: u32,
     pub collect_once: bool,
+    pub operator_token: Option<String>,
     pub deployment_event: Option<DeploymentEvent>,
 }
 
@@ -37,6 +38,7 @@ impl Config {
             .transpose()?
             .unwrap_or(DEFAULT_RETENTION_DAYS);
         let collect_once = env_bool("STATUS_COLLECT_ONCE")?;
+        let operator_token = env_string("STATUS_OPERATOR_TOKEN");
         let deployment_event = if env_bool("STATUS_RECORD_DEPLOYMENT")? {
             Some(deployment_event_from_env()?)
         } else {
@@ -49,6 +51,7 @@ impl Config {
             database_url,
             retention_days,
             collect_once,
+            operator_token,
             deployment_event,
         })
     }

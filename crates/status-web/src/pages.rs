@@ -17,6 +17,7 @@ pub enum NavSection {
     Projects,
     Incidents,
     Deployments,
+    Operator,
 }
 
 pub fn overview(snapshot: &StatusSnapshot) -> Response {
@@ -168,6 +169,57 @@ pub fn deployments(deployments: &[DeploymentEvent]) -> Response {
     )
 }
 
+pub fn operator(snapshot: &StatusSnapshot, readiness: &str, database: &str) -> Response {
+    let body = format!(
+        r#"
+<section class="section first-section">
+  <div class="section-heading">
+    <div>
+      <p class="eyebrow">Operator</p>
+      <h1>Private status detail</h1>
+    </div>
+    <p class="timestamp">Last checked {}</p>
+  </div>
+  <dl class="summary" aria-label="Operator summary">
+    <div><dt>Overall</dt><dd>{}</dd></div>
+    <div><dt>Readiness</dt><dd>{}</dd></div>
+    <div><dt>Database</dt><dd>{}</dd></div>
+    <div><dt>Projects</dt><dd>{}</dd></div>
+  </dl>
+</section>
+<section class="section">
+  <div class="section-heading">
+    <h2>Service checks</h2>
+    <p class="timestamp">{} checks</p>
+  </div>
+  {}
+</section>
+<section class="section">
+  <div class="section-heading">
+    <h2>Repository paths</h2>
+    <p class="timestamp">authenticated view</p>
+  </div>
+  {}
+</section>
+"#,
+        format_time(snapshot.checked_at),
+        snapshot.overall_state.as_str(),
+        escape_html(readiness),
+        escape_html(database),
+        snapshot.projects.len(),
+        snapshot.services.len(),
+        service_table_html(&snapshot.services),
+        operator_project_table_html(&snapshot.projects),
+    );
+
+    render_page(
+        "Operator",
+        "Private operator status for the dunamismax ecosystem.",
+        NavSection::Operator,
+        body,
+    )
+}
+
 pub fn placeholder(section: NavSection) -> Response {
     let (title, heading, text) = match section {
         NavSection::Projects => (
@@ -198,6 +250,47 @@ pub fn placeholder(section: NavSection) -> Response {
     );
 
     render_page(title, text, section, body)
+}
+
+fn operator_project_table_html(projects: &[ProjectStatus]) -> String {
+    if projects.is_empty() {
+        return empty_state("No project records are available.");
+    }
+
+    let rows = projects
+        .iter()
+        .map(|project| {
+            let branch = project.git.branch.as_deref().unwrap_or("unknown");
+            let upstream = project.git.upstream.as_deref().unwrap_or("none");
+            let dirty = match project.git.dirty {
+                Some(true) => "dirty",
+                Some(false) => "clean",
+                None => "unknown",
+            };
+            format!(
+                r#"<tr>
+  <th scope="row">{}</th>
+  <td>{}</td>
+  <td>{}</td>
+  <td>{}</td>
+  <td>{}</td>
+  <td>{}</td>
+</tr>"#,
+                escape_html(project.target.name),
+                escape_html(project.target.repo_name),
+                escape_html(&project.target.repo_path),
+                escape_html(branch),
+                escape_html(upstream),
+                dirty,
+            )
+        })
+        .collect::<Vec<_>>()
+        .join("");
+
+    table_html(
+        &["Project", "Repo", "Path", "Branch", "Upstream", "Worktree"],
+        rows,
+    )
 }
 
 pub fn not_found() -> Response {
