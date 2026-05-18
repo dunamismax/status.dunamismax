@@ -1,12 +1,10 @@
 # Dunamis Status
 
-Working project name: **Dunamis Status**.
-
-`status.dunamismax` is the central status, operations, and project-health
-surface for Stephen Sawyer's self-hosted systems. The public site will live at
-[`https://status.dunamismax.com`](https://status.dunamismax.com) and report the
-health of the websites, services, repositories, deployments, and infrastructure
-that power the `dunamismax` ecosystem.
+Dunamis Status is the central status, operations, and project-health surface
+for Stephen Sawyer's self-hosted systems. The public site will live at
+[`https://status.dunamismax.com`](https://status.dunamismax.com) and report
+the health of the websites, services, repositories, deployments, and
+infrastructure that power the `dunamismax` ecosystem.
 
 The target stack is the current Rust web standard used across Stephen's newer
 projects:
@@ -17,24 +15,6 @@ projects:
 - Tokio runtime
 - PostgreSQL for durable status history
 - Caddy and systemd on the Ubuntu host
-
-## Name Ideas
-
-The repo can stay `status.dunamismax`, while the product name can be more
-memorable. Strong options:
-
-| Name | Why it fits |
-| --- | --- |
-| **Dunamis Status** | Clear, literal, and domain-aligned. Best default. |
-| **Dunamis Watch** | Good if the product grows into live monitoring and alerts. |
-| **Control Tower** | Strong operator feel, but less unique to the brand. |
-| **Signal Board** | Fits project status plus service signals, but overlaps with signal/security language. |
-| **Pulseboard** | Good dashboard name; implies uptime and momentum. |
-| **Ops Ledger** | Good for a historical operations log and deploy evidence. |
-| **Beacon** | Clean, short, and status-oriented, but broader than the domain. |
-
-Recommended public name for now: **Dunamis Status**. It is boring in the right
-way for a status surface, and it keeps the domain, repo, and product aligned.
 
 ## Product Goal
 
