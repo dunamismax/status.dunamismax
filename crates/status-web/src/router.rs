@@ -45,9 +45,9 @@ impl AppState {
         }
     }
 
-    async fn public_snapshot(&self) -> StatusSnapshot {
+    async fn monitored_snapshot(&self) -> StatusSnapshot {
         match &self.source {
-            StatusSource::Live(runner) => runner.collect_public_status().await,
+            StatusSource::Live(runner) => runner.collect_monitored_status().await,
             StatusSource::Fixed(snapshot) => snapshot.clone(),
         }
     }
@@ -55,7 +55,7 @@ impl AppState {
     async fn status_snapshot(&self) -> StatusSnapshot {
         match &self.source {
             StatusSource::Live(runner) => {
-                let services = runner.collect_public_services().await;
+                let services = runner.collect_monitored_services().await;
                 let projects = project::collect_project_status().await;
                 StatusSnapshot::from_services_and_projects(services, projects)
             }
@@ -167,11 +167,11 @@ pub fn router_with_state(state: AppState) -> Router {
 }
 
 async fn home(State(state): State<AppState>) -> impl IntoResponse {
-    pages::overview(&state.public_snapshot().await)
+    pages::overview(&state.monitored_snapshot().await)
 }
 
 async fn services(State(state): State<AppState>) -> impl IntoResponse {
-    pages::services(&state.public_snapshot().await)
+    pages::services(&state.monitored_snapshot().await)
 }
 
 async fn projects(State(state): State<AppState>) -> impl IntoResponse {
@@ -294,7 +294,7 @@ mod tests {
                 .starts_with("text/html")
         );
         assert!(body.contains("Dunamis Status"));
-        assert!(body.contains("Some monitored public services are degraded"));
+        assert!(body.contains("Some monitored services are degraded"));
         assert!(body.contains("fileferry.app"));
     }
 

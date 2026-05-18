@@ -101,10 +101,10 @@ docs/
 
 The current implementation is one `status-web` binary with embedded assets,
 explicit public inventory, live public HTTP probes, project/git status, typed
-host-probe primitives for future operator use, optional PostgreSQL-backed
-history, and a one-shot collector mode for timer-friendly snapshot writes. The
-crate boundaries can split once host probes, persistence, and worker behavior
-grow.
+host checks for systemd, Docker Compose, Caddy, and Cloudflare DDNS, optional
+PostgreSQL-backed history, and a one-shot collector mode for timer-friendly
+snapshot writes. The crate boundaries can split once persistence and worker
+behavior grow.
 
 ## Public Routes
 
@@ -147,8 +147,9 @@ bind address with `STATUS_BIND_ADDR` and logging with `STATUS_LOG`.
 
 PostgreSQL history is optional. Set `STATUS_DATABASE_URL` to run migrations at
 startup and make `/readyz` check the database. Set `STATUS_COLLECT_ONCE=1` to
-collect one public service and project snapshot, persist it when the database
-is configured, prune old check rows with `STATUS_RETENTION_DAYS`, and exit.
+collect one monitored service and project snapshot, persist it when the
+database is configured, prune old check rows with `STATUS_RETENTION_DAYS`, and
+exit.
 Set `STATUS_RECORD_DEPLOYMENT=1` with deployment metadata to record an explicit
 deployment event and exit.
 

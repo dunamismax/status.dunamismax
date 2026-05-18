@@ -76,7 +76,7 @@ async fn collect_once(
     retention_days: u32,
 ) -> Result<(), Box<dyn std::error::Error>> {
     let runner = ProbeRunner::new();
-    let services = runner.collect_public_services().await;
+    let services = runner.collect_monitored_services().await;
     let projects = project::collect_project_status().await;
     let snapshot = StatusSnapshot::from_services_and_projects(services, projects);
 

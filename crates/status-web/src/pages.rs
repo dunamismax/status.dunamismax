@@ -25,15 +25,15 @@ pub fn overview(snapshot: &StatusSnapshot) -> Response {
         r#"
 <section class="status-band">
   <div>
-    <p class="eyebrow">Public ecosystem status</p>
+    <p class="eyebrow">Self-hosted ecosystem status</p>
     <h1>{}</h1>
-    <p class="lede">{} of {} public checks need attention. Last checked {}.</p>
+    <p class="lede">{} of {} monitored checks need attention. Last checked {}.</p>
   </div>
   {}
 </section>
 <section class="section">
   <div class="section-heading">
-    <h2>Public checks</h2>
+    <h2>Monitored checks</h2>
     <a href="/services">Service details</a>
   </div>
   {}
@@ -62,7 +62,7 @@ pub fn services(snapshot: &StatusSnapshot) -> Response {
   <div class="section-heading">
     <div>
       <p class="eyebrow">Service-level status</p>
-      <h1>Public services</h1>
+      <h1>Monitored services</h1>
     </div>
     <p class="timestamp">Last checked {}</p>
   </div>
@@ -333,17 +333,25 @@ fn service_row_html(service: &ServiceStatus) -> String {
         .latency_ms
         .map(|latency| format!("{latency} ms"))
         .unwrap_or_else(|| "n/a".to_owned());
+    let service_name = if service.target.public_url.is_empty() {
+        escape_html(service.target.name)
+    } else {
+        format!(
+            r#"<a href="{}">{}</a>"#,
+            escape_html(service.target.public_url),
+            escape_html(service.target.name)
+        )
+    };
 
     format!(
         r#"<tr>
-  <th scope="row"><a href="{}">{}</a><span>{}</span></th>
+  <th scope="row">{}<span>{}</span></th>
   <td><span class="state state-{}">{}</span></td>
   <td>{}</td>
   <td>{}</td>
   <td>{}</td>
 </tr>"#,
-        escape_html(service.target.public_url),
-        escape_html(service.target.name),
+        service_name,
         escape_html(service.target.group),
         state,
         state,
@@ -583,11 +591,11 @@ fn short_commit(commit: &str) -> String {
 
 fn state_headline(state: StatusState) -> &'static str {
     match state {
-        StatusState::Operational => "All monitored public services are operational",
-        StatusState::Degraded => "Some monitored public services are degraded",
-        StatusState::Down => "One or more monitored public services are down",
+        StatusState::Operational => "All monitored services are operational",
+        StatusState::Degraded => "Some monitored services are degraded",
+        StatusState::Down => "One or more monitored services are down",
         StatusState::Maintenance => "Maintenance is in progress",
-        StatusState::Unknown => "Public service status is unknown",
+        StatusState::Unknown => "Monitored service status is unknown",
     }
 }
 

@@ -28,8 +28,8 @@ Observed on 2026-05-18:
   shell.
 - Typed host-probe primitives now exist for systemd units, Docker Compose JSON,
   Caddy validation/reload evidence, Cloudflare DDNS last-success status,
-  public-safe host reasons, and service-to-public-site mapping. They are not
-  exposed on public routes yet because the operator boundary is a later phase.
+  public-safe host reasons, and service-to-public-site mapping. Public routes
+  now expose the summarized host checks without raw command output.
 - Project status now exists for premier repositories with git branch,
   ahead/behind, dirty state, latest commit age, remote reachability, and
   `BUILD.md` checkbox progress.

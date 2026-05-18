@@ -34,10 +34,14 @@ impl StatusState {
 }
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize)]
-#[serde(rename_all = "lowercase")]
+#[serde(rename_all = "kebab-case")]
 pub enum CheckKind {
     Http,
     Git,
+    Systemd,
+    DockerCompose,
+    Caddy,
+    CloudflareDdns,
 }
 
 impl CheckKind {
@@ -45,6 +49,10 @@ impl CheckKind {
         match self {
             Self::Http => "http",
             Self::Git => "git",
+            Self::Systemd => "systemd",
+            Self::DockerCompose => "docker-compose",
+            Self::Caddy => "caddy",
+            Self::CloudflareDdns => "cloudflare-ddns",
         }
     }
 }

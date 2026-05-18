@@ -5,12 +5,16 @@ use reqwest::{Client, StatusCode};
 use tokio::{task::JoinSet, time::Instant};
 
 use crate::{
+    host::{self, DockerComposeServiceTarget, HostCheckKind, HostCheckResult},
     inventory::public_targets,
     model::{CheckKind, CheckResult, MonitorTarget, ServiceStatus, StatusSnapshot, StatusState},
 };
 
 const HTTP_PROBE_VERSION: &str = "public-http-v1";
 const DEFAULT_TIMEOUT: Duration = Duration::from_secs(5);
+const LANGINDEX_COMPOSE_FILE: &str = "/home/sawyer/github/langindex/compose.yaml";
+const RUSTDESK_COMPOSE_FILE: &str =
+    "/home/sawyer/github/xrayservice/rustdesk-server/docker-compose.yml";
 
 #[derive(Debug, Clone)]
 pub struct ProbeRunner {
@@ -36,8 +40,62 @@ impl ProbeRunner {
         StatusSnapshot::from_services(self.collect_public_services().await)
     }
 
+    pub async fn collect_monitored_status(&self) -> StatusSnapshot {
+        StatusSnapshot::from_services(self.collect_monitored_services().await)
+    }
+
+    pub async fn collect_monitored_services(&self) -> Vec<ServiceStatus> {
+        let (mut public_services, host_services) =
+            tokio::join!(self.collect_public_services(), self.collect_host_services());
+        public_services.extend(host_services);
+        public_services
+    }
+
     pub async fn collect_public_services(&self) -> Vec<ServiceStatus> {
         collect_targets(public_targets(), self.client.clone(), self.timeout).await
+    }
+
+    pub async fn collect_host_services(&self) -> Vec<ServiceStatus> {
+        let mut checks = JoinSet::new();
+
+        for target in host::systemd_targets() {
+            checks.spawn(async move {
+                let result = host::probe_systemd_unit(target).await;
+                host_result_to_service(result, target.unit, "Host services")
+            });
+        }
+
+        for target in docker_compose_targets() {
+            checks.spawn(async move {
+                let result =
+                    host::probe_docker_compose_service(target.target, target.compose_file).await;
+                host_result_to_service(result, target.name, "Container services")
+            });
+        }
+
+        let caddy = host::caddy_probe_target();
+        checks.spawn(async move {
+            let result = host::probe_caddy_validate_reload(caddy).await;
+            host_result_to_service(result, "Caddy configuration", "Host infrastructure")
+        });
+
+        let cloudflare = host::cloudflare_ddns_target();
+        checks.spawn(async move {
+            let result = host::probe_cloudflare_ddns_last_success(cloudflare).await;
+            host_result_to_service(result, "Cloudflare DDNS", "Host infrastructure")
+        });
+
+        let mut services = Vec::new();
+        while let Some(result) = checks.join_next().await {
+            match result {
+                Ok(service) => services.push(service),
+                Err(error) => {
+                    tracing::warn!(%error, "host probe task failed");
+                }
+            }
+        }
+
+        services
     }
 }
 
@@ -198,6 +256,78 @@ fn public_request_error_reason(error: &reqwest::Error) -> String {
     }
 }
 
+#[derive(Debug, Clone, Copy)]
+struct ComposeMonitorTarget {
+    target: DockerComposeServiceTarget,
+    name: &'static str,
+    compose_file: &'static str,
+}
+
+fn docker_compose_targets() -> Vec<ComposeMonitorTarget> {
+    vec![
+        ComposeMonitorTarget {
+            target: DockerComposeServiceTarget {
+                id: "langindex-container",
+                service: "site",
+            },
+            name: "langindex container",
+            compose_file: LANGINDEX_COMPOSE_FILE,
+        },
+        ComposeMonitorTarget {
+            target: DockerComposeServiceTarget {
+                id: "rustdesk-hbbs",
+                service: "hbbs",
+            },
+            name: "rustdesk hbbs",
+            compose_file: RUSTDESK_COMPOSE_FILE,
+        },
+        ComposeMonitorTarget {
+            target: DockerComposeServiceTarget {
+                id: "rustdesk-hbbr",
+                service: "hbbr",
+            },
+            name: "rustdesk hbbr",
+            compose_file: RUSTDESK_COMPOSE_FILE,
+        },
+    ]
+}
+
+fn host_result_to_service(
+    result: HostCheckResult,
+    name: &'static str,
+    group: &'static str,
+) -> ServiceStatus {
+    let target = MonitorTarget {
+        id: result.target_id,
+        name,
+        group,
+        public_url: "",
+        probe_url: "",
+        expected_status: 0,
+        expected_body_token: None,
+    };
+    let check = CheckResult {
+        target_id: result.target_id,
+        check_kind: host_check_kind_to_check_kind(result.check_kind),
+        state: result.state,
+        checked_at: result.checked_at,
+        latency_ms: result.duration_ms,
+        reason: result.reason,
+        probe_version: result.probe_version,
+    };
+
+    ServiceStatus { target, check }
+}
+
+fn host_check_kind_to_check_kind(kind: HostCheckKind) -> CheckKind {
+    match kind {
+        HostCheckKind::Systemd => CheckKind::Systemd,
+        HostCheckKind::DockerCompose => CheckKind::DockerCompose,
+        HostCheckKind::Caddy => CheckKind::Caddy,
+        HostCheckKind::CloudflareDdns => CheckKind::CloudflareDdns,
+    }
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;
@@ -212,5 +342,36 @@ mod tests {
         );
 
         assert!(!reason.contains("127.0.0.1"));
+    }
+
+    #[test]
+    fn host_results_are_projected_without_private_detail() {
+        let result = HostCheckResult {
+            target_id: "sealport-web",
+            check_kind: HostCheckKind::Systemd,
+            state: StatusState::Operational,
+            checked_at: Utc::now(),
+            duration_ms: Some(12),
+            reason: "unit is active".to_owned(),
+            probe_version: "test",
+            private_detail: Some("/home/sawyer/private.log".to_owned()),
+        };
+
+        let service = host_result_to_service(result, "sealport-web.service", "Host services");
+
+        assert_eq!(service.target.id, "sealport-web");
+        assert_eq!(service.target.name, "sealport-web.service");
+        assert_eq!(service.check.check_kind, CheckKind::Systemd);
+        assert_eq!(service.check.reason, "unit is active");
+        assert!(
+            serde_json::to_string(&service)
+                .unwrap()
+                .contains("sealport-web.service")
+        );
+        assert!(
+            !serde_json::to_string(&service)
+                .unwrap()
+                .contains("/home/sawyer")
+        );
     }
 }

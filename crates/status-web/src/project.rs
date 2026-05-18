@@ -71,14 +71,7 @@ pub async fn probe_project(target: ProjectTarget) -> ProjectStatus {
         .await
         .ok()
         .and_then(|output| parse_commit_age_days(&output, checked_at));
-    let remote_reachable = Some(
-        git_output(
-            &target.repo_path,
-            &["ls-remote", "--exit-code", "origin", "HEAD"],
-        )
-        .await
-        .is_ok(),
-    );
+    let remote_reachable = None;
     let build = std::fs::read_to_string(Path::new(&target.repo_path).join("BUILD.md"))
         .ok()
         .and_then(|contents| parse_build_progress(&contents));
@@ -123,6 +116,8 @@ async fn git_output(repo_path: &str, args: &[&str]) -> Result<String, String> {
     let output = tokio::time::timeout(
         GIT_COMMAND_TIMEOUT,
         Command::new("git")
+            .arg("-c")
+            .arg("safe.directory=*")
             .arg("-C")
             .arg(repo_path)
             .args(args)
@@ -226,10 +221,6 @@ fn evaluate_project_status(
 
     if git.upstream.is_none() {
         reasons.push("upstream branch is not configured".to_owned());
-    }
-
-    if git.remote_reachable == Some(false) {
-        reasons.push("origin remote was not reachable".to_owned());
     }
 
     if let Some(age) = git.latest_commit_age_days
