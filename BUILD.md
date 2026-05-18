@@ -94,6 +94,11 @@ traces.
 - **tracing** for structured logs.
 - **tower-http** for request tracing, compression, headers, and static asset
   handling where useful.
+- **OpenTelemetry** only after local `tracing` spans are stable and there is a
+  concrete exporter target; do not add an observability stack before the
+  status model itself is reliable.
+- **figment** or **config** only if inventory, operator boundary, database,
+  and alert configuration outgrow explicit environment parsing.
 - **reqwest** for public and local HTTP probes.
 - **serde** for inventory, status JSON, and API payloads.
 - **thiserror** for domain and probe errors.
@@ -314,6 +319,10 @@ Goal: add private detail and notifications without exposing the host.
 - [ ] Add alert rules after check stability is proven.
 - [ ] Add notification targets only after rate limits and duplicate
       suppression exist.
+- [ ] Evaluate OpenTelemetry export after probe/request spans have stable
+      names and the destination is known.
+- [ ] Revisit config loading with `figment` or `config` if operator, alert,
+      and inventory settings need layered files plus environment overrides.
 - [ ] Document alert severity and escalation behavior.
 
 Exit criteria: private status detail and alerts are useful without becoming
