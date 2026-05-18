@@ -1,5 +1,6 @@
 pub mod assets;
 pub mod config;
+pub mod host;
 pub mod inventory;
 pub mod model;
 pub mod pages;

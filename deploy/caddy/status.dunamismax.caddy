@@ -1,0 +1,11 @@
+status.dunamismax.com {
+	encode zstd gzip
+
+	header {
+		X-Content-Type-Options nosniff
+		Referrer-Policy no-referrer
+		Permissions-Policy interest-cohort=()
+	}
+
+	reverse_proxy 127.0.0.1:8095
+}

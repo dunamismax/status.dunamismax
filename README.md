@@ -94,8 +94,9 @@ docs/
 ```
 
 The current first cut is one `status-web` binary with embedded assets, explicit
-public inventory, and live public HTTP probes. The crate boundaries can split
-once host probes, persistence, and worker behavior arrive.
+public inventory, live public HTTP probes, and typed host-probe primitives for
+future operator use. The crate boundaries can split once host probes,
+persistence, and worker behavior grow.
 
 ## Public Routes
 
@@ -146,6 +147,10 @@ Production target:
 - `status-dunamismax.service` on `127.0.0.1:8095`
 - Caddy site block for `status.dunamismax.com`
 - PostgreSQL database only after persistence is needed
+
+Deployment templates live under `deploy/` for the systemd unit, environment
+file, and Caddy reverse proxy. They are repo-owned templates; installing them
+and reloading host services remains an explicit production step.
 
 Do not publish host-sensitive details publicly by default. Public status should
 show enough to be useful without exposing private paths, secrets, internal IPs,

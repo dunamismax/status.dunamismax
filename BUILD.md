@@ -26,6 +26,11 @@ Observed on 2026-05-18:
 - The first Rust workspace pass now exists with `crates/status-web`, live
   public HTTP probes, embedded assets, and Axum routes for the public status
   shell.
+- Typed host-probe primitives now exist for systemd units, Docker Compose JSON,
+  public-safe host reasons, and service-to-public-site mapping. They are not
+  exposed on public routes yet because the operator boundary is a later phase.
+- Deployment templates exist under `deploy/` for systemd, Caddy, and the
+  runtime environment file.
 - The intended runtime is Rust, Axum, Leptos SSR, Tokio, Caddy, systemd, and
   PostgreSQL when durable history is needed.
 - Reference implementation patterns:
@@ -199,12 +204,12 @@ touching private host state.
 
 Goal: add local operator-grade host health while keeping public output safe.
 
-- [ ] Add typed systemd probe wrapper for selected units.
-- [ ] Add Docker Compose probe for LangIndex and any future compose services.
+- [x] Add typed systemd probe wrapper for selected units.
+- [x] Add Docker Compose probe for LangIndex and any future compose services.
 - [ ] Add Caddy validate/reload recency probe.
 - [ ] Add Cloudflare DDNS last-success probe from systemd journal or status.
-- [ ] Add service-to-public-site mapping.
-- [ ] Keep raw command output private and summarize public-safe reasons.
+- [x] Add service-to-public-site mapping.
+- [x] Keep raw command output private and summarize public-safe reasons.
 
 Exit criteria: local service state contributes to rollups without leaking
 private host details.
@@ -260,9 +265,9 @@ context.
 
 Goal: serve the app at `https://status.dunamismax.com`.
 
-- [ ] Add `deploy/systemd/status-dunamismax.service`.
-- [ ] Add `deploy/status.env.example`.
-- [ ] Add `deploy/caddy/status.dunamismax.caddy` proxying to
+- [x] Add `deploy/systemd/status-dunamismax.service`.
+- [x] Add `deploy/status.env.example`.
+- [x] Add `deploy/caddy/status.dunamismax.caddy` proxying to
       `127.0.0.1:8095`.
 - [ ] Create unprivileged `status-dunamismax` user on the host.
 - [ ] Install release binary under `/opt/status-dunamismax`.
