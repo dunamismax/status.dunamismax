@@ -34,7 +34,7 @@ Observed on 2026-05-18:
   ahead/behind, dirty state, latest commit age, remote reachability, and
   `BUILD.md` checkbox progress.
 - Public and project inventory now includes `fileferry.app`, `xrayservice.net`,
-  `status.dunamismax`, FileFerry from the `sealport` checkout, and the other local project checkouts under
+  `status.dunamismax`, `fileferry`, and the other local project checkouts under
   `/home/sawyer/github`.
 - Optional PostgreSQL-backed history now exists with migrations for targets,
   check runs, rollups, incidents, maintenance windows, and deployment events.
@@ -53,7 +53,7 @@ Observed on 2026-05-18:
 - The intended runtime is Rust, Axum, Leptos SSR, Tokio, Caddy, systemd, and
   PostgreSQL when durable history is needed.
 - Reference implementation patterns:
-  - `/home/sawyer/github/sealport` for the FileFerry Rust Leptos/Axum site and
+  - `/home/sawyer/github/fileferry` for the FileFerry Rust Leptos/Axum site and
     repo-doc style.
   - `/home/sawyer/github/dunamismax.com` for Rust website migration,
     Caddy/systemd deployment, and portfolio/project content discipline.

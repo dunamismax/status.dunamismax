@@ -87,7 +87,7 @@ pub fn project_targets() -> Vec<ProjectTarget> {
         project_named(
             "fileferry",
             "fileferry",
-            "sealport",
+            "fileferry",
             Some("https://fileferry.app"),
         ),
         project("go-web-server", "go-web-server", None),
@@ -207,7 +207,7 @@ mod tests {
         assert!(
             targets
                 .iter()
-                .any(|target| target.id == "fileferry" && target.repo_name == "sealport")
+                .any(|target| target.id == "fileferry" && target.repo_name == "fileferry")
         );
         assert!(
             targets

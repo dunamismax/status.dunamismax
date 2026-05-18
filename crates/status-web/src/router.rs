@@ -321,7 +321,7 @@ mod tests {
         assert_eq!(json["overall_state"], "degraded");
         assert_eq!(json["summary"]["operational"], 1);
         assert_eq!(json["summary"]["degraded"], 1);
-        assert_eq!(json["projects"][0]["target"]["repo_name"], "sealport");
+        assert_eq!(json["projects"][0]["target"]["repo_name"], "fileferry");
         assert!(json["projects"][0]["target"]["repo_path"].is_null());
     }
 
@@ -445,9 +445,9 @@ mod tests {
                 target: ProjectTarget {
                     id: "fileferry",
                     name: "fileferry",
-                    repo_name: "sealport",
+                    repo_name: "fileferry",
                     public_url: Some("https://fileferry.app"),
-                    repo_path: "/home/sawyer/github/sealport".to_owned(),
+                    repo_path: "/home/sawyer/github/fileferry".to_owned(),
                 },
                 state: StatusState::Operational,
                 checked_at,
