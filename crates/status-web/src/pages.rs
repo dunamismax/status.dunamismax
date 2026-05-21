@@ -11,6 +11,15 @@ use crate::model::{
     StatusSnapshot, StatusState,
 };
 
+const THEME_INIT_JS: &str = "(function(){try{var s=localStorage.getItem('status-theme');if(s!=='light'&&s!=='dark'){s=(window.matchMedia&&window.matchMedia('(prefers-color-scheme: light)').matches)?'light':'dark';}document.documentElement.setAttribute('data-theme',s);}catch(e){document.documentElement.setAttribute('data-theme','dark');}})();";
+
+const THEME_TOGGLE_JS: &str = "(function(){var b=document.querySelector('[data-theme-toggle]');if(!b)return;function sync(){var t=document.documentElement.getAttribute('data-theme')||'dark';b.setAttribute('aria-pressed',t==='light'?'true':'false');b.setAttribute('title',t==='dark'?'Switch to light theme':'Switch to dark theme');}sync();b.addEventListener('click',function(){var c=document.documentElement.getAttribute('data-theme')==='dark'?'light':'dark';document.documentElement.setAttribute('data-theme',c);try{localStorage.setItem('status-theme',c);}catch(e){}sync();});})();";
+
+const THEME_TOGGLE_ICONS: &str = concat!(
+    r##"<svg class="icon icon-sun" viewBox="0 0 16 16" aria-hidden="true" fill="currentColor"><path d="M8 12.25a4.25 4.25 0 1 1 0-8.5 4.25 4.25 0 0 1 0 8.5Zm0-1.5a2.75 2.75 0 1 0 0-5.5 2.75 2.75 0 0 0 0 5.5Z"/><path d="M8 0a.75.75 0 0 1 .75.75v1.5a.75.75 0 0 1-1.5 0V.75A.75.75 0 0 1 8 0Zm0 13a.75.75 0 0 1 .75.75v1.5a.75.75 0 0 1-1.5 0v-1.5A.75.75 0 0 1 8 13Zm8-5a.75.75 0 0 1-.75.75h-1.5a.75.75 0 0 1 0-1.5h1.5A.75.75 0 0 1 16 8ZM3 8a.75.75 0 0 1-.75.75H.75a.75.75 0 0 1 0-1.5h1.5A.75.75 0 0 1 3 8Zm10.657-5.657a.75.75 0 0 1 0 1.06l-1.06 1.061a.75.75 0 1 1-1.061-1.06l1.06-1.061a.75.75 0 0 1 1.061 0ZM4.464 11.535a.75.75 0 0 1 0 1.061l-1.06 1.061a.75.75 0 1 1-1.061-1.06l1.06-1.062a.75.75 0 0 1 1.061 0Zm9.193 2.122a.75.75 0 0 1-1.06 0l-1.061-1.06a.75.75 0 1 1 1.06-1.061l1.061 1.06a.75.75 0 0 1 0 1.061ZM4.464 4.464a.75.75 0 0 1-1.06 0L2.343 3.404a.75.75 0 0 1 1.06-1.06l1.061 1.06a.75.75 0 0 1 0 1.06Z"/></svg>"##,
+    r##"<svg class="icon icon-moon" viewBox="0 0 16 16" aria-hidden="true" fill="currentColor"><path d="M9.598 1.591a.749.749 0 0 1 .785-.175 7.001 7.001 0 1 1-8.967 8.967.75.75 0 0 1 .961-.96 5.5 5.5 0 0 0 7.046-7.046.75.75 0 0 1 .175-.786Zm1.616 1.945a7 7 0 0 1-7.678 7.678 5.499 5.499 0 1 0 7.678-7.678Z"/></svg>"##,
+);
+
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub enum NavSection {
     Overview,
@@ -24,7 +33,7 @@ pub enum NavSection {
 pub fn overview(snapshot: &StatusSnapshot) -> Response {
     let body = format!(
         r#"
-<section class="status-band">
+<section class="status-band is-{}">
   <div>
     <p class="eyebrow">Self-hosted ecosystem status</p>
     <h1>{}</h1>
@@ -49,6 +58,7 @@ pub fn overview(snapshot: &StatusSnapshot) -> Response {
   {}
 </section>
 "#,
+        snapshot.overall_state.as_str(),
         state_headline(snapshot.overall_state),
         state_lede(snapshot),
         format_time(snapshot.checked_at),
@@ -342,32 +352,48 @@ fn render_with_status(
             <head>
                 <meta charset="utf-8" />
                 <meta name="viewport" content="width=device-width, initial-scale=1" />
-                <meta name="color-scheme" content="light dark" />
+                <meta name="color-scheme" content="dark light" />
                 <meta name="description" content=description />
                 <link rel="icon" type="image/svg+xml" href="/icon.svg" />
                 <link rel="stylesheet" href="/assets/status.css" />
+                <script inner_html=THEME_INIT_JS></script>
                 <title>{full_title}</title>
             </head>
             <body>
                 <a class="skip" href="#main">"Skip to status"</a>
                 <header class="site-header">
-                    <a class="brand" href="/" aria-label="Dunamis Status home">
-                        <span class="brand-mark" aria-hidden="true">"DS"</span>
-                        <span>"Dunamis Status"</span>
-                    </a>
-                    <nav aria-label="Primary">
-                        <NavLink href="/" active=section == NavSection::Overview>"Overview"</NavLink>
-                        <NavLink href="/services" active=section == NavSection::Services>"Services"</NavLink>
-                        <NavLink href="/projects" active=section == NavSection::Projects>"Projects"</NavLink>
-                        <NavLink href="/incidents" active=section == NavSection::Incidents>"Incidents"</NavLink>
-                        <NavLink href="/deployments" active=section == NavSection::Deployments>"Deployments"</NavLink>
-                    </nav>
+                    <div class="site-header-inner">
+                        <a class="brand" href="/" aria-label="Dunamis Status home">
+                            <span class="brand-mark" aria-hidden="true">"DS"</span>
+                            <span>"Dunamis Status"</span>
+                        </a>
+                        <div class="header-tools">
+                            <nav aria-label="Primary">
+                                <NavLink href="/" active=section == NavSection::Overview>"Overview"</NavLink>
+                                <NavLink href="/services" active=section == NavSection::Services>"Services"</NavLink>
+                                <NavLink href="/projects" active=section == NavSection::Projects>"Projects"</NavLink>
+                                <NavLink href="/incidents" active=section == NavSection::Incidents>"Incidents"</NavLink>
+                                <NavLink href="/deployments" active=section == NavSection::Deployments>"Deployments"</NavLink>
+                            </nav>
+                            <button
+                                class="theme-toggle"
+                                type="button"
+                                aria-label="Toggle color theme"
+                                title="Toggle color theme"
+                                data-theme-toggle="true"
+                                inner_html=THEME_TOGGLE_ICONS
+                            ></button>
+                        </div>
+                    </div>
                 </header>
                 <main id="main" inner_html=body></main>
                 <footer class="site-footer">
-                    <span>"status.dunamismax.com"</span>
-                    <a href="/api/status.json">"JSON"</a>
+                    <div class="site-footer-inner">
+                        <span>"status.dunamismax.com"</span>
+                        <a href="/api/status.json">"JSON"</a>
+                    </div>
                 </footer>
+                <script inner_html=THEME_TOGGLE_JS></script>
             </body>
         </html>
     };
