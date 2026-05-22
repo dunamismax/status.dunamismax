@@ -3,9 +3,9 @@
 Repo-local operating manual for `status.dunamismax`. Reading this file plus
 `README.md` and `BUILD.md` is sufficient context to begin work.
 
-`README.md` explains the product. `BUILD.md` is the active implementation
-plan. This file holds durable engineering, safety, monitoring, deployment, and
-repository rules.
+`README.md` explains the live product. `BUILD.md` records the current
+implementation shape and operating backlog. This file holds durable
+engineering, safety, monitoring, deployment, and repository rules.
 
 ## Read Order
 
@@ -23,8 +23,8 @@ agent-instruction files. If durable repo behavior matters, put it here.
 
 You are working with Stephen Sawyer (`dunamismax`).
 
-This repo represents Stephen's operational control surface for self-hosted
-Rust-first services, public websites, repository health, deployments, and
+This repo represents Stephen's live Rust operational control surface for
+self-hosted services, public websites, repository health, deployments, and
 project status.
 
 ## Priority Stack
@@ -69,7 +69,7 @@ or present stale data as current.
 - Use `tracing` and `tracing-subscriber` for logs.
 - Use `tower-http` when it cleanly solves tracing, compression, headers, or
   static asset behavior.
-- Use PostgreSQL with `sqlx` once durable status history exists.
+- Use PostgreSQL with `sqlx` for durable status history.
 - Use `serde` for inventory, status snapshots, and JSON APIs.
 - Use `thiserror` for domain and probe errors.
 - Use `reqwest` for HTTP probes.
@@ -77,11 +77,11 @@ or present stale data as current.
   command offers it.
 - Keep probe side effects read-only unless a later phase explicitly adds
   operator actions.
-- Prefer embedded CSS/assets for the first Rust web pass.
+- Prefer embedded CSS/assets while the public UI remains compact.
 
 Default against:
 
-- JavaScript or TypeScript app frameworks.
+- Additional web app frameworks outside the Rust workspace.
 - Managed monitoring SaaS as the source of truth.
 - Kubernetes or distributed observability infrastructure.
 - Shelling out from UI handlers directly.
@@ -115,8 +115,8 @@ Every check result should carry:
 Rollups must be explainable. If a site is `degraded`, the UI should make clear
 which check degraded it and when.
 
-Do not rely on a single public HTTP check forever. Public HTTP is Phase 2, not
-the full product.
+Do not reduce the product back to a single public HTTP check. The live system
+also tracks host, repository, deployment, history, and alert evidence.
 
 ## Probe Rules
 
@@ -171,17 +171,15 @@ Caddy probes:
 
 ## Deployment Rules
 
-- Production target is Ubuntu LTS, Caddy, and systemd.
-- The app should bind to localhost, default `127.0.0.1:8095`.
+- Production runs on Ubuntu LTS, Caddy, and systemd.
+- The app binds to localhost, default `127.0.0.1:8095`.
 - Caddy terminates TLS for `status.dunamismax.com`.
-- Run as an unprivileged service user, likely `status-dunamismax`.
+- Run as the unprivileged `status-dunamismax` service user.
 - Keep `/healthz` public and cheap.
 - Keep `/readyz` available for dependency readiness.
-- Add Caddy/systemd/env files under `deploy/` before production cutover.
-- Add this service to Toolworks' all-in-one deploy workflow once the first
-  binary exists.
-- Do not edit `/etc/caddy/Caddyfile` for this site until a listening backend
-  exists, unless Stephen explicitly asks for a placeholder.
+- Keep Caddy/systemd/env templates under `deploy/` aligned with production.
+- Keep this service in Toolworks' all-in-one deploy workflow.
+- Do not expose host-only Caddy details publicly.
 
 ## Repository Hygiene
 
@@ -221,7 +219,7 @@ Docs-only changes:
 git diff --check
 ```
 
-After the Rust workspace exists:
+Rust gate:
 
 ```sh
 cargo fmt --all --check

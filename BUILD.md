@@ -1,12 +1,13 @@
 # BUILD.md
 
-Current implementation and operating backlog for `status.dunamismax`.
+Current implementation and operating backlog for the live Rust
+`status.dunamismax` service.
 
 `README.md` explains the product. `AGENTS.md` holds durable repo operating
 rules. This file is intentionally compact now that the original phase checklist
 is complete.
 
-Last reviewed: 2026-05-18.
+Last reviewed: 2026-05-22.
 
 ---
 
@@ -42,10 +43,10 @@ The app currently provides:
   Caddy, and environment configuration.
 - Toolworks deploy integration for `status.dunamismax.com`.
 
-Production deploy was completed on the Ubuntu host. The production public
-smoke after Phase 7 returned `ok` from
-`https://status.dunamismax.com/healthz`, and the latest observed JSON rollup
-from `https://status.dunamismax.com/api/status.json` returned
+Production deploy and cutover are complete on the Ubuntu host. The production
+public smoke returned `ok` from `https://status.dunamismax.com/healthz`, and
+the latest observed JSON rollup from
+`https://status.dunamismax.com/api/status.json` returned
 `"overall_state":"operational"`.
 
 ## Architecture Shape

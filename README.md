@@ -1,13 +1,12 @@
 # Dunamis Status
 
 Dunamis Status is the central status, operations, and project-health surface
-for Stephen Sawyer's self-hosted systems. The public site will live at
-[`https://status.dunamismax.com`](https://status.dunamismax.com) and report
+for Stephen Sawyer's self-hosted systems. The public site lives at
+[`https://status.dunamismax.com`](https://status.dunamismax.com) and reports
 the health of the websites, services, repositories, deployments, and
 infrastructure that power the `dunamismax` ecosystem.
 
-The target stack is the current Rust web standard used across Stephen's newer
-projects:
+The live stack is the Rust web standard used across Stephen's newer projects:
 
 - Rust 2024 Cargo workspace
 - Axum HTTP server
@@ -24,7 +23,7 @@ Dunamis Status answers:
 What is live, what changed, what is degraded, and what needs attention?
 ```
 
-It should become the single page Stephen can open to understand:
+It is the single page Stephen can open to understand:
 
 - public website health
 - Rust service health
@@ -38,12 +37,12 @@ It should become the single page Stephen can open to understand:
 - deployment age and active release paths
 - build/test status for key repos
 - database backup freshness
-- project phase and handoff status from `BUILD.md`
+- project phase and handoff status from repo-owned `BUILD.md` files
 
-The first version should be useful without accounts. Operator-only details can
-arrive after the public status page is trustworthy.
+The public surface is useful without accounts. Operator-only details stay
+behind an explicit bearer-token boundary.
 
-## Initial Monitored Surfaces
+## Monitored Surfaces
 
 Core public sites:
 
@@ -74,11 +73,10 @@ Core host services:
 - `rustdesk-preconfig-build.service`
 - backup timers for Callrift and Pod Tracker
 
-Repository and deployment inventory should start from
-`/home/sawyer/github/toolworks/automation/self-hosted-rust-deploy/deploy-all.sh`
-and evolve into a typed inventory owned by this repo.
+Repository and deployment inventory is owned by this repo and stays aligned
+with Toolworks' self-hosted Rust deploy workflow.
 
-## Target Architecture
+## Architecture
 
 ```text
 crates/
@@ -97,16 +95,16 @@ docs/
   inventory/
 ```
 
-The current implementation is one `status-web` binary with embedded assets,
-explicit public inventory, live public HTTP probes, project/git status, typed
-host checks for systemd, Docker Compose, Caddy, and Cloudflare DDNS, optional
-PostgreSQL-backed history, and a one-shot collector mode for timer-friendly
-snapshot writes. The crate boundaries can split once persistence and worker
-behavior grow.
+The implementation is one `status-web` binary with embedded assets, explicit
+public inventory, live public HTTP probes, project/git status, typed host
+checks for systemd, Docker Compose, Caddy, and Cloudflare DDNS,
+PostgreSQL-backed history when configured, and a one-shot collector mode for
+timer-friendly snapshot writes. The crate boundaries can split once
+persistence and worker behavior need independent release boundaries.
 
 ## Public Routes
 
-Target route surface:
+Current route surface:
 
 ```text
 GET /                         public status overview
@@ -122,10 +120,9 @@ GET /robots.txt
 GET /icon.svg
 ```
 
-The current implementation serves all target public routes. `/incidents` and
-`/deployments` render empty public-safe history views until PostgreSQL contains
-incident, maintenance, or deployment records. Operator-only routes are
-deliberately limited. The first operator route is `GET /operator`, which stays
+The implementation serves all public routes listed above. `/incidents` and
+`/deployments` render public-safe history views from PostgreSQL when records
+exist. Operator-only routes are deliberately limited. `GET /operator` stays
 disabled until `STATUS_OPERATOR_TOKEN` is set and then requires an
 `Authorization: Bearer` token before showing private repository paths.
 
@@ -141,9 +138,9 @@ cargo build --workspace
 cargo run -p status-web
 ```
 
-The app should bind to `127.0.0.1:8095` by default in production-like local
-mode so Caddy can reverse-proxy `status.dunamismax.com` to it. Override the
-bind address with `STATUS_BIND_ADDR` and logging with `STATUS_LOG`.
+The app binds to `127.0.0.1:8095` by default in production-like local mode so
+Caddy can reverse-proxy `status.dunamismax.com` to it. Override the bind
+address with `STATUS_BIND_ADDR` and logging with `STATUS_LOG`.
 
 PostgreSQL history is optional. Set `STATUS_DATABASE_URL` to run migrations at
 startup and make `/readyz` check the database. Set `STATUS_COLLECT_ONCE=1` to
@@ -159,7 +156,7 @@ collector alerts with durable duplicate suppression and per-run rate limits.
 
 ## Production Shape
 
-Production target:
+Production:
 
 - Ubuntu host under `/home/sawyer/github`
 - release binary under `/opt/status-dunamismax`
@@ -169,12 +166,12 @@ Production target:
 - optional PostgreSQL database for durable status history
 
 Deployment templates live under `deploy/` for the systemd unit, environment
-file, collector timer, and Caddy reverse proxy. They are repo-owned templates;
-installing them and reloading host services remains an explicit production
-step. A host runbook lives at `docs/runbooks/production-self-host.md`.
+file, collector timer, and Caddy reverse proxy. They are repo-owned templates
+that mirror the self-hosted Ubuntu deployment. A host runbook lives at
+`docs/runbooks/production-self-host.md`.
 
-Do not publish host-sensitive details publicly by default. Public status should
-show enough to be useful without exposing private paths, secrets, internal IPs,
+Do not publish host-sensitive details publicly by default. Public status shows
+enough to be useful without exposing private paths, secrets, internal IPs,
 database names, backup locations, or exact failure internals.
 
 ## License

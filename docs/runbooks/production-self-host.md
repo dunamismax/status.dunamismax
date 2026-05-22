@@ -13,7 +13,7 @@ details on public pages.
 - PostgreSQL history is optional, but required for incident, maintenance, and
   deployment history.
 
-## First Install
+## Install Or Refresh
 
 ```sh
 cd /home/sawyer/github/status.dunamismax
@@ -36,9 +36,9 @@ Edit `/etc/status-dunamismax/status.env` only for local runtime values. Add
 `STATUS_OPERATOR_TOKEN` only when the authenticated operator view should be
 available.
 
-## Enable
+## Enable Or Reload
 
-Import or append the Caddy site block after the backend binary exists:
+Import or append the Caddy site block when refreshing the host configuration:
 
 ```sh
 sudo systemctl daemon-reload
