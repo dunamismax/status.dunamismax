@@ -83,8 +83,6 @@ https://fileferry.app/healthz
 https://callrift.dev/healthz
 https://pod-tracker.app/healthz
 https://langindex.dev/healthz
-https://0xvane.dev/health
-https://debugpath.dev/healthz
 https://status.dunamismax.com/healthz
 https://xrayservice.net/
 ```
@@ -97,11 +95,6 @@ fileferry-web.service
 callrift.service
 pod-tracker-web.service
 pod-tracker-worker.service
-vane-web.service
-vane-worker.service
-vane-ssh.service
-debugpath-site.service
-debugpath-ssh.service
 status-dunamismax.service
 caddy.service
 cloudflare-ddns.service

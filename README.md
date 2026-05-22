@@ -51,8 +51,6 @@ Core public sites:
 - `https://callrift.dev`
 - `https://pod-tracker.app`
 - `https://langindex.dev`
-- `https://0xvane.dev`
-- `https://debugpath.dev`
 - `https://status.dunamismax.com`
 - `https://xrayservice.net`
 
@@ -63,10 +61,6 @@ Core host services:
 - `callrift.service`
 - `pod-tracker-web.service`
 - `pod-tracker-worker.service`
-- `vane-web.service`
-- `vane-ssh.service`
-- `debugpath-site.service`
-- `debugpath-ssh.service`
 - `status-dunamismax.service`
 - `caddy.service`
 - `cloudflare-ddns.service`

@@ -40,20 +40,6 @@ pub fn public_targets() -> Vec<MonitorTarget> {
             "https://langindex.dev/healthz",
         ),
         target(
-            "0xvane-dev",
-            "0xvane.dev",
-            "Public websites",
-            "https://0xvane.dev",
-            "https://0xvane.dev/health",
-        ),
-        target(
-            "debugpath-dev",
-            "debugpath.dev",
-            "Public websites",
-            "https://debugpath.dev",
-            "https://debugpath.dev/healthz",
-        ),
-        target(
             "status-dunamismax-com",
             "status.dunamismax.com",
             "Public websites",
@@ -74,10 +60,8 @@ pub fn project_targets() -> Vec<ProjectTarget> {
     let root = repository_root();
 
     [
-        project("0xvane", "0xvane", Some("https://0xvane.dev")),
         project("callrift", "callrift", Some("https://callrift.dev")),
         project("c-from-the-ground-up", "c-from-the-ground-up", None),
-        project("debugpath", "debugpath", Some("https://debugpath.dev")),
         project(
             "dunamismax-com",
             "dunamismax.com",
@@ -184,7 +168,7 @@ mod tests {
     fn inventory_contains_initial_public_targets() {
         let targets = public_targets();
 
-        assert_eq!(targets.len(), 9);
+        assert_eq!(targets.len(), 7);
         assert!(
             targets
                 .iter()
@@ -202,7 +186,7 @@ mod tests {
     fn project_inventory_contains_initial_repos_without_public_paths() {
         let targets = project_targets();
 
-        assert_eq!(targets.len(), 17);
+        assert_eq!(targets.len(), 15);
         assert!(targets.iter().any(|target| target.repo_name == "toolworks"));
         assert!(
             targets

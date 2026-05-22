@@ -91,11 +91,6 @@ pub fn systemd_targets() -> Vec<SystemdUnitTarget> {
         long_running("callrift", "callrift.service"),
         long_running("pod-tracker-web", "pod-tracker-web.service"),
         long_running("pod-tracker-worker", "pod-tracker-worker.service"),
-        long_running("vane-web", "vane-web.service"),
-        one_shot("vane-worker", "vane-worker.service"),
-        long_running("vane-ssh", "vane-ssh.service"),
-        long_running("debugpath-site", "debugpath-site.service"),
-        long_running("debugpath-ssh", "debugpath-ssh.service"),
         long_running("status-dunamismax", "status-dunamismax.service"),
         long_running("caddy", "caddy.service"),
         one_shot("cloudflare-ddns", "cloudflare-ddns.service"),
@@ -134,20 +129,6 @@ pub fn service_mappings() -> &'static [ServiceMapping] {
             public_target_id: "langindex-dev",
             systemd_units: &[],
             compose_services: &["langindex"],
-        },
-        ServiceMapping {
-            public_target_id: "0xvane-dev",
-            systemd_units: &[
-                "vane-web.service",
-                "vane-worker.service",
-                "vane-ssh.service",
-            ],
-            compose_services: &[],
-        },
-        ServiceMapping {
-            public_target_id: "debugpath-dev",
-            systemd_units: &["debugpath-site.service", "debugpath-ssh.service"],
-            compose_services: &[],
         },
         ServiceMapping {
             public_target_id: "status-dunamismax-com",
@@ -921,8 +902,6 @@ InactiveEnterTimestamp=Mon 2026-05-18 12:00:00 UTC
             "callrift-dev",
             "pod-tracker-app",
             "langindex-dev",
-            "0xvane-dev",
-            "debugpath-dev",
             "status-dunamismax-com",
             "xrayservice-net",
         ] {
