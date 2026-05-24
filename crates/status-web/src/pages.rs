@@ -19,6 +19,7 @@ const THEME_TOGGLE_ICONS: &str = concat!(
     r##"<svg class="icon icon-sun" viewBox="0 0 16 16" aria-hidden="true" fill="currentColor"><path d="M8 12.25a4.25 4.25 0 1 1 0-8.5 4.25 4.25 0 0 1 0 8.5Zm0-1.5a2.75 2.75 0 1 0 0-5.5 2.75 2.75 0 0 0 0 5.5Z"/><path d="M8 0a.75.75 0 0 1 .75.75v1.5a.75.75 0 0 1-1.5 0V.75A.75.75 0 0 1 8 0Zm0 13a.75.75 0 0 1 .75.75v1.5a.75.75 0 0 1-1.5 0v-1.5A.75.75 0 0 1 8 13Zm8-5a.75.75 0 0 1-.75.75h-1.5a.75.75 0 0 1 0-1.5h1.5A.75.75 0 0 1 16 8ZM3 8a.75.75 0 0 1-.75.75H.75a.75.75 0 0 1 0-1.5h1.5A.75.75 0 0 1 3 8Zm10.657-5.657a.75.75 0 0 1 0 1.06l-1.06 1.061a.75.75 0 1 1-1.061-1.06l1.06-1.061a.75.75 0 0 1 1.061 0ZM4.464 11.535a.75.75 0 0 1 0 1.061l-1.06 1.061a.75.75 0 1 1-1.061-1.06l1.06-1.062a.75.75 0 0 1 1.061 0Zm9.193 2.122a.75.75 0 0 1-1.06 0l-1.061-1.06a.75.75 0 1 1 1.06-1.061l1.061 1.06a.75.75 0 0 1 0 1.061ZM4.464 4.464a.75.75 0 0 1-1.06 0L2.343 3.404a.75.75 0 0 1 1.06-1.06l1.061 1.06a.75.75 0 0 1 0 1.06Z"/></svg>"##,
     r##"<svg class="icon icon-moon" viewBox="0 0 16 16" aria-hidden="true" fill="currentColor"><path d="M9.598 1.591a.749.749 0 0 1 .785-.175 7.001 7.001 0 1 1-8.967 8.967.75.75 0 0 1 .961-.96 5.5 5.5 0 0 0 7.046-7.046.75.75 0 0 1 .175-.786Zm1.616 1.945a7 7 0 0 1-7.678 7.678 5.499 5.499 0 1 0 7.678-7.678Z"/></svg>"##,
 );
+const EST_OFFSET_SECONDS: i32 = 5 * 60 * 60;
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub enum NavSection {
@@ -838,7 +839,10 @@ fn state_lede(snapshot: &StatusSnapshot) -> String {
 }
 
 fn format_time(time: chrono::DateTime<chrono::Utc>) -> String {
-    time.format("%Y-%m-%d %H:%M:%S UTC").to_string()
+    let est = chrono::FixedOffset::west_opt(EST_OFFSET_SECONDS).expect("valid EST offset");
+    time.with_timezone(&est)
+        .format("%Y-%m-%d %H:%M:%S EST")
+        .to_string()
 }
 
 fn escape_html(input: &str) -> String {
@@ -855,6 +859,13 @@ mod tests {
     use super::*;
     use crate::model::{CheckKind, CheckResult, MonitorTarget};
     use chrono::TimeZone;
+
+    #[test]
+    fn format_time_renders_est() {
+        let checked_at = chrono::Utc.with_ymd_and_hms(2026, 5, 18, 12, 0, 0).unwrap();
+
+        assert_eq!(format_time(checked_at), "2026-05-18 07:00:00 EST");
+    }
 
     #[test]
     fn service_rows_escape_public_reason_text() {
