@@ -11,6 +11,7 @@ const SYSTEMD_PROBE_VERSION: &str = "systemd-v1";
 const DOCKER_COMPOSE_PROBE_VERSION: &str = "docker-compose-v1";
 const CADDY_PROBE_VERSION: &str = "caddy-v1";
 const CLOUDFLARE_DDNS_PROBE_VERSION: &str = "cloudflare-ddns-v1";
+const DISK_PROBE_VERSION: &str = "disk-v1";
 const HOST_COMMAND_TIMEOUT: Duration = Duration::from_secs(5);
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize)]
@@ -20,6 +21,7 @@ pub enum HostCheckKind {
     DockerCompose,
     Caddy,
     CloudflareDdns,
+    Disk,
 }
 
 #[derive(Debug, Clone, PartialEq, Eq, Serialize)]
@@ -93,10 +95,22 @@ pub fn systemd_targets() -> Vec<SystemdUnitTarget> {
         long_running("pod-tracker-web", "pod-tracker-web.service"),
         long_running("pod-tracker-worker", "pod-tracker-worker.service"),
         long_running("status-dunamismax", "status-dunamismax.service"),
+        long_running("mtg-card-bot", "mtg-card-bot.service"),
         long_running("docker", "docker.service"),
+        long_running("containerd", "containerd.service"),
         long_running("postgresql", "postgresql.service"),
+        long_running("postgresql-main", "postgresql@18-main.service"),
+        long_running("callrift-postgres", "callrift-postgres.service"),
         long_running("caddy", "caddy.service"),
+        long_running("ssh", "ssh.service"),
+        long_running("tailscaled", "tailscaled.service"),
+        long_running("fail2ban", "fail2ban.service"),
+        one_shot("ufw", "ufw.service"),
         one_shot("cloudflare-ddns", "cloudflare-ddns.service"),
+        one_shot("self-hosted-rust-sync", "self-hosted-rust-sync.service"),
+        long_running("self-hosted-rust-sync-timer", "self-hosted-rust-sync.timer"),
+        one_shot("server-disk-cleanup", "server-disk-cleanup.service"),
+        long_running("server-disk-cleanup-timer", "server-disk-cleanup.timer"),
         one_shot(
             "rustdesk-preconfig-build",
             "rustdesk-preconfig-build.service",
@@ -315,6 +329,36 @@ pub async fn probe_cloudflare_ddns_last_success(target: CloudflareDdnsTarget) ->
             Some(started.elapsed()),
             CLOUDFLARE_DDNS_PROBE_VERSION,
             "Cloudflare DDNS status unavailable",
+            Some(error.to_string()),
+        ),
+    }
+}
+
+pub async fn probe_root_disk_usage() -> HostCheckResult {
+    let checked_at = Utc::now();
+    let started = Instant::now();
+    let args = ["--output=pcent,avail", "/"];
+
+    match run_command("df", &args).await {
+        Ok(output) if output.status.success() => {
+            evaluate_root_disk_usage(checked_at, Some(started.elapsed()), &output.stdout)
+        }
+        Ok(output) => command_failed_result(
+            "root-disk",
+            HostCheckKind::Disk,
+            checked_at,
+            Some(started.elapsed()),
+            DISK_PROBE_VERSION,
+            "root filesystem usage unavailable",
+            output.private_detail(),
+        ),
+        Err(error) => command_failed_result(
+            "root-disk",
+            HostCheckKind::Disk,
+            checked_at,
+            Some(started.elapsed()),
+            DISK_PROBE_VERSION,
+            "root filesystem usage unavailable",
             Some(error.to_string()),
         ),
     }
@@ -655,6 +699,64 @@ fn evaluate_cloudflare_ddns_facts(
         reason: reason.to_owned(),
         probe_version: CLOUDFLARE_DDNS_PROBE_VERSION,
         private_detail: None,
+    }
+}
+
+fn evaluate_root_disk_usage(
+    checked_at: DateTime<Utc>,
+    duration: Option<Duration>,
+    output: &str,
+) -> HostCheckResult {
+    let facts = parse_df_usage(output);
+    let (state, reason) = match facts {
+        Some((usage, available)) if usage >= 90 => (
+            StatusState::Down,
+            format!("root filesystem is {usage}% full; {available} available"),
+        ),
+        Some((usage, available)) if usage >= 80 => (
+            StatusState::Degraded,
+            format!("root filesystem is {usage}% full; {available} available"),
+        ),
+        Some((usage, available)) => (
+            StatusState::Operational,
+            format!("root filesystem is {usage}% full; {available} available"),
+        ),
+        None => (
+            StatusState::Unknown,
+            "root filesystem usage could not be parsed".to_owned(),
+        ),
+    };
+
+    HostCheckResult {
+        target_id: "root-disk",
+        check_kind: HostCheckKind::Disk,
+        state,
+        checked_at,
+        duration_ms: duration.map(duration_ms),
+        reason,
+        probe_version: DISK_PROBE_VERSION,
+        private_detail: None,
+    }
+}
+
+fn parse_df_usage(output: &str) -> Option<(u8, String)> {
+    let line = output.lines().nth(1)?;
+    let mut fields = line.split_whitespace();
+    let usage = fields.next()?.trim_end_matches('%').parse().ok()?;
+    let available_kib = fields.next()?.parse::<u64>().ok()?;
+    Some((usage, format_available_kib(available_kib)))
+}
+
+fn format_available_kib(kib: u64) -> String {
+    const GIB: u64 = 1024 * 1024;
+    const MIB: u64 = 1024;
+
+    if kib >= GIB {
+        format!("{}G", (kib + (GIB / 2)) / GIB)
+    } else if kib >= MIB {
+        format!("{}M", (kib + (MIB / 2)) / MIB)
+    } else {
+        format!("{kib}K")
     }
 }
 
@@ -1025,6 +1127,27 @@ ExecMainStatus=0
 
         assert_eq!(result.state, StatusState::Down);
         assert_eq!(result.reason, "container health is unhealthy");
+    }
+
+    #[test]
+    fn disk_usage_under_threshold_is_operational() {
+        let result = evaluate_root_disk_usage(
+            checked_at(),
+            Some(Duration::from_millis(3)),
+            "Use% Avail\n 52% 59768800\n",
+        );
+
+        assert_eq!(result.state, StatusState::Operational);
+        assert_eq!(result.reason, "root filesystem is 52% full; 57G available");
+        assert_eq!(result.duration_ms, Some(3));
+    }
+
+    #[test]
+    fn disk_usage_above_threshold_is_degraded() {
+        let result = evaluate_root_disk_usage(checked_at(), None, "Use% Avail\n 86% 18874368\n");
+
+        assert_eq!(result.state, StatusState::Degraded);
+        assert_eq!(result.reason, "root filesystem is 86% full; 18G available");
     }
 
     #[test]

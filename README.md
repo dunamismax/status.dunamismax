@@ -92,9 +92,10 @@ docs/
 
 The implementation is one `status-web` binary with embedded assets, explicit
 public inventory, live public HTTP probes, project/git status, typed host
-checks for systemd, Docker Compose with Docker-label fallback, Caddy, and Cloudflare DDNS,
-PostgreSQL-backed history when configured, and a one-shot collector mode for
-timer-friendly snapshot writes. The crate boundaries can split once
+checks for systemd, Docker Compose with Docker-label fallback, root filesystem
+capacity, Caddy, and Cloudflare DDNS, PostgreSQL-backed history when
+configured, and a one-shot collector mode for timer-friendly snapshot writes.
+The crate boundaries can split once
 persistence and worker behavior need independent release boundaries.
 
 ## Public Routes

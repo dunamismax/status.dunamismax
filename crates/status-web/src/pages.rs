@@ -53,7 +53,7 @@ pub fn overview(snapshot: &StatusSnapshot) -> Response {
 </section>
 <section class="section">
   <div class="section-heading">
-    <h2>Monitored checks</h2>
+    <h2>Monitored services by category</h2>
     <a href="/services">Service details</a>
   </div>
   {}
@@ -68,7 +68,7 @@ pub fn overview(snapshot: &StatusSnapshot) -> Response {
         summary_html(snapshot),
         attention_panel_html(snapshot),
         group_panel_html(snapshot),
-        service_table_html(&snapshot.services),
+        service_sections_html(&snapshot.services),
     );
 
     render_page(
@@ -540,6 +540,118 @@ fn service_table_html(services: &[ServiceStatus]) -> String {
     <tbody>{rows}</tbody>
   </table>
 </div>"#
+    )
+}
+
+fn service_sections_html(services: &[ServiceStatus]) -> String {
+    let mut groups: BTreeMap<&str, Vec<&ServiceStatus>> = BTreeMap::new();
+    for service in services {
+        groups
+            .entry(service.target.group)
+            .or_default()
+            .push(service);
+    }
+
+    let mut sections = Vec::new();
+    for group in service_group_order() {
+        if let Some(group_services) = groups.remove(group) {
+            sections.push(service_category_html(group, &group_services));
+        }
+    }
+
+    for (group, group_services) in groups {
+        sections.push(service_category_html(group, &group_services));
+    }
+
+    format!(
+        r#"<div class="service-section-grid">{}</div>"#,
+        sections.join("")
+    )
+}
+
+fn service_group_order() -> &'static [&'static str] {
+    &[
+        "Public websites",
+        "Application services",
+        "Container services",
+        "Databases",
+        "Deployment automation",
+        "Backups & maintenance",
+        "Host capacity",
+        "Network & access",
+        "Host infrastructure",
+        "Host services",
+    ]
+}
+
+fn service_category_html(group: &str, services: &[&ServiceStatus]) -> String {
+    let state = services
+        .iter()
+        .map(|service| service.check.state)
+        .max_by_key(|state| state.rank())
+        .unwrap_or(StatusState::Unknown);
+    let state_name = state.as_str();
+    let cards = services
+        .iter()
+        .map(|service| service_tile_html(service))
+        .collect::<Vec<_>>()
+        .join("");
+
+    format!(
+        r#"<section class="service-category" aria-label="{}">
+  <div class="service-category-heading">
+    <div>
+      <h3>{}</h3>
+      <p>{} checks</p>
+    </div>
+    <span class="state state-{}">{}</span>
+  </div>
+  <div class="service-card-grid">{}</div>
+</section>"#,
+        escape_html(group),
+        escape_html(group),
+        services.len(),
+        state_name,
+        state_name,
+        cards,
+    )
+}
+
+fn service_tile_html(service: &ServiceStatus) -> String {
+    let state = service.check.state.as_str();
+    let latency = service
+        .check
+        .latency_ms
+        .map(|latency| format!("{latency} ms"))
+        .unwrap_or_else(|| "n/a".to_owned());
+    let service_name = if service.target.public_url.is_empty() {
+        escape_html(service.target.name)
+    } else {
+        format!(
+            r#"<a href="{}">{}</a>"#,
+            escape_html(service.target.public_url),
+            escape_html(service.target.name)
+        )
+    };
+
+    format!(
+        r#"<article class="service-card">
+  <div class="service-card-title">
+    <h4>{}</h4>
+    <span class="state state-{}">{}</span>
+  </div>
+  <p>{}</p>
+  <dl>
+    <div><dt>Latency</dt><dd>{}</dd></div>
+    <div><dt>Checked</dt><dd>{}</dd></div>
+  </dl>
+</article>"#,
+        service_name,
+        state,
+        state,
+        escape_html(&service.check.reason),
+        escape_html(&latency),
+        format_time(service.check.checked_at),
     )
 }
 

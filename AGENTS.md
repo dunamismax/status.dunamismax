@@ -145,6 +145,13 @@ Docker probes:
   deployment-only environment variables for interpolation.
 - Treat container health checks as evidence when configured.
 
+Capacity probes:
+
+- Monitor root filesystem usage directly.
+- Treat high usage as degraded before it becomes an outage.
+- Keep public reasons broad: percentage full and available space are okay;
+  private path inventories are not.
+
 Git probes:
 
 - Read branch, upstream, ahead/behind, dirty state, and latest commit age.

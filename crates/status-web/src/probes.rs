@@ -62,7 +62,7 @@ impl ProbeRunner {
         for target in host::systemd_targets() {
             checks.spawn(async move {
                 let result = host::probe_systemd_unit(target).await;
-                host_result_to_service(result, target.unit, "Host services")
+                host_result_to_service(result, target.unit, systemd_target_group(target.id))
             });
         }
 
@@ -84,6 +84,11 @@ impl ProbeRunner {
         checks.spawn(async move {
             let result = host::probe_cloudflare_ddns_last_success(cloudflare).await;
             host_result_to_service(result, "Cloudflare DDNS", "Host infrastructure")
+        });
+
+        checks.spawn(async move {
+            let result = host::probe_root_disk_usage().await;
+            host_result_to_service(result, "Root filesystem", "Host capacity")
         });
 
         let mut services = Vec::new();
@@ -347,6 +352,27 @@ fn host_check_kind_to_check_kind(kind: HostCheckKind) -> CheckKind {
         HostCheckKind::DockerCompose => CheckKind::DockerCompose,
         HostCheckKind::Caddy => CheckKind::Caddy,
         HostCheckKind::CloudflareDdns => CheckKind::CloudflareDdns,
+        HostCheckKind::Disk => CheckKind::Disk,
+    }
+}
+
+fn systemd_target_group(target_id: &str) -> &'static str {
+    match target_id {
+        "dunamismax-site" | "fileferry-web" | "callrift" | "pod-tracker-web"
+        | "pod-tracker-worker" | "status-dunamismax" | "mtg-card-bot" => "Application services",
+        "postgresql" | "postgresql-main" | "callrift-postgres" => "Databases",
+        "callrift-backup"
+        | "callrift-backup-timer"
+        | "loveward-postgres-backup"
+        | "loveward-postgres-backup-timer"
+        | "pod-tracker-backup"
+        | "pod-tracker-backup-timer"
+        | "server-disk-cleanup"
+        | "server-disk-cleanup-timer" => "Backups & maintenance",
+        "self-hosted-rust-sync" | "self-hosted-rust-sync-timer" => "Deployment automation",
+        "ssh" | "tailscaled" | "fail2ban" | "ufw" | "cloudflare-ddns" => "Network & access",
+        "docker" | "containerd" | "caddy" | "rustdesk-preconfig-build" => "Host infrastructure",
+        _ => "Host services",
     }
 }
 

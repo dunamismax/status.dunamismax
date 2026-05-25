@@ -42,6 +42,7 @@ pub enum CheckKind {
     DockerCompose,
     Caddy,
     CloudflareDdns,
+    Disk,
 }
 
 impl CheckKind {
@@ -53,6 +54,7 @@ impl CheckKind {
             Self::DockerCompose => "docker-compose",
             Self::Caddy => "caddy",
             Self::CloudflareDdns => "cloudflare-ddns",
+            Self::Disk => "disk",
         }
     }
 }
