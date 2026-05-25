@@ -83,6 +83,7 @@ https://fileferry.app/healthz
 https://callrift.dev/healthz
 https://pod-tracker.app/healthz
 https://langindex.dev/healthz
+https://loveward.app/api/health
 https://status.dunamismax.com/healthz
 https://xrayservice.net/
 ```

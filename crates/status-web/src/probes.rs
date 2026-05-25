@@ -13,6 +13,7 @@ use crate::{
 const HTTP_PROBE_VERSION: &str = "public-http-v1";
 const DEFAULT_TIMEOUT: Duration = Duration::from_secs(5);
 const LANGINDEX_COMPOSE_FILE: &str = "/home/sawyer/github/langindex/compose.yaml";
+const LOVEWARD_COMPOSE_FILE: &str = "/home/sawyer/github/loveward/compose.production.yml";
 const RUSTDESK_COMPOSE_FILE: &str =
     "/home/sawyer/github/xrayservice/rustdesk-server/docker-compose.yml";
 
@@ -272,6 +273,14 @@ fn docker_compose_targets() -> Vec<ComposeMonitorTarget> {
             },
             name: "langindex container",
             compose_file: LANGINDEX_COMPOSE_FILE,
+        },
+        ComposeMonitorTarget {
+            target: DockerComposeServiceTarget {
+                id: "loveward-container",
+                service: "app",
+            },
+            name: "loveward container",
+            compose_file: LOVEWARD_COMPOSE_FILE,
         },
         ComposeMonitorTarget {
             target: DockerComposeServiceTarget {

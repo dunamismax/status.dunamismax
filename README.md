@@ -51,6 +51,7 @@ Core public sites:
 - `https://callrift.dev`
 - `https://pod-tracker.app`
 - `https://langindex.dev`
+- `https://loveward.app`
 - `https://status.dunamismax.com`
 - `https://xrayservice.net`
 

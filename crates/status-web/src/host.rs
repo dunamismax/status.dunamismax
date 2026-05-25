@@ -131,6 +131,11 @@ pub fn service_mappings() -> &'static [ServiceMapping] {
             compose_services: &["langindex"],
         },
         ServiceMapping {
+            public_target_id: "loveward-app",
+            systemd_units: &[],
+            compose_services: &["loveward"],
+        },
+        ServiceMapping {
             public_target_id: "status-dunamismax-com",
             systemd_units: &["status-dunamismax.service"],
             compose_services: &[],
@@ -902,6 +907,7 @@ InactiveEnterTimestamp=Mon 2026-05-18 12:00:00 UTC
             "callrift-dev",
             "pod-tracker-app",
             "langindex-dev",
+            "loveward-app",
             "status-dunamismax-com",
             "xrayservice-net",
         ] {

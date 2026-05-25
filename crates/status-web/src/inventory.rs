@@ -40,6 +40,13 @@ pub fn public_targets() -> Vec<MonitorTarget> {
             "https://langindex.dev/healthz",
         ),
         target(
+            "loveward-app",
+            "loveward.app",
+            "Public websites",
+            "https://loveward.app",
+            "https://loveward.app/api/health",
+        ),
+        target(
             "status-dunamismax-com",
             "status.dunamismax.com",
             "Public websites",
@@ -77,6 +84,7 @@ pub fn project_targets() -> Vec<ProjectTarget> {
         project("go-web-server", "go-web-server", None),
         project("hello-world-from-hell", "hello-world-from-hell", None),
         project("langindex", "langindex", Some("https://langindex.dev")),
+        project("loveward", "loveward", Some("https://loveward.app")),
         project("mtg-card-bot", "mtg-card-bot", None),
         project("myliferpg", "myliferpg", None),
         project(
@@ -168,7 +176,7 @@ mod tests {
     fn inventory_contains_initial_public_targets() {
         let targets = public_targets();
 
-        assert_eq!(targets.len(), 7);
+        assert_eq!(targets.len(), 8);
         assert!(
             targets
                 .iter()
@@ -186,7 +194,12 @@ mod tests {
     fn project_inventory_contains_initial_repos_without_public_paths() {
         let targets = project_targets();
 
-        assert_eq!(targets.len(), 15);
+        assert_eq!(targets.len(), 16);
+        assert!(
+            targets
+                .iter()
+                .any(|target| target.id == "loveward" && target.repo_name == "loveward")
+        );
         assert!(targets.iter().any(|target| target.repo_name == "toolworks"));
         assert!(
             targets
