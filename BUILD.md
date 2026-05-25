@@ -25,8 +25,9 @@ The app currently provides:
   `/api/incidents.json`, `/robots.txt`, and `/icon.svg`.
 - Live public HTTPS checks with timeout, latency, expected status, optional
   body-token support, and public-safe failure reasons.
-- Host checks for systemd units, Docker Compose services, Caddy validation and
-  reload evidence, and Cloudflare DDNS latest-success evidence.
+- Host checks for systemd units, Docker Compose services, Docker-label
+  fallback inspection, Caddy validation and reload evidence, and Cloudflare
+  DDNS latest-success evidence.
 - Project checks for configured repositories, including branch, upstream,
   ahead/behind, dirty state, latest commit age, remote reachability, and
   `BUILD.md` checkbox progress when present.

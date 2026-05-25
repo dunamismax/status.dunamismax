@@ -51,6 +51,7 @@ pub struct SystemdUnitTarget {
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub struct DockerComposeServiceTarget {
     pub id: &'static str,
+    pub project: &'static str,
     pub service: &'static str,
 }
 
@@ -92,6 +93,8 @@ pub fn systemd_targets() -> Vec<SystemdUnitTarget> {
         long_running("pod-tracker-web", "pod-tracker-web.service"),
         long_running("pod-tracker-worker", "pod-tracker-worker.service"),
         long_running("status-dunamismax", "status-dunamismax.service"),
+        long_running("docker", "docker.service"),
+        long_running("postgresql", "postgresql.service"),
         long_running("caddy", "caddy.service"),
         one_shot("cloudflare-ddns", "cloudflare-ddns.service"),
         one_shot(
@@ -99,7 +102,17 @@ pub fn systemd_targets() -> Vec<SystemdUnitTarget> {
             "rustdesk-preconfig-build.service",
         ),
         one_shot("callrift-backup", "callrift-backup.service"),
+        long_running("callrift-backup-timer", "callrift-backup.timer"),
+        one_shot(
+            "loveward-postgres-backup",
+            "loveward-postgres-backup.service",
+        ),
+        long_running(
+            "loveward-postgres-backup-timer",
+            "loveward-postgres-backup.timer",
+        ),
         one_shot("pod-tracker-backup", "pod-tracker-backup.service"),
+        long_running("pod-tracker-backup-timer", "pod-tracker-backup.timer"),
     ]
 }
 
@@ -325,37 +338,99 @@ pub async fn probe_docker_compose_service(
 
     match run_command("docker", &args).await {
         Ok(output) if output.status.success() => match parse_compose_ps_json(&output.stdout) {
-            Ok(services) => {
+            Ok(services) if compose_service_reported(target, &services) => {
                 evaluate_compose_service(target, checked_at, Some(started.elapsed()), &services)
             }
-            Err(error) => command_failed_result(
-                target.id,
-                HostCheckKind::DockerCompose,
-                checked_at,
-                Some(started.elapsed()),
-                DOCKER_COMPOSE_PROBE_VERSION,
-                "docker compose state unavailable",
-                Some(error.to_string()),
-            ),
+            Ok(_) => probe_docker_compose_labels(target, checked_at, started)
+                .await
+                .unwrap_or_else(|| {
+                    command_failed_result(
+                        target.id,
+                        HostCheckKind::DockerCompose,
+                        checked_at,
+                        Some(started.elapsed()),
+                        DOCKER_COMPOSE_PROBE_VERSION,
+                        "compose service was not reported",
+                        None,
+                    )
+                }),
+            Err(error) => probe_docker_compose_labels(target, checked_at, started)
+                .await
+                .unwrap_or_else(|| {
+                    command_failed_result(
+                        target.id,
+                        HostCheckKind::DockerCompose,
+                        checked_at,
+                        Some(started.elapsed()),
+                        DOCKER_COMPOSE_PROBE_VERSION,
+                        "docker compose state unavailable",
+                        Some(error.to_string()),
+                    )
+                }),
         },
-        Ok(output) => command_failed_result(
-            target.id,
-            HostCheckKind::DockerCompose,
+        Ok(output) => probe_docker_compose_labels(target, checked_at, started)
+            .await
+            .unwrap_or_else(|| {
+                command_failed_result(
+                    target.id,
+                    HostCheckKind::DockerCompose,
+                    checked_at,
+                    Some(started.elapsed()),
+                    DOCKER_COMPOSE_PROBE_VERSION,
+                    "docker compose state unavailable",
+                    output.private_detail(),
+                )
+            }),
+        Err(error) => probe_docker_compose_labels(target, checked_at, started)
+            .await
+            .unwrap_or_else(|| {
+                command_failed_result(
+                    target.id,
+                    HostCheckKind::DockerCompose,
+                    checked_at,
+                    Some(started.elapsed()),
+                    DOCKER_COMPOSE_PROBE_VERSION,
+                    "docker compose state unavailable",
+                    Some(error.to_string()),
+                )
+            }),
+    }
+}
+
+async fn probe_docker_compose_labels(
+    target: DockerComposeServiceTarget,
+    checked_at: DateTime<Utc>,
+    started: Instant,
+) -> Option<HostCheckResult> {
+    let project_label = format!("label=com.docker.compose.project={}", target.project);
+    let service_label = format!("label=com.docker.compose.service={}", target.service);
+    let args = [
+        "ps",
+        "--all",
+        "--filter",
+        project_label.as_str(),
+        "--filter",
+        service_label.as_str(),
+        "--format",
+        "json",
+    ];
+
+    let output = run_command("docker", &args).await.ok()?;
+    if !output.status.success() {
+        return None;
+    }
+
+    let containers = parse_docker_ps_json(&output.stdout).ok()?;
+    let services = compose_facts_from_docker_ps(target, &containers);
+    if compose_service_reported(target, &services) {
+        Some(evaluate_compose_service(
+            target,
             checked_at,
             Some(started.elapsed()),
-            DOCKER_COMPOSE_PROBE_VERSION,
-            "docker compose state unavailable",
-            output.private_detail(),
-        ),
-        Err(error) => command_failed_result(
-            target.id,
-            HostCheckKind::DockerCompose,
-            checked_at,
-            Some(started.elapsed()),
-            DOCKER_COMPOSE_PROBE_VERSION,
-            "docker compose state unavailable",
-            Some(error.to_string()),
-        ),
+            &services,
+        ))
+    } else {
+        None
     }
 }
 
@@ -480,6 +555,15 @@ fn evaluate_compose_service(
         probe_version: DOCKER_COMPOSE_PROBE_VERSION,
         private_detail: None,
     }
+}
+
+fn compose_service_reported(
+    target: DockerComposeServiceTarget,
+    services: &[DockerComposeFacts],
+) -> bool {
+    services
+        .iter()
+        .any(|service| service.service.as_deref() == Some(target.service))
 }
 
 fn evaluate_caddy_facts(
@@ -674,6 +758,29 @@ struct DockerComposeFacts {
 }
 
 fn parse_compose_ps_json(input: &str) -> Result<Vec<DockerComposeFacts>, HostProbeError> {
+    parse_json_records(input)
+}
+
+#[derive(Debug, Clone, Default, Deserialize, PartialEq, Eq)]
+struct DockerPsFacts {
+    #[serde(default, alias = "Names")]
+    names: Option<String>,
+    #[serde(default, alias = "State")]
+    state: Option<String>,
+    #[serde(default, alias = "Status")]
+    status: Option<String>,
+    #[serde(default, alias = "Labels")]
+    labels: Option<String>,
+}
+
+fn parse_docker_ps_json(input: &str) -> Result<Vec<DockerPsFacts>, HostProbeError> {
+    parse_json_records(input)
+}
+
+fn parse_json_records<T>(input: &str) -> Result<Vec<T>, HostProbeError>
+where
+    T: for<'de> Deserialize<'de>,
+{
     let trimmed = input.trim();
     if trimmed.is_empty() {
         return Ok(Vec::new());
@@ -688,6 +795,56 @@ fn parse_compose_ps_json(input: &str) -> Result<Vec<DockerComposeFacts>, HostPro
         .map(serde_json::from_str)
         .collect::<Result<Vec<_>, _>>()
         .map_err(HostProbeError::DockerJson)
+}
+
+fn compose_facts_from_docker_ps(
+    target: DockerComposeServiceTarget,
+    containers: &[DockerPsFacts],
+) -> Vec<DockerComposeFacts> {
+    containers
+        .iter()
+        .filter(|container| docker_container_matches_compose_service(target, container))
+        .map(|container| DockerComposeFacts {
+            service: Some(target.service.to_owned()),
+            state: container.state.as_deref().map(str::to_ascii_lowercase),
+            health: container
+                .status
+                .as_deref()
+                .and_then(health_from_docker_status),
+        })
+        .collect()
+}
+
+fn docker_container_matches_compose_service(
+    target: DockerComposeServiceTarget,
+    container: &DockerPsFacts,
+) -> bool {
+    let Some(labels) = container.labels.as_deref() else {
+        return false;
+    };
+
+    label_value(labels, "com.docker.compose.project") == Some(target.project)
+        && label_value(labels, "com.docker.compose.service") == Some(target.service)
+}
+
+fn label_value<'a>(labels: &'a str, key: &str) -> Option<&'a str> {
+    labels.split(',').find_map(|label| {
+        let (candidate, value) = label.split_once('=')?;
+        (candidate == key).then_some(value)
+    })
+}
+
+fn health_from_docker_status(status: &str) -> Option<String> {
+    let status = status.to_ascii_lowercase();
+    if status.contains("(healthy)") {
+        Some("healthy".to_owned())
+    } else if status.contains("(unhealthy)") {
+        Some("unhealthy".to_owned())
+    } else if status.contains("(health: starting)") || status.contains("(starting)") {
+        Some("starting".to_owned())
+    } else {
+        None
+    }
 }
 
 #[cfg(test)]
@@ -797,6 +954,7 @@ ExecMainStatus=0
         let result = evaluate_compose_service(
             DockerComposeServiceTarget {
                 id: "langindex",
+                project: "langindex",
                 service: "langindex",
             },
             checked_at(),
@@ -819,12 +977,51 @@ ExecMainStatus=0
         let result = evaluate_compose_service(
             DockerComposeServiceTarget {
                 id: "langindex",
+                project: "langindex",
                 service: "langindex",
             },
             checked_at(),
             None,
             &services,
         );
+
+        assert_eq!(result.state, StatusState::Down);
+        assert_eq!(result.reason, "container health is unhealthy");
+    }
+
+    #[test]
+    fn docker_ps_label_fallback_marks_healthy_compose_service_operational() {
+        let containers = parse_docker_ps_json(
+            r#"{"Names":"loveward-app-1","Labels":"com.docker.compose.project=loveward,com.docker.compose.service=app","State":"running","Status":"Up 14 minutes (healthy)"}"#,
+        )
+        .expect("docker ps JSON lines");
+        let target = DockerComposeServiceTarget {
+            id: "loveward-container",
+            project: "loveward",
+            service: "app",
+        };
+        let services = compose_facts_from_docker_ps(target, &containers);
+
+        let result = evaluate_compose_service(target, checked_at(), None, &services);
+
+        assert_eq!(result.state, StatusState::Operational);
+        assert_eq!(result.reason, "container is running");
+    }
+
+    #[test]
+    fn docker_ps_label_fallback_keeps_unhealthy_compose_service_down() {
+        let containers = parse_docker_ps_json(
+            r#"{"Names":"loveward-app-1","Labels":"com.docker.compose.project=loveward,com.docker.compose.service=app","State":"running","Status":"Up 2 minutes (unhealthy)"}"#,
+        )
+        .expect("docker ps JSON lines");
+        let target = DockerComposeServiceTarget {
+            id: "loveward-container",
+            project: "loveward",
+            service: "app",
+        };
+        let services = compose_facts_from_docker_ps(target, &containers);
+
+        let result = evaluate_compose_service(target, checked_at(), None, &services);
 
         assert_eq!(result.state, StatusState::Down);
         assert_eq!(result.reason, "container health is unhealthy");

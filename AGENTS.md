@@ -141,6 +141,8 @@ Docker probes:
 
 - Prefer `docker compose ps --format json` or structured output where
   available.
+- Fall back to `docker ps` Compose labels when a Compose file requires
+  deployment-only environment variables for interpolation.
 - Treat container health checks as evidence when configured.
 
 Git probes:

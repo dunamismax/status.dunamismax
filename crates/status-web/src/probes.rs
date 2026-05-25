@@ -269,6 +269,7 @@ fn docker_compose_targets() -> Vec<ComposeMonitorTarget> {
         ComposeMonitorTarget {
             target: DockerComposeServiceTarget {
                 id: "langindex-container",
+                project: "langindex",
                 service: "site",
             },
             name: "langindex container",
@@ -277,6 +278,7 @@ fn docker_compose_targets() -> Vec<ComposeMonitorTarget> {
         ComposeMonitorTarget {
             target: DockerComposeServiceTarget {
                 id: "loveward-container",
+                project: "loveward",
                 service: "app",
             },
             name: "loveward container",
@@ -284,7 +286,17 @@ fn docker_compose_targets() -> Vec<ComposeMonitorTarget> {
         },
         ComposeMonitorTarget {
             target: DockerComposeServiceTarget {
+                id: "loveward-postgres-container",
+                project: "loveward",
+                service: "postgres",
+            },
+            name: "loveward postgres",
+            compose_file: LOVEWARD_COMPOSE_FILE,
+        },
+        ComposeMonitorTarget {
+            target: DockerComposeServiceTarget {
                 id: "rustdesk-hbbs",
+                project: "rustdesk-server",
                 service: "hbbs",
             },
             name: "rustdesk hbbs",
@@ -293,6 +305,7 @@ fn docker_compose_targets() -> Vec<ComposeMonitorTarget> {
         ComposeMonitorTarget {
             target: DockerComposeServiceTarget {
                 id: "rustdesk-hbbr",
+                project: "rustdesk-server",
                 service: "hbbr",
             },
             name: "rustdesk hbbr",
