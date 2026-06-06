@@ -7,7 +7,7 @@ Current implementation and operating backlog for the live Rust
 rules. This file is intentionally compact now that the original phase checklist
 is complete.
 
-Last reviewed: 2026-05-22.
+Last reviewed: 2026-06-06.
 
 ---
 
@@ -95,14 +95,25 @@ Host service checks:
 dunamismax-site.service
 fileferry-web.service
 callrift.service
-pod-tracker-web.service
-pod-tracker-worker.service
 status-dunamismax.service
 caddy.service
 cloudflare-ddns.service
 rustdesk-preconfig-build.service
 callrift-backup.service
 pod-tracker-backup.service
+```
+
+Docker Compose service checks:
+
+```text
+pod-tracker app
+pod-tracker postgres
+pod-tracker valkey
+langindex container
+loveward container
+loveward postgres
+rustdesk hbbs
+rustdesk hbbr
 ```
 
 Repository inventory is defined in `crates/status-web/src/inventory.rs` and

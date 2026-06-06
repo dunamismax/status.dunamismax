@@ -92,8 +92,6 @@ pub fn systemd_targets() -> Vec<SystemdUnitTarget> {
         long_running("dunamismax-site", "dunamismax-site.service"),
         long_running("fileferry-web", "fileferry-web.service"),
         long_running("callrift", "callrift.service"),
-        long_running("pod-tracker-web", "pod-tracker-web.service"),
-        long_running("pod-tracker-worker", "pod-tracker-worker.service"),
         long_running("status-dunamismax", "status-dunamismax.service"),
         long_running("mtg-card-bot", "mtg-card-bot.service"),
         long_running("docker", "docker.service"),
@@ -149,8 +147,8 @@ pub fn service_mappings() -> &'static [ServiceMapping] {
         },
         ServiceMapping {
             public_target_id: "pod-tracker-app",
-            systemd_units: &["pod-tracker-web.service", "pod-tracker-worker.service"],
-            compose_services: &[],
+            systemd_units: &[],
+            compose_services: &["pod-tracker-app-container"],
         },
         ServiceMapping {
             public_target_id: "langindex-dev",
@@ -1238,5 +1236,24 @@ InactiveEnterTimestamp=Mon 2026-05-18 12:00:00 UTC
                 "{target_id}"
             );
         }
+    }
+
+    #[test]
+    fn pod_tracker_mapping_uses_compose_app_not_retired_v1_units() {
+        let mapping = service_mappings()
+            .iter()
+            .find(|mapping| mapping.public_target_id == "pod-tracker-app")
+            .expect("pod tracker mapping");
+
+        assert!(mapping.systemd_units.is_empty());
+        assert_eq!(mapping.compose_services, ["pod-tracker-app-container"]);
+
+        let units = systemd_targets();
+        assert!(
+            !units
+                .iter()
+                .any(|unit| unit.unit == "pod-tracker-web.service"
+                    || unit.unit == "pod-tracker-worker.service")
+        );
     }
 }

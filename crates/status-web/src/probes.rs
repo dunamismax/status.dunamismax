@@ -14,6 +14,7 @@ const HTTP_PROBE_VERSION: &str = "public-http-v1";
 const DEFAULT_TIMEOUT: Duration = Duration::from_secs(5);
 const LANGINDEX_COMPOSE_FILE: &str = "/home/sawyer/github/langindex/compose.yaml";
 const LOVEWARD_COMPOSE_FILE: &str = "/home/sawyer/github/loveward/compose.production.yml";
+const POD_TRACKER_COMPOSE_FILE: &str = "/home/sawyer/github/pod-tracker/compose.yaml";
 const RUSTDESK_COMPOSE_FILE: &str =
     "/home/sawyer/github/xrayservice/rustdesk-server/docker-compose.yml";
 
@@ -300,6 +301,33 @@ fn docker_compose_targets() -> Vec<ComposeMonitorTarget> {
         },
         ComposeMonitorTarget {
             target: DockerComposeServiceTarget {
+                id: "pod-tracker-app-container",
+                project: "pod-tracker",
+                service: "app",
+            },
+            name: "pod-tracker app",
+            compose_file: POD_TRACKER_COMPOSE_FILE,
+        },
+        ComposeMonitorTarget {
+            target: DockerComposeServiceTarget {
+                id: "pod-tracker-postgres-container",
+                project: "pod-tracker",
+                service: "postgres",
+            },
+            name: "pod-tracker postgres",
+            compose_file: POD_TRACKER_COMPOSE_FILE,
+        },
+        ComposeMonitorTarget {
+            target: DockerComposeServiceTarget {
+                id: "pod-tracker-valkey-container",
+                project: "pod-tracker",
+                service: "valkey",
+            },
+            name: "pod-tracker valkey",
+            compose_file: POD_TRACKER_COMPOSE_FILE,
+        },
+        ComposeMonitorTarget {
+            target: DockerComposeServiceTarget {
                 id: "rustdesk-hbbs",
                 project: "rustdesk-server",
                 service: "hbbs",
@@ -358,8 +386,9 @@ fn host_check_kind_to_check_kind(kind: HostCheckKind) -> CheckKind {
 
 fn systemd_target_group(target_id: &str) -> &'static str {
     match target_id {
-        "dunamismax-site" | "fileferry-web" | "callrift" | "pod-tracker-web"
-        | "pod-tracker-worker" | "status-dunamismax" | "mtg-card-bot" => "Application services",
+        "dunamismax-site" | "fileferry-web" | "callrift" | "status-dunamismax" | "mtg-card-bot" => {
+            "Application services"
+        }
         "postgresql" | "postgresql-main" | "callrift-postgres" => "Databases",
         "callrift-backup"
         | "callrift-backup-timer"

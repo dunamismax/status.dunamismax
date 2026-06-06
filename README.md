@@ -60,13 +60,18 @@ Core host services:
 - `dunamismax-site.service`
 - `fileferry-web.service`
 - `callrift.service`
-- `pod-tracker-web.service`
-- `pod-tracker-worker.service`
 - `status-dunamismax.service`
 - `caddy.service`
 - `cloudflare-ddns.service`
 - `rustdesk-preconfig-build.service`
 - backup timers for Callrift and Pod Tracker
+
+Core Compose services:
+
+- Pod Tracker: `app`, `postgres`, and `valkey`
+- LoveWard: `app` and `postgres`
+- LangIndex app container
+- RustDesk relay containers
 
 Repository and deployment inventory is owned by this repo and stays aligned
 with Toolworks' self-hosted Rust deploy workflow.
