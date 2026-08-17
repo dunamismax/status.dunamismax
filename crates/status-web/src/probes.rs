@@ -12,11 +12,7 @@ use crate::{
 
 const HTTP_PROBE_VERSION: &str = "public-http-v1";
 const DEFAULT_TIMEOUT: Duration = Duration::from_secs(5);
-const LANGINDEX_COMPOSE_FILE: &str = "/home/sawyer/github/langindex/compose.yaml";
-const LOVEWARD_COMPOSE_FILE: &str = "/home/sawyer/github/loveward/compose.production.yml";
-const POD_TRACKER_COMPOSE_FILE: &str = "/home/sawyer/github/pod-tracker/compose.yaml";
-const RUSTDESK_COMPOSE_FILE: &str =
-    "/home/sawyer/github/xrayservice/rustdesk-server/docker-compose.yml";
+const RUSTDESK_COMPOSE_FILE: &str = "/opt/rustdesk-server/docker-compose.yml";
 
 #[derive(Debug, Clone)]
 pub struct ProbeRunner {
@@ -274,60 +270,6 @@ fn docker_compose_targets() -> Vec<ComposeMonitorTarget> {
     vec![
         ComposeMonitorTarget {
             target: DockerComposeServiceTarget {
-                id: "langindex-container",
-                project: "langindex",
-                service: "site",
-            },
-            name: "langindex container",
-            compose_file: LANGINDEX_COMPOSE_FILE,
-        },
-        ComposeMonitorTarget {
-            target: DockerComposeServiceTarget {
-                id: "loveward-container",
-                project: "loveward",
-                service: "app",
-            },
-            name: "loveward container",
-            compose_file: LOVEWARD_COMPOSE_FILE,
-        },
-        ComposeMonitorTarget {
-            target: DockerComposeServiceTarget {
-                id: "loveward-postgres-container",
-                project: "loveward",
-                service: "postgres",
-            },
-            name: "loveward postgres",
-            compose_file: LOVEWARD_COMPOSE_FILE,
-        },
-        ComposeMonitorTarget {
-            target: DockerComposeServiceTarget {
-                id: "pod-tracker-app-container",
-                project: "pod-tracker",
-                service: "app",
-            },
-            name: "pod-tracker app",
-            compose_file: POD_TRACKER_COMPOSE_FILE,
-        },
-        ComposeMonitorTarget {
-            target: DockerComposeServiceTarget {
-                id: "pod-tracker-postgres-container",
-                project: "pod-tracker",
-                service: "postgres",
-            },
-            name: "pod-tracker postgres",
-            compose_file: POD_TRACKER_COMPOSE_FILE,
-        },
-        ComposeMonitorTarget {
-            target: DockerComposeServiceTarget {
-                id: "pod-tracker-valkey-container",
-                project: "pod-tracker",
-                service: "valkey",
-            },
-            name: "pod-tracker valkey",
-            compose_file: POD_TRACKER_COMPOSE_FILE,
-        },
-        ComposeMonitorTarget {
-            target: DockerComposeServiceTarget {
                 id: "rustdesk-hbbs",
                 project: "rustdesk-server",
                 service: "hbbs",
@@ -386,21 +328,14 @@ fn host_check_kind_to_check_kind(kind: HostCheckKind) -> CheckKind {
 
 fn systemd_target_group(target_id: &str) -> &'static str {
     match target_id {
-        "dunamismax-site" | "fileferry-web" | "callrift" | "status-dunamismax" | "mtg-card-bot" => {
-            "Application services"
-        }
-        "postgresql" | "postgresql-main" | "callrift-postgres" => "Databases",
-        "callrift-backup"
-        | "callrift-backup-timer"
-        | "loveward-postgres-backup"
-        | "loveward-postgres-backup-timer"
-        | "pod-tracker-backup"
-        | "pod-tracker-backup-timer"
-        | "server-disk-cleanup"
-        | "server-disk-cleanup-timer" => "Backups & maintenance",
-        "self-hosted-rust-sync" | "self-hosted-rust-sync-timer" => "Deployment automation",
+        "dunamismax-site" | "status-dunamismax" | "mtg-card-bot" => "Application services",
+        "postgresql" | "postgresql-main" => "Databases",
+        "server-disk-cleanup"
+        | "server-disk-cleanup-timer"
+        | "rustdesk-preconfig-build"
+        | "rustdesk-preconfig-build-timer" => "Maintenance",
         "ssh" | "tailscaled" | "fail2ban" | "ufw" | "cloudflare-ddns" => "Network & access",
-        "docker" | "containerd" | "caddy" | "rustdesk-preconfig-build" => "Host infrastructure",
+        "docker" | "containerd" | "caddy" => "Host infrastructure",
         _ => "Host services",
     }
 }
@@ -424,7 +359,7 @@ mod tests {
     #[test]
     fn host_results_are_projected_without_private_detail() {
         let result = HostCheckResult {
-            target_id: "fileferry-web",
+            target_id: "mtg-card-bot",
             check_kind: HostCheckKind::Systemd,
             state: StatusState::Operational,
             checked_at: Utc::now(),
@@ -434,16 +369,16 @@ mod tests {
             private_detail: Some("/home/sawyer/private.log".to_owned()),
         };
 
-        let service = host_result_to_service(result, "fileferry-web.service", "Host services");
+        let service = host_result_to_service(result, "mtg-card-bot.service", "Host services");
 
-        assert_eq!(service.target.id, "fileferry-web");
-        assert_eq!(service.target.name, "fileferry-web.service");
+        assert_eq!(service.target.id, "mtg-card-bot");
+        assert_eq!(service.target.name, "mtg-card-bot.service");
         assert_eq!(service.check.check_kind, CheckKind::Systemd);
         assert_eq!(service.check.reason, "unit is active");
         assert!(
             serde_json::to_string(&service)
                 .unwrap()
-                .contains("fileferry-web.service")
+                .contains("mtg-card-bot.service")
         );
         assert!(
             !serde_json::to_string(&service)

@@ -90,41 +90,28 @@ pub enum HostProbeError {
 pub fn systemd_targets() -> Vec<SystemdUnitTarget> {
     vec![
         long_running("dunamismax-site", "dunamismax-site.service"),
-        long_running("fileferry-web", "fileferry-web.service"),
-        long_running("callrift", "callrift.service"),
         long_running("status-dunamismax", "status-dunamismax.service"),
         long_running("mtg-card-bot", "mtg-card-bot.service"),
         long_running("docker", "docker.service"),
         long_running("containerd", "containerd.service"),
         long_running("postgresql", "postgresql.service"),
         long_running("postgresql-main", "postgresql@18-main.service"),
-        long_running("callrift-postgres", "callrift-postgres.service"),
         long_running("caddy", "caddy.service"),
         long_running("ssh", "ssh.service"),
         long_running("tailscaled", "tailscaled.service"),
         long_running("fail2ban", "fail2ban.service"),
         one_shot("ufw", "ufw.service"),
         one_shot("cloudflare-ddns", "cloudflare-ddns.service"),
-        one_shot("self-hosted-rust-sync", "self-hosted-rust-sync.service"),
-        long_running("self-hosted-rust-sync-timer", "self-hosted-rust-sync.timer"),
         one_shot("server-disk-cleanup", "server-disk-cleanup.service"),
         long_running("server-disk-cleanup-timer", "server-disk-cleanup.timer"),
         one_shot(
             "rustdesk-preconfig-build",
             "rustdesk-preconfig-build.service",
         ),
-        one_shot("callrift-backup", "callrift-backup.service"),
-        long_running("callrift-backup-timer", "callrift-backup.timer"),
-        one_shot(
-            "loveward-postgres-backup",
-            "loveward-postgres-backup.service",
-        ),
         long_running(
-            "loveward-postgres-backup-timer",
-            "loveward-postgres-backup.timer",
+            "rustdesk-preconfig-build-timer",
+            "rustdesk-preconfig-build.timer",
         ),
-        one_shot("pod-tracker-backup", "pod-tracker-backup.service"),
-        long_running("pod-tracker-backup-timer", "pod-tracker-backup.timer"),
     ]
 }
 
@@ -136,31 +123,6 @@ pub fn service_mappings() -> &'static [ServiceMapping] {
             compose_services: &[],
         },
         ServiceMapping {
-            public_target_id: "fileferry-app",
-            systemd_units: &["fileferry-web.service"],
-            compose_services: &[],
-        },
-        ServiceMapping {
-            public_target_id: "callrift-dev",
-            systemd_units: &["callrift.service"],
-            compose_services: &[],
-        },
-        ServiceMapping {
-            public_target_id: "pod-tracker-app",
-            systemd_units: &[],
-            compose_services: &["pod-tracker-app-container"],
-        },
-        ServiceMapping {
-            public_target_id: "langindex-dev",
-            systemd_units: &[],
-            compose_services: &["langindex"],
-        },
-        ServiceMapping {
-            public_target_id: "loveward-app",
-            systemd_units: &[],
-            compose_services: &["loveward"],
-        },
-        ServiceMapping {
             public_target_id: "status-dunamismax-com",
             systemd_units: &["status-dunamismax.service"],
             compose_services: &[],
@@ -168,7 +130,7 @@ pub fn service_mappings() -> &'static [ServiceMapping] {
         ServiceMapping {
             public_target_id: "xrayservice-net",
             systemd_units: &["rustdesk-preconfig-build.service"],
-            compose_services: &[],
+            compose_services: &["rustdesk-hbbs", "rustdesk-hbbr"],
         },
     ];
 
@@ -1219,16 +1181,7 @@ InactiveEnterTimestamp=Mon 2026-05-18 12:00:00 UTC
     fn mappings_cover_initial_public_targets() {
         let mappings = service_mappings();
 
-        for target_id in [
-            "dunamismax-com",
-            "fileferry-app",
-            "callrift-dev",
-            "pod-tracker-app",
-            "langindex-dev",
-            "loveward-app",
-            "status-dunamismax-com",
-            "xrayservice-net",
-        ] {
+        for target_id in ["dunamismax-com", "status-dunamismax-com", "xrayservice-net"] {
             assert!(
                 mappings
                     .iter()
@@ -1239,21 +1192,12 @@ InactiveEnterTimestamp=Mon 2026-05-18 12:00:00 UTC
     }
 
     #[test]
-    fn pod_tracker_mapping_uses_compose_app_not_retired_v1_units() {
+    fn xrayservice_mapping_includes_both_rustdesk_services() {
         let mapping = service_mappings()
             .iter()
-            .find(|mapping| mapping.public_target_id == "pod-tracker-app")
-            .expect("pod tracker mapping");
+            .find(|mapping| mapping.public_target_id == "xrayservice-net")
+            .expect("xrayservice mapping");
 
-        assert!(mapping.systemd_units.is_empty());
-        assert_eq!(mapping.compose_services, ["pod-tracker-app-container"]);
-
-        let units = systemd_targets();
-        assert!(
-            !units
-                .iter()
-                .any(|unit| unit.unit == "pod-tracker-web.service"
-                    || unit.unit == "pod-tracker-worker.service")
-        );
+        assert_eq!(mapping.compose_services, ["rustdesk-hbbs", "rustdesk-hbbr"]);
     }
 }

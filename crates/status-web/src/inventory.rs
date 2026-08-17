@@ -12,41 +12,6 @@ pub fn public_targets() -> Vec<MonitorTarget> {
             "https://dunamismax.com/healthz",
         ),
         target(
-            "fileferry-app",
-            "fileferry.app",
-            "Public websites",
-            "https://fileferry.app",
-            "https://fileferry.app/healthz",
-        ),
-        target(
-            "callrift-dev",
-            "callrift.dev",
-            "Public websites",
-            "https://callrift.dev",
-            "https://callrift.dev/healthz",
-        ),
-        target(
-            "pod-tracker-app",
-            "pod-tracker.app",
-            "Public websites",
-            "https://pod-tracker.app",
-            "https://pod-tracker.app/healthz",
-        ),
-        target(
-            "langindex-dev",
-            "langindex.dev",
-            "Public websites",
-            "https://langindex.dev",
-            "https://langindex.dev/healthz",
-        ),
-        target(
-            "loveward-app",
-            "loveward.app",
-            "Public websites",
-            "https://loveward.app",
-            "https://loveward.app/api/health",
-        ),
-        target(
             "status-dunamismax-com",
             "status.dunamismax.com",
             "Public websites",
@@ -67,38 +32,19 @@ pub fn project_targets() -> Vec<ProjectTarget> {
     let root = repository_root();
 
     [
-        project("callrift", "callrift", Some("https://callrift.dev")),
-        project("c-from-the-ground-up", "c-from-the-ground-up", None),
         project(
             "dunamismax-com",
             "dunamismax.com",
             Some("https://dunamismax.com"),
         ),
-        project("dunamismax", "dunamismax", None),
-        project_named(
-            "fileferry",
-            "fileferry",
-            "fileferry",
-            Some("https://fileferry.app"),
-        ),
-        project("go-web-server", "go-web-server", None),
-        project("hello-world-from-hell", "hello-world-from-hell", None),
-        project("langindex", "langindex", Some("https://langindex.dev")),
-        project("loveward", "loveward", Some("https://loveward.app")),
         project("mtg-card-bot", "mtg-card-bot", None),
-        project("myliferpg", "myliferpg", None),
-        project(
-            "pod-tracker",
-            "pod-tracker",
-            Some("https://pod-tracker.app"),
-        ),
+        project("podgauge", "podgauge", None),
         project("rustdesk-selfhosted", "rustdesk-selfhosted", None),
         project(
             "status-dunamismax",
             "status.dunamismax",
             Some("https://status.dunamismax.com"),
         ),
-        project("toolworks", "toolworks", None),
         project(
             "xrayservice",
             "xrayservice",
@@ -176,7 +122,7 @@ mod tests {
     fn inventory_contains_initial_public_targets() {
         let targets = public_targets();
 
-        assert_eq!(targets.len(), 8);
+        assert_eq!(targets.len(), 3);
         assert!(
             targets
                 .iter()
@@ -194,17 +140,12 @@ mod tests {
     fn project_inventory_contains_initial_repos_without_public_paths() {
         let targets = project_targets();
 
-        assert_eq!(targets.len(), 16);
+        assert_eq!(targets.len(), 6);
+        assert!(targets.iter().any(|target| target.repo_name == "podgauge"));
         assert!(
             targets
                 .iter()
-                .any(|target| target.id == "loveward" && target.repo_name == "loveward")
-        );
-        assert!(targets.iter().any(|target| target.repo_name == "toolworks"));
-        assert!(
-            targets
-                .iter()
-                .any(|target| target.id == "fileferry" && target.repo_name == "fileferry")
+                .any(|target| target.repo_name == "mtg-card-bot")
         );
         assert!(
             targets
