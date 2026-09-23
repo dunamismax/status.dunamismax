@@ -1,0 +1,1 @@
+<section class="section first-section"><h1>Status history is unavailable</h1><p class="lede">Stored status results cannot be read right now, so no state is shown. Please try again shortly.</p></section>

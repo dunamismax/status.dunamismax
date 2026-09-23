@@ -1,1 +1,12 @@
-/target/
+.env
+.env.*
+!.env.example
+.DS_Store
+.idea/
+.vscode/
+*.log
+*.sql.gz
+*.dump
+/*.sql
+/backups/
+/output/
