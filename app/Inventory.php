@@ -94,7 +94,6 @@ final class Inventory
         return [
             $project('dunamismax-com', 'dunamismax.com', 'https://dunamismax.com'),
             $project('mtg-card-bot', 'mtg-card-bot', null),
-            $project('podgauge', 'podgauge', null),
             $project('status-dunamismax', 'status.dunamismax', 'https://status.dunamismax.com'),
             $project('xrayservice', 'xrayservice', 'https://xrayservice.net'),
         ];

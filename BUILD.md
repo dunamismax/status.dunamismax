@@ -57,8 +57,6 @@ The app provides:
 ## Operating Backlog
 
 - Keep the public UI dense, factual, and status-first as new data is added.
-- Decide whether `podgauge` should stay in the project inventory; its
-  checkout is not on the server, so it reports unknown.
 - Rollups are kept indefinitely, as before; add rollup retention if the table
   grows past what the backups should carry.
 - Add richer incident or maintenance authoring only after the public read
