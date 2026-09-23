@@ -1,0 +1,10 @@
+[Unit]
+Description=Daily Dunamis Status backup
+
+[Timer]
+OnCalendar=*-*-* 06:30:00 UTC
+RandomizedDelaySec=15m
+Persistent=true
+
+[Install]
+WantedBy=timers.target

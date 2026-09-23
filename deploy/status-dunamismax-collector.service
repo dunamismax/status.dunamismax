@@ -1,0 +1,21 @@
+[Unit]
+Description=Dunamis Status collector
+Documentation=https://status.dunamismax.com/
+After=network-online.target mysql.service
+Wants=network-online.target
+
+[Service]
+Type=oneshot
+User=status-dunamismax
+Group=status-dunamismax
+Environment=STATUS_ENV_FILE=/etc/status-dunamismax/collector.env
+ExecStart=/usr/bin/php /srv/www/status.dunamismax.com/current/bin/collect.php
+TimeoutStartSec=4min
+NoNewPrivileges=true
+PrivateTmp=true
+PrivateDevices=true
+ProtectHome=read-only
+ProtectSystem=strict
+ProtectKernelTunables=true
+ProtectControlGroups=true
+RestrictSUIDSGID=true

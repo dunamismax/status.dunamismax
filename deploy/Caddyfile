@@ -1,0 +1,30 @@
+# Installed as /etc/caddy/sites/status.dunamismax.com.caddy by deploy/40-cutover.sh,
+# which removes the old reverse_proxy block from the main Caddyfile.
+status.dunamismax.com {
+	root * /srv/www/status.dunamismax.com/current/public
+	encode zstd gzip
+
+	header {
+		X-Content-Type-Options nosniff
+		Referrer-Policy no-referrer
+		Permissions-Policy interest-cohort=()
+		-Server
+	}
+
+	# Exactly these files are static. Every other path, including 404s, goes to PHP.
+	@short path /assets/status.css /assets/theme-init.js /assets/theme-toggle.js /robots.txt
+	handle @short {
+		header Cache-Control "public, max-age=300, must-revalidate"
+		file_server
+	}
+
+	handle /icon.svg {
+		header Cache-Control "public, max-age=86400"
+		file_server
+	}
+
+	handle {
+		rewrite * /index.php
+		php_fastcgi unix//run/php/status-dunamismax.sock
+	}
+}

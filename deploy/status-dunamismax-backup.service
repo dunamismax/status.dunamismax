@@ -1,0 +1,15 @@
+[Unit]
+Description=Back up Dunamis Status history and configuration
+After=mysql.service
+Requires=mysql.service
+
+[Service]
+Type=oneshot
+ExecStart=/usr/local/sbin/status-dunamismax-backup
+UMask=0077
+Nice=10
+PrivateTmp=true
+NoNewPrivileges=true
+ProtectSystem=strict
+ProtectHome=true
+ReadWritePaths=/var/backups/status-dunamismax

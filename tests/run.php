@@ -18,6 +18,7 @@ try {
     require __DIR__ . '/unit.php';
     require __DIR__ . '/probes.php';
     require __DIR__ . '/web.php';
+    require __DIR__ . '/deploy.php';
     printf("Passed %d checks.\n", $checks);
 } catch (Throwable $error) {
     fwrite(STDERR, 'FAIL: ' . $error->getMessage() . "\n");
