@@ -46,7 +46,7 @@ install -m 0750 -o root -g root "$release/deploy/backup.sh" /usr/local/sbin/stat
 systemctl daemon-reload
 
 say "Activating the release"
-previous=$(readlink -f "$BASE/current" 2>/dev/null || true)
+previous=$(readlink -e "$BASE/current" 2>/dev/null || true)
 changed=
 if [[ $previous != "$release" ]]; then
     if [[ -n $previous ]]; then printf '%s\n' "$previous" > "/root/$SITE-previous-release"; fi

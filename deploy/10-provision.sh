@@ -18,7 +18,9 @@ if id -nG "$WEB_USER" | tr ' ' '\n' | grep -qvx "$WEB_USER"; then
 fi
 
 say "Directories"
-install -d -m 0755 -o root -g root /srv/www "$BASE" "$BASE/releases" "$ETC"
+# /srv/www is shared with other sites: create it if missing, never re-own it.
+[[ -d /srv/www ]] || install -d -m 0755 -o root -g root /srv/www
+install -d -m 0755 -o root -g root "$BASE" "$BASE/releases" "$ETC"
 install -d -m 0750 -o root -g sawyer "$BACKUPS"
 
 say "Protected environment files"
