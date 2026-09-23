@@ -70,7 +70,8 @@ or present stale data as current.
   `DATETIME(6)`. `database/schema.sql` only creates missing tables; schema
   changes need reviewed migration SQL.
 - Semantic HTML templates in `views/`, vanilla CSS in `public/assets/`. The
-  only JavaScript is the local theme toggle; no inline script or style.
+  site sends zero JavaScript: the light or dark theme follows
+  `prefers-color-scheme`. No inline style.
 - Caddy serves static files and FastCGI to the `status-dunamismax` php8.5-fpm
   pool. systemd runs the collector timer.
 - Shell scripts are acceptable only as deployment and sudo glue in `deploy/`.

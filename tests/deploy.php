@@ -10,7 +10,7 @@ $caddy = $read('deploy/Caddyfile');
 expect(str_contains($caddy, 'root * /srv/www/status.dunamismax.com/current/public')
     && str_contains($caddy, 'php_fastcgi unix//run/php/status-dunamismax.sock') && preg_match('/^\s*reverse_proxy\b/m', $caddy) === 0,
     'Caddy serves the release through PHP-FPM, not the old proxy.');
-expect(str_contains($caddy, '@short path /assets/status.css /assets/theme-init.js /assets/theme-toggle.js /robots.txt')
+expect(str_contains($caddy, '@short path /assets/status.css /robots.txt') && preg_match('/\.js\b/', $caddy) === 0
     && str_contains($caddy, 'Cache-Control "public, max-age=300, must-revalidate"')
     && str_contains($caddy, "handle /icon.svg {\n\t\theader Cache-Control \"public, max-age=86400\""),
     'Static routes keep their previous cache policies.');

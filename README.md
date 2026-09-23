@@ -16,8 +16,8 @@ infrastructure that power the `dunamismax` ecosystem.
 | Application | PHP 8.5, object-oriented and bespoke | Routing, rendering, probes, alerts |
 | Database | MySQL 8 | Status history, incidents, deployments, alert history |
 | Documents | Semantic HTML | Server-rendered status pages |
-| Styling | Vanilla CSS | Dense, responsive, light and dark themes |
-| Enhancement | Vanilla JavaScript | Only the optional theme toggle |
+| Styling | Vanilla CSS | Dense, responsive, light and dark themes via `prefers-color-scheme` |
+| Enhancement | None | The site sends zero JavaScript |
 
 There is no framework, ORM, Composer dependency, npm project, build step,
 external font, analytics, or hosted monitoring service.

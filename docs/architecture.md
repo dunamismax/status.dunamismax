@@ -44,7 +44,7 @@ its settings from `/etc/status-dunamismax/collector.env`
 
 ## The web pool
 
-Caddy serves the stylesheet, theme scripts, icon, and robots file directly.
+Caddy serves the stylesheet, icon, and robots file directly.
 Every other path goes to `public/index.php` on the `status-dunamismax` PHP-FPM
 pool, which runs as `status-dunamismax-web`.
 

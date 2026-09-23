@@ -12,7 +12,7 @@ status.dunamismax.com {
 	}
 
 	# Exactly these files are static. Every other path, including 404s, goes to PHP.
-	@short path /assets/status.css /assets/theme-init.js /assets/theme-toggle.js /robots.txt
+	@short path /assets/status.css /robots.txt
 	handle @short {
 		header Cache-Control "public, max-age=300, must-revalidate"
 		file_server

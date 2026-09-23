@@ -1,7 +1,6 @@
-/* Dunamis Status — GitHub-inspired dark theme by default, light theme toggle. */
+/* Dunamis Status — GitHub-inspired dark theme by default, light theme when the system prefers it. */
 
-:root,
-:root[data-theme="dark"] {
+:root {
   color-scheme: dark;
   --bg: #0d1117;
   --bg-elev: #010409;
@@ -30,33 +29,35 @@
   --shadow: 0 1px 0 rgba(255, 255, 255, 0.03), 0 8px 24px rgba(1, 4, 9, 0.6);
 }
 
-:root[data-theme="light"] {
-  color-scheme: light;
-  --bg: #ffffff;
-  --bg-elev: #f6f8fa;
-  --panel: #ffffff;
-  --panel-soft: #f6f8fa;
-  --text: #1f2328;
-  --text-strong: #0d1117;
-  --muted: #59636e;
-  --muted-soft: #6e7781;
-  --line: #d1d9e0;
-  --line-strong: #b7bdc6;
-  --link: #0969da;
-  --link-hover: #0550ae;
-  --focus: #0969da;
-  --code-bg: rgba(175, 184, 193, 0.2);
-  --operational: #1a7f37;
-  --operational-soft: rgba(26, 127, 55, 0.10);
-  --degraded: #9a6700;
-  --degraded-soft: rgba(154, 103, 0, 0.12);
-  --down: #cf222e;
-  --down-soft: rgba(207, 34, 46, 0.10);
-  --maintenance: #8250df;
-  --maintenance-soft: rgba(130, 80, 223, 0.10);
-  --unknown: #59636e;
-  --unknown-soft: rgba(89, 99, 110, 0.12);
-  --shadow: 0 1px 0 rgba(31, 35, 40, 0.04), 0 8px 24px rgba(31, 35, 40, 0.08);
+@media (prefers-color-scheme: light) {
+  :root {
+    color-scheme: light;
+    --bg: #ffffff;
+    --bg-elev: #f6f8fa;
+    --panel: #ffffff;
+    --panel-soft: #f6f8fa;
+    --text: #1f2328;
+    --text-strong: #0d1117;
+    --muted: #59636e;
+    --muted-soft: #6e7781;
+    --line: #d1d9e0;
+    --line-strong: #b7bdc6;
+    --link: #0969da;
+    --link-hover: #0550ae;
+    --focus: #0969da;
+    --code-bg: rgba(175, 184, 193, 0.2);
+    --operational: #1a7f37;
+    --operational-soft: rgba(26, 127, 55, 0.10);
+    --degraded: #9a6700;
+    --degraded-soft: rgba(154, 103, 0, 0.12);
+    --down: #cf222e;
+    --down-soft: rgba(207, 34, 46, 0.10);
+    --maintenance: #8250df;
+    --maintenance-soft: rgba(130, 80, 223, 0.10);
+    --unknown: #59636e;
+    --unknown-soft: rgba(89, 99, 110, 0.12);
+    --shadow: 0 1px 0 rgba(31, 35, 40, 0.04), 0 8px 24px rgba(31, 35, 40, 0.08);
+  }
 }
 
 * {
@@ -207,44 +208,6 @@ nav {
   background: var(--panel-soft);
   box-shadow: inset 0 0 0 1px var(--line);
   color: var(--text-strong);
-}
-
-/* Theme toggle */
-
-.theme-toggle {
-  align-items: center;
-  background: transparent;
-  border: 1px solid var(--line);
-  border-radius: 6px;
-  color: var(--muted);
-  cursor: pointer;
-  display: inline-flex;
-  height: 2rem;
-  justify-content: center;
-  margin-left: .25rem;
-  padding: 0;
-  transition: background 0.12s ease, color 0.12s ease, border-color 0.12s ease;
-  width: 2rem;
-}
-
-.theme-toggle:hover {
-  background: var(--panel-soft);
-  border-color: var(--line-strong);
-  color: var(--text);
-}
-
-.theme-toggle svg {
-  height: 1rem;
-  width: 1rem;
-}
-
-:root[data-theme="dark"] .theme-toggle .icon-moon,
-:root:not([data-theme="light"]) .theme-toggle .icon-moon {
-  display: none;
-}
-
-:root[data-theme="light"] .theme-toggle .icon-sun {
-  display: none;
 }
 
 /* Main layout */

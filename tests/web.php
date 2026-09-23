@@ -151,10 +151,10 @@ foreach (['/nope', '/services/', '/assets/other.css', '/.env', '/bin/collect.php
 expect($app->handle('POST', '/nope')->status === 404, 'Unknown paths are 404 for any method.');
 expect($get($app, '/?source=test')->status === 200, 'Query strings do not change routing.');
 
-// Pages carry no inline script or style, so the strict CSP holds, and only local assets load.
+// Pages send no JavaScript and no inline style, so the strict CSP holds, and only local assets load.
 foreach (['/', '/services', '/projects', '/incidents', '/deployments', '/nope'] as $path) {
     $body = $get($app, $path)->body;
-    expect(preg_match('/<script(?![^>]*\bsrc=)/', $body) === 0 && !str_contains($body, ' style='), 'No inline script or style on ' . $path);
+    expect(preg_match('/<script\b/i', $body) === 0 && !str_contains($body, ' style='), 'No script or inline style on ' . $path);
     expect(preg_match('#(src|href)="(https?:)?//#', preg_replace('#<a [^>]*>#', '', $body)) === 0, 'Only local assets load on ' . $path);
 }
 expect(str_contains($get($app, '/')->allHeaders()['Content-Security-Policy'], "default-src 'self'"), 'HTML carries a strict CSP.');
@@ -179,7 +179,7 @@ foreach ($webFiles as $file) {
 expect(str_contains((string) file_get_contents($root . '/public/assets/status.css'), '.status-table'), 'The stylesheet exists.');
 expect(str_contains((string) file_get_contents($root . '/public/icon.svg'), '<svg'), 'The icon exists.');
 expect(str_contains((string) file_get_contents($root . '/public/robots.txt'), 'User-agent'), 'robots.txt exists.');
-foreach (['theme-init.js', 'theme-toggle.js'] as $script) {
-    expect(str_contains($get($app, '/')->body, '/assets/' . $script) && is_file($root . '/public/assets/' . $script), 'The theme script is local: ' . $script);
-}
+expect(glob($root . '/public/*.js') === [] && glob($root . '/public/assets/*.js') === [], 'The site ships no JavaScript files.');
+expect(str_contains((string) file_get_contents($root . '/public/assets/status.css'), '@media (prefers-color-scheme: light)'),
+    'The light theme follows the system preference.');
 ini_set('error_log', (string) $previousErrorLog);
