@@ -4,15 +4,16 @@ Repo-local operating manual for `status.dunamismax`. Reading this file plus
 `README.md` and `BUILD.md` is sufficient context to begin work.
 
 `README.md` explains the live product. `BUILD.md` records the current
-implementation shape and operating backlog. This file holds durable
-engineering, safety, monitoring, deployment, and repository rules.
+implementation shape and operating backlog. `docs/` holds the architecture and
+the production runbook. This file holds durable engineering, safety,
+monitoring, deployment, and repository rules.
 
 ## Read Order
 
 1. `AGENTS.md` (this file)
 2. `README.md`
 3. `BUILD.md`
-4. Task-relevant code, tests, deploy files, host runbooks, or probe references
+4. Task-relevant code, tests, `docs/`, deploy files, or probe references
 
 Do not create extra prompt, bootstrap, continuity, profile, scheduler, or
 agent-instruction files. If durable repo behavior matters, put it here.
@@ -23,9 +24,8 @@ agent-instruction files. If durable repo behavior matters, put it here.
 
 You are working with Stephen Sawyer (`dunamismax`).
 
-This repo represents Stephen's live Rust operational control surface for
-self-hosted services, public websites, repository health, deployments, and
-project status.
+This repo is Stephen's live operational control surface for self-hosted
+services, public websites, repository health, deployments, and project status.
 
 ## Priority Stack
 
@@ -61,33 +61,35 @@ or present stale data as current.
 
 ## Stack Rules
 
-- Use a Rust 2024 Cargo workspace.
-- Use Axum for HTTP routes, extractors, middleware, health endpoints, JSON
-  APIs, and graceful shutdown.
-- Use Leptos SSR for public and operator UI.
-- Use Tokio as the async runtime.
-- Use `tracing` and `tracing-subscriber` for logs.
-- Use `tower-http` when it cleanly solves tracing, compression, headers, or
-  static asset behavior.
-- Use PostgreSQL with `sqlx` for durable status history.
-- Use `serde` for inventory, status snapshots, and JSON APIs.
-- Use `thiserror` for domain and probe errors.
-- Use `reqwest` for HTTP probes.
-- Keep shell command probes narrow and typed. Parse structured output where a
-  command offers it.
-- Keep probe side effects read-only unless a later phase explicitly adds
-  operator actions.
-- Prefer embedded CSS/assets while the public UI remains compact.
+- Application code is bespoke, object-oriented PHP 8.5 in the `Status\`
+  namespace under `app/`, autoloaded by `bootstrap.php`. No framework, ORM,
+  Composer dependency, npm project, or build step.
+- Use only the installed extensions (no curl, mbstring, or intl). HTTP goes
+  through stream contexts. Use `iconv` for character counts.
+- MySQL 8 on 127.0.0.1 through PDO with prepared statements. All times are UTC
+  `DATETIME(6)`. `database/schema.sql` only creates missing tables; schema
+  changes need reviewed migration SQL.
+- Semantic HTML templates in `views/`, vanilla CSS in `public/assets/`. The
+  only JavaScript is the local theme toggle; no inline script or style.
+- Caddy serves static files and FastCGI to the `status-dunamismax` php8.5-fpm
+  pool. systemd runs the collector timer.
+- Shell scripts are acceptable only as deployment and sudo glue in `deploy/`.
+- No Rust, PostgreSQL, Docker Compose, or managed monitoring SaaS.
 
-Default against:
+## Privilege Split
 
-- Additional web app frameworks outside the Rust workspace.
-- Managed monitoring SaaS as the source of truth.
-- Kubernetes or distributed observability infrastructure.
-- Shelling out from UI handlers directly.
-- Global mutable status state without clear refresh and staleness rules.
-- Public display of raw command output.
-- Alerting before checks, severity, and duplicate suppression are stable.
+- The collector (`bin/collect.php`, user `status-dunamismax`,
+  `collector.env`) does all probing and all writes.
+- The web pool (user `status-dunamismax-web`, `web.env`) only reads MySQL with
+  a SELECT-only account. It never runs commands, opens URLs, or reads
+  repositories. The pool disables command execution and `allow_url_fopen`,
+  and a test checks that no code on the web path names a command function.
+  Keep it that way.
+- The collector runs commands only through `CommandRunner`: an absolute
+  program path, no shell, a deadline, bounded output, and a minimal
+  environment with no secrets.
+- Neither user may read the other's env file. Never add the collector back to
+  the docker group, and never widen its read-only ACL on `/home/sawyer/github`.
 
 ## Status Model Rules
 
@@ -101,16 +103,9 @@ maintenance
 unknown
 ```
 
-Every check result should carry:
-
-- target id
-- check kind
-- observed state
-- checked-at timestamp
-- latency or duration when relevant
-- short public-safe reason
-- optional private detail stored only behind an operator boundary
-- source/probe version where useful
+Every check result carries a target id, check kind, observed state,
+checked-at timestamp, latency or duration when relevant, a short public-safe
+reason, and a probe version. Target ids are unique across all checks.
 
 Rollups must be explainable. If a site is `degraded`, the UI should make clear
 which check degraded it and when.
@@ -118,14 +113,17 @@ which check degraded it and when.
 Do not reduce the product back to a single public HTTP check. The live system
 also tracks host, repository, deployment, history, and alert evidence.
 
+The published JSON shapes of `/api/status.json`, `/api/incidents.json`, and
+`/readyz` are a contract. Add fields only deliberately; never rename or remove
+them.
+
 ## Probe Rules
 
 HTTP probes:
 
-- Use timeouts.
-- Record latency.
-- Check expected status and optional body token.
-- Distinguish DNS/TLS/connect timeout/HTTP status/body mismatch.
+- Use timeouts and record latency.
+- Check the expected status and optional body token.
+- Distinguish DNS/TLS/connection refused/timeout/HTTP status/body mismatch.
 - Avoid crawling full sites in the normal loop.
 
 systemd probes:
@@ -137,13 +135,10 @@ systemd probes:
   active.
 - Do not publish full journal output publicly.
 
-Docker probes:
+TCP probes:
 
-- Prefer `docker compose ps --format json` or structured output where
-  available.
-- Fall back to `docker ps` Compose labels when a Compose file requires
-  deployment-only environment variables for interpolation.
-- Treat container health checks as evidence when configured.
+- Connect and close; send nothing. Use them where a listener is the evidence,
+  such as RustDesk on 127.0.0.1:21115-21117, instead of container access.
 
 Capacity probes:
 
@@ -160,8 +155,12 @@ Git probes:
 
 Caddy probes:
 
-- `caddy validate --config /etc/caddy/Caddyfile` is evidence.
-- Caddy reload status and certificate state are operationally relevant.
+- Always use `/usr/local/lib/caddy/caddy`; `/usr/bin/caddy` is a stale package
+  binary that rejects the production config.
+- The collector runs `caddy adapt` (a parse that needs no privileges) plus
+  systemd reload evidence. `caddy validate` needs the caddy user because it
+  opens log files. Never widen permissions to make it work unprivileged.
+- A permission error is unknown, never "invalid config".
 - Do not expose full Caddyfile contents publicly.
 
 ## Web UX Rules
@@ -176,30 +175,38 @@ Caddy probes:
 - Timestamps must be clear about freshness.
 - Prefer small tables, grouped service lists, incident timelines, and concise
   reason text over decorative cards.
-- If data is stale, show it as stale.
+- If data is stale, show it as stale. A snapshot older than
+  `STATUS_STALE_AFTER_MINUTES` is labelled on every page.
 
 ## Deployment Rules
 
-- Production runs on Ubuntu LTS, Caddy, and systemd.
-- The app binds to localhost, default `127.0.0.1:8095`.
-- Caddy terminates TLS for `status.dunamismax.com`.
-- Run as the unprivileged `status-dunamismax` service user.
-- Keep `/healthz` public and cheap.
-- Keep `/readyz` available for dependency readiness.
-- Keep Caddy/systemd/env templates under `deploy/` aligned with production.
-- Keep this service in Toolworks' all-in-one deploy workflow.
-- Do not expose host-only Caddy details publicly.
+- Production runs on Ubuntu, Caddy, php8.5-fpm, MySQL, and systemd.
+- Releases live in `/srv/www/status.dunamismax.com/releases/<commit>` behind
+  the `current` symlink; only `public/` is a web root.
+- Keep `/healthz` public and cheap, with no database access.
+- Keep `/readyz` for MySQL and snapshot-freshness readiness.
+- Keep the Caddy site, FPM pool, units, and backup under `deploy/` aligned
+  with production.
+- Root-only work goes in numbered `deploy/` scripts for the owner to run:
+  `set -euo pipefail`, refuse without root, idempotent, back up every changed
+  file to `/root/status-dunamismax-backup-<timestamp>/`, and print verification
+  and rollback steps. Validate Caddy as the caddy user with the custom binary,
+  run `php-fpm8.5 -t` first, and reload, never restart, shared services.
+- Edit only this site's Caddy block, pool, database, units, and files. Other
+  sites share the host.
+- Record deployments with `bin/record-deployment.php`. Keep this service in
+  Toolworks' all-in-one deploy workflow.
 
 ## Repository Hygiene
 
 - Keep `README.md` focused on product, status, architecture, routes, and
   production shape.
-- Keep `BUILD.md` as the living phase plan and checklist.
-- Keep durable runbooks under `docs/` once implementation details settle.
+- Keep `BUILD.md` as the living checklist and backlog.
+- Keep durable runbooks under `docs/`.
 - Keep this file for persistent repo-local rules.
 - Update docs in the same pass as stack, route, probe, or deployment behavior.
 - Do not commit `.env`, production config, secrets, database dumps, backup
-  files, generated build outputs, or host-local status snapshots.
+  files, generated output, or host-local status snapshots.
 
 ## Git And Remotes
 
@@ -228,19 +235,23 @@ Docs-only changes:
 git diff --check
 ```
 
-Rust gate:
+Code changes:
 
 ```sh
-cargo fmt --all --check
-cargo clippy --workspace --all-targets --all-features -- -D warnings
-cargo test --workspace --all-features
-cargo build --workspace
+make check          # php -l on every PHP file, bash -n on deploy scripts, tests/run.php
 ```
 
-After the web app exists:
+Data access or schema changes, against a dedicated empty `_test` database:
 
 ```sh
-cargo run -p status-web
-curl -fsS http://127.0.0.1:8095/healthz
-curl -fsS http://127.0.0.1:8095/api/status.json
+APP_ENV=test DB_NAME=status_dunamismax_test DB_USER=... DB_PASSWORD=... php tests/database.php
+```
+
+Local smoke:
+
+```sh
+make serve
+curl -fsS http://127.0.0.1:8096/healthz
+curl -fsS http://127.0.0.1:8096/api/status.json
+make collect
 ```

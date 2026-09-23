@@ -1,193 +1,83 @@
 # BUILD.md
 
-Current implementation and operating backlog for the live Rust
-`status.dunamismax` service.
+Current implementation and operating backlog for `status.dunamismax`.
 
 `README.md` explains the product. `AGENTS.md` holds durable repo operating
-rules. This file is intentionally compact now that the original phase checklist
-is complete.
+rules. `docs/` holds the architecture and production runbook.
 
-Last reviewed: 2026-06-06.
+Last reviewed: 2026-09-23.
 
 ---
 
 ## Current State
 
-`status.dunamismax` is a Rust 2024 Cargo workspace with one live binary:
-`crates/status-web`.
+`status.dunamismax` is a bespoke PHP 8.5 application on Caddy, php8.5-fpm, and
+MySQL. It replaced the Rust `status-web` service and its PostgreSQL history.
 
-The app currently provides:
+The app provides:
 
-- Axum HTTP routes, Leptos SSR HTML, Tokio probes, embedded CSS/assets, and
-  graceful shutdown.
 - Public routes for `/`, `/services`, `/projects`, `/incidents`,
   `/deployments`, `/healthz`, `/readyz`, `/api/status.json`,
-  `/api/incidents.json`, `/robots.txt`, and `/icon.svg`.
-- Live public HTTPS checks with timeout, latency, expected status, optional
-  body-token support, and public-safe failure reasons.
-- Host checks for systemd units, Docker Compose services, Docker-label
-  fallback inspection, root filesystem capacity, Caddy validation and reload
-  evidence, and Cloudflare DDNS latest-success evidence.
-- Project checks for configured repositories, including branch, upstream,
-  ahead/behind, dirty state, latest commit age, remote reachability, and
-  `BUILD.md` checkbox progress when present.
-- Optional PostgreSQL history for targets, check runs, rollups, incidents,
-  maintenance windows, deployment events, and alert notifications.
-- One-shot collector mode through `STATUS_COLLECT_ONCE=1`.
-- Explicit deployment-event recording through `STATUS_RECORD_DEPLOYMENT=1`.
-- Authenticated operator detail at `/operator`, disabled unless
-  `STATUS_OPERATOR_TOKEN` is set.
-- Public-safe alert evaluation during collector runs, with webhook delivery
-  only when PostgreSQL-backed duplicate suppression and rate limits are
-  available.
-- Deployment templates under `deploy/` for systemd, the collector timer,
-  Caddy, and environment configuration.
-- Toolworks deploy integration for `status.dunamismax.com`.
+  `/api/incidents.json`, `/assets/status.css`, `/icon.svg`, and `/robots.txt`,
+  with the same JSON shapes as the Rust service.
+- `/operator`, disabled unless `STATUS_OPERATOR_TOKEN` is set, then behind a
+  bearer token.
+- A PHP CLI collector on a five-minute systemd timer that does every probe
+  and all writes: public HTTPS, systemd units, RustDesk TCP listeners, Caddy
+  (`caddy adapt` with the custom binary plus reload evidence), Cloudflare DDNS
+  recency, root filesystem capacity, and repository state.
+- A web pool that only reads MySQL through a SELECT-only account and cannot
+  run commands.
+- Staleness labelling on every snapshot page and in `/readyz`.
+- Webhook alerts with durable duplicate suppression, a per-run limit, and
+  check-row retention.
+- Deployment recording through `bin/record-deployment.php`.
+- Numbered sudo scripts for provisioning, history migration, deployment,
+  cutover, and decommission, plus a daily backup timer.
 
-Production deploy and cutover are complete on the Ubuntu host. The production
-public smoke returned `ok` from `https://status.dunamismax.com/healthz`, and
-the latest observed JSON rollup from
-`https://status.dunamismax.com/api/status.json` returned
-`"overall_state":"operational"`.
+## Migration Checklist
 
-## Architecture Shape
-
-The implementation remains one crate because the current boundaries are still
-small enough to maintain directly:
-
-```text
-crates/status-web/src/
-  alert.rs       alert evaluation and notification suppression
-  assets.rs      embedded CSS, icon, and robots responses
-  config.rs      environment configuration
-  host.rs        typed host command probes
-  inventory.rs   public service and project inventory
-  model.rs       status domain model and rollups
-  pages.rs       Leptos SSR page rendering helpers
-  probes.rs      public HTTP and host probe runner
-  project.rs     git and project metadata probes
-  router.rs      Axum routes and tests
-  store.rs       PostgreSQL migrations and repositories
-```
-
-Split into `status-core`, `status-probe`, `status-store`, and
-`status-worker` only when shared ownership or independent binaries make that
-separation cheaper than the current single-crate layout.
-
-## Monitored Inventory
-
-Public HTTPS checks:
-
-```text
-https://dunamismax.com/healthz
-https://fileferry.app/healthz
-https://callrift.dev/healthz
-https://pod-tracker.app/healthz
-https://langindex.dev/healthz
-https://loveward.app/api/health
-https://status.dunamismax.com/healthz
-https://xrayservice.net/
-```
-
-Host service checks:
-
-```text
-dunamismax-site.service
-fileferry-web.service
-callrift.service
-status-dunamismax.service
-caddy.service
-cloudflare-ddns.service
-rustdesk-preconfig-build.service
-callrift-backup.service
-pod-tracker-backup.service
-```
-
-Docker Compose service checks:
-
-```text
-pod-tracker app
-pod-tracker postgres
-pod-tracker valkey
-langindex container
-loveward container
-loveward postgres
-rustdesk hbbs
-rustdesk hbbr
-```
-
-Repository inventory is defined in `crates/status-web/src/inventory.rs` and
-defaults to `/home/sawyer/github`, with `/Users/sawyer/github` as the local
-macOS fallback. Override with `STATUS_REPO_ROOT` when needed.
+- [x] Port the status model, probes, rollups, alerts, and pages to PHP.
+- [x] Split privileges between the collector and the web pool.
+- [x] Replace the Docker Compose probes with TCP probes on 21115-21117.
+- [x] Replace the false-positive Caddy validate probe.
+- [x] Monitor the target state: Caddy, php8.5-fpm, MySQL, mtg-card-bot,
+      docker, and containerd; no dunamismax-site.service or PostgreSQL.
+- [x] Remove rustdesk-selfhosted from the project inventory.
+- [x] Write the MySQL schema and the PostgreSQL history import.
+- [x] Rehearse export, import, collection, and every route on disposable
+      PostgreSQL 18 and MySQL 8.4 servers.
+- [ ] Owner runs `deploy/10-provision.sh`.
+- [ ] Owner runs `deploy/20-migrate-history.sh`.
+- [ ] Owner runs `deploy/30-deploy.sh`.
+- [ ] Owner runs `deploy/40-cutover.sh`.
+- [ ] Owner runs `deploy/50-decommission.sh` after confirming the cutover.
+- [ ] Point Toolworks' deployment recording at `bin/record-deployment.php`.
 
 ## Operating Backlog
 
-Use this list for future passes instead of reopening the completed phase plan:
-
 - Keep the public UI dense, factual, and status-first as new data is added.
-- Add durable runbooks under `docs/runbooks/` when production procedures change.
-- Promote any repeated host-specific inventory into typed config only when
-  environment parsing becomes hard to audit.
-- Add richer incident or maintenance authoring only after the public read model
-  stays stable.
-- Revisit crate splitting when probes, store access, or collector behavior need
-  separate release boundaries.
-- Reconsider OpenTelemetry only after local tracing spans and an exporter
-  destination are stable.
+- Decide whether `podgauge` should stay in the project inventory; its
+  checkout is not on the server, so it reports unknown.
+- Rollups are kept indefinitely, as before; add rollup retention if the table
+  grows past what the backups should carry.
+- Add richer incident or maintenance authoring only after the public read
+  model stays stable. Today rows are inserted by the MySQL administrator.
+- Consider absence checks (for example, that PostgreSQL is gone) once the
+  other sites finish their migrations.
 
 ## Verification
 
-Docs-only changes:
-
 ```sh
-git diff --check
-```
-
-Rust gate:
-
-```sh
-cargo fmt --all --check
-cargo clippy --workspace --all-targets --all-features -- -D warnings
-cargo test --workspace --all-features
-cargo build --workspace
-```
-
-Ignored PostgreSQL integration test when a local database is available:
-
-```sh
-STATUS_TEST_DATABASE_URL=postgres://sawyer@localhost/postgres cargo test --workspace --all-features -- --ignored postgres
-```
-
-Local smoke, using `8096` when the production default port is occupied:
-
-```sh
-STATUS_BIND_ADDR=127.0.0.1:8096 cargo run -p status-web
-curl -fsS http://127.0.0.1:8096/
-curl -fsS http://127.0.0.1:8096/healthz
-curl -fsS http://127.0.0.1:8096/readyz
-curl -fsS http://127.0.0.1:8096/api/status.json
-curl -fsS http://127.0.0.1:8096/api/incidents.json
-curl -fsS http://127.0.0.1:8096/services
-curl -fsS http://127.0.0.1:8096/projects
-curl -fsS http://127.0.0.1:8096/incidents
-curl -fsS http://127.0.0.1:8096/deployments
-STATUS_COLLECT_ONCE=1 cargo run -p status-web
-```
-
-Operator smoke:
-
-```sh
-STATUS_BIND_ADDR=127.0.0.1:8096 STATUS_OPERATOR_TOKEN=local-test-token cargo run -p status-web
-curl -fsS http://127.0.0.1:8096/healthz
-curl -i -sS http://127.0.0.1:8096/operator
-curl -fsS -H 'Authorization: Bearer local-test-token' http://127.0.0.1:8096/operator
+make check
+APP_ENV=test DB_NAME=status_dunamismax_test DB_USER=... DB_PASSWORD=... php tests/database.php
 ```
 
 Production smoke:
 
 ```sh
 curl -fsS https://status.dunamismax.com/healthz
+curl -fsS https://status.dunamismax.com/readyz
 curl -fsS https://status.dunamismax.com/api/status.json
-sudo systemctl is-active status-dunamismax.service
-sudo caddy validate --config /etc/caddy/Caddyfile
+sudo -u status-dunamismax-web php /srv/www/status.dunamismax.com/current/bin/smoke.php
 ```

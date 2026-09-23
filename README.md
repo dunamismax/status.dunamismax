@@ -6,16 +6,33 @@ for Stephen Sawyer's self-hosted systems. The public site lives at
 the health of the websites, services, repositories, deployments, and
 infrastructure that power the `dunamismax` ecosystem.
 
-The live stack is the Rust web standard used across Stephen's newer projects:
+## The stack
 
-- Rust 2024 Cargo workspace
-- Axum HTTP server
-- Leptos server-rendered UI
-- Tokio runtime
-- PostgreSQL for durable status history
-- Caddy and systemd on the Ubuntu host
+| Layer | Choice | Responsibility |
+| --- | --- | --- |
+| DNS | Cloudflare | Domain routing |
+| Server | Ubuntu | Hosts the application, database, and files |
+| Web server | Caddy | Origin HTTPS, static assets, FastCGI to PHP-FPM |
+| Application | PHP 8.5, object-oriented and bespoke | Routing, rendering, probes, alerts |
+| Database | MySQL 8 | Status history, incidents, deployments, alert history |
+| Documents | Semantic HTML | Server-rendered status pages |
+| Styling | Vanilla CSS | Dense, responsive, light and dark themes |
+| Enhancement | Vanilla JavaScript | Only the optional theme toggle |
 
-## Product Goal
+There is no framework, ORM, Composer dependency, npm project, build step,
+external font, analytics, or hosted monitoring service.
+
+```text
+Visitor → Caddy → php8.5-fpm (status-dunamismax-web) → MySQL, SELECT only
+systemd timer → PHP CLI collector (status-dunamismax) → host probes → MySQL
+```
+
+The work is split by privilege. A PHP CLI collector runs every five minutes
+from a systemd timer, performs every probe, and writes one snapshot to MySQL.
+The web pool only reads MySQL: it cannot run commands or open URLs, and its
+user has no access to repositories, Docker, or the collector's credentials.
+
+## Product goal
 
 Dunamis Status answers:
 
@@ -23,157 +40,100 @@ Dunamis Status answers:
 What is live, what changed, what is degraded, and what needs attention?
 ```
 
-It is the single page Stephen can open to understand:
-
-- public website health
-- Rust service health
-- systemd unit state
-- Docker Compose service state
-- local HTTP health probes
-- public HTTPS health probes
-- Caddy config validity and reload status
-- Cloudflare DDNS recency
-- Git repository branch, dirty, ahead, and behind state
-- deployment age and active release paths
-- build/test status for key repos
-- database backup freshness
-- project phase and handoff status from repo-owned `BUILD.md` files
-
 The public surface is useful without accounts. Operator-only details stay
-behind an explicit bearer-token boundary.
+behind an explicit bearer-token boundary. Data older than 15 minutes is shown
+as stale, never as current.
 
-## Monitored Surfaces
+## Monitored surfaces
 
-Core public sites:
+The inventory lives in `app/Inventory.php` and describes the target host
+state: every site on Caddy, php8.5-fpm, and MySQL, with no
+`dunamismax-site.service` and no PostgreSQL.
 
-- `https://dunamismax.com`
-- `https://fileferry.app`
-- `https://callrift.dev`
-- `https://pod-tracker.app`
-- `https://langindex.dev`
-- `https://loveward.app`
-- `https://status.dunamismax.com`
-- `https://xrayservice.net`
+- Public HTTPS: `dunamismax.com`, `graceandfootnotes.com`,
+  `status.dunamismax.com`, `xrayservice.net`
+- Application services: `mtg-card-bot.service`, `status-dunamismax-collector.timer`
+- Remote access: RustDesk listeners on TCP 21115, 21116, and 21117 (loopback)
+- Databases: `mysql.service`
+- Host infrastructure: `caddy.service`, `php8.5-fpm.service`,
+  `docker.service`, `containerd.service`, Caddy configuration, Cloudflare DDNS
+- Network and access: `ssh`, `tailscaled`, `fail2ban`, `ufw`, `cloudflare-ddns`
+- Maintenance: server disk cleanup, the RustDesk installer rebuild, and this
+  site's backup, each with its timer
+- Host capacity: root filesystem usage
+- Repositories: `dunamismax.com`, `mtg-card-bot`, `podgauge`,
+  `status.dunamismax`, `xrayservice` (branch, upstream, ahead/behind, dirty
+  state, commit age, `BUILD.md` progress)
 
-Core host services:
+## Routes
 
-- `dunamismax-site.service`
-- `fileferry-web.service`
-- `callrift.service`
-- `status-dunamismax.service`
-- `caddy.service`
-- `cloudflare-ddns.service`
-- `rustdesk-preconfig-build.service`
-- backup timers for Callrift and Pod Tracker
+| Route | Purpose |
+| --- | --- |
+| `GET /` | Overview: rollup, attention list, groups, services by category |
+| `GET /services` | Every service check |
+| `GET /projects` | Repository status |
+| `GET /incidents` | Incidents and maintenance windows |
+| `GET /deployments` | Recorded deployments |
+| `GET /operator` | Private detail; 404 unless `STATUS_OPERATOR_TOKEN` is set, then `Authorization: Bearer` |
+| `GET /healthz` | `ok`, without touching the database |
+| `GET /readyz` | MySQL and snapshot-freshness readiness |
+| `GET /api/status.json` | The latest snapshot |
+| `GET /api/incidents.json` | Incidents and maintenance feed |
+| `GET /assets/status.css`, `/icon.svg`, `/robots.txt` | Static, served by Caddy |
 
-Core Compose services:
+The JSON shapes are unchanged from the Rust service that preceded this
+application.
 
-- Pod Tracker: `app`, `postgres`, and `valkey`
-- LoveWard: `app` and `postgres`
-- LangIndex app container
-- RustDesk relay containers
+## Local development
 
-Repository and deployment inventory is owned by this repo and stays aligned
-with Toolworks' self-hosted Rust deploy workflow.
-
-## Architecture
-
-```text
-crates/
-  status-core/       monitor targets, status model, rollups, policy
-  status-store/      PostgreSQL migrations and status history repositories
-  status-probe/      HTTP, systemd, Docker, git, Caddy, and host probes
-  status-web/        Axum + Leptos SSR website and JSON endpoints
-  status-worker/     scheduled collection and alert evaluation
-xtask/               build, smoke, deploy, inventory, and maintenance helpers
-deploy/
-  caddy/
-  systemd/
-  status.env.example
-docs/
-  runbooks/
-  inventory/
-```
-
-The implementation is one `status-web` binary with embedded assets, explicit
-public inventory, live public HTTP probes, project/git status, typed host
-checks for systemd, Docker Compose with Docker-label fallback, root filesystem
-capacity, Caddy, and Cloudflare DDNS, PostgreSQL-backed history when
-configured, and a one-shot collector mode for timer-friendly snapshot writes.
-The crate boundaries can split once
-persistence and worker behavior need independent release boundaries.
-
-## Public Routes
-
-Current route surface:
-
-```text
-GET /                         public status overview
-GET /services                 service-level status
-GET /projects                 project and repo status
-GET /incidents                incident and maintenance history
-GET /deployments              recent deploy evidence
-GET /healthz                  shallow app health
-GET /readyz                   database and probe readiness
-GET /api/status.json          machine-readable current rollup
-GET /api/incidents.json       machine-readable incident and maintenance feed
-GET /robots.txt
-GET /icon.svg
-```
-
-The implementation serves all public routes listed above. `/incidents` and
-`/deployments` render public-safe history views from PostgreSQL when records
-exist. Operator-only routes are deliberately limited. `GET /operator` stays
-disabled until `STATUS_OPERATOR_TOKEN` is set and then requires an
-`Authorization: Bearer` token before showing private repository paths.
-
-## Local Development
-
-The Rust workspace is live. The expected local verification loop is:
+PHP 8.5 with `pdo_mysql`, `posix`, and `tokenizer`. No packages to install.
 
 ```sh
-cargo fmt --all --check
-cargo clippy --workspace --all-targets --all-features -- -D warnings
-cargo test --workspace --all-features
-cargo build --workspace
-cargo run -p status-web
+cp .env.example .env
+make serve          # http://127.0.0.1:8096, database-free preview
+make collect        # runs every probe once and prints the snapshot JSON
+make check          # php -l, bash -n, and the dependency-free tests
 ```
 
-The app binds to `127.0.0.1:8095` by default in production-like local mode so
-Caddy can reverse-proxy `status.dunamismax.com` to it. Override the bind
-address with `STATUS_BIND_ADDR` and logging with `STATUS_LOG`.
+With a local MySQL database, set `DB_*` in `.env`, then `make database` to
+apply `database/schema.sql`, and `make collect` stores snapshots instead of
+printing them. The opt-in integration test needs a dedicated, empty database
+whose name ends in `_test`:
 
-PostgreSQL history is optional. Set `STATUS_DATABASE_URL` to run migrations at
-startup and make `/readyz` check the database. Set `STATUS_COLLECT_ONCE=1` to
-collect one monitored service and project snapshot, persist it when the
-database is configured, prune old check rows with `STATUS_RETENTION_DAYS`, and
-exit.
-Set `STATUS_RECORD_DEPLOYMENT=1` with deployment metadata to record an explicit
-deployment event and exit.
-Set `STATUS_OPERATOR_TOKEN` to enable authenticated operator detail at
-`/operator`; leave it unset to keep that route disabled.
-Set `STATUS_ALERT_WEBHOOK_URL` with PostgreSQL history to send public-safe
-collector alerts with durable duplicate suppression and per-run rate limits.
+```sh
+APP_ENV=test DB_NAME=status_dunamismax_test DB_USER=... DB_PASSWORD=... php tests/database.php
+```
 
-## Production Shape
+Record a deployment (the collector account inserts it):
 
-Production:
+```sh
+php bin/record-deployment.php --service-id status-dunamismax --repo-name status.dunamismax --commit-sha "$(git rev-parse HEAD)"
+```
 
-- Ubuntu host under `/home/sawyer/github`
-- release binary under `/opt/status-dunamismax`
-- unprivileged `status-dunamismax` service user
-- `status-dunamismax.service` on `127.0.0.1:8095`
-- Caddy site block for `status.dunamismax.com`
-- optional PostgreSQL database for durable status history
+## Layout
 
-Deployment templates live under `deploy/` for the systemd unit, environment
-file, collector timer, and Caddy reverse proxy. They are repo-owned templates
-that mirror the self-hosted Ubuntu deployment. A host runbook lives at
-`docs/runbooks/production-self-host.md`.
+```text
+app/                 Application, configuration, model, probes, stores, alerts, CLI commands
+bin/                 collect, record-deployment, import-history, smoke, database, check
+database/schema.sql  MySQL schema (safe to reapply)
+deploy/              Caddy site, PHP-FPM pool, systemd units, backup, numbered sudo scripts
+dev/router.php       Local PHP server routing
+docs/                Architecture and production runbook
+public/              The only web root
+tests/               Dependency-free checks and the opt-in MySQL integration test
+views/               HTML templates
+```
 
-Do not publish host-sensitive details publicly by default. Public status shows
-enough to be useful without exposing private paths, secrets, internal IPs,
-database names, backup locations, or exact failure internals.
+## Production
+
+Production runs from `/srv/www/status.dunamismax.com/current`, a symlink to a
+versioned release. See [docs/production.md](docs/production.md) for the
+layout, the numbered sudo scripts, backups, and rollback, and
+[docs/architecture.md](docs/architecture.md) for how the pieces fit.
+
+Public pages never show private paths, process arguments, env values,
+credentials, host-local addresses, database names, backup paths, raw logs,
+stack traces, or command output.
 
 ## License
 
