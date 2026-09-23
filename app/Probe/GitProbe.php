@@ -93,15 +93,17 @@ final class GitProbe
         if ($git->upstream === null) {
             $reasons[] = 'upstream branch is not configured';
         }
+        // A quiet repository is not a fault: commit age is reported but never degrades a project.
+        $notes = [];
         if ($git->latestCommitAgeDays !== null && $git->latestCommitAgeDays > self::STALE_COMMIT_DAYS) {
-            $reasons[] = "latest commit is {$git->latestCommitAgeDays} days old";
+            $notes[] = "latest commit is {$git->latestCommitAgeDays} days old";
         }
 
         if ($reasons === []) {
             $progress = $build === null ? 'BUILD progress unavailable' : "BUILD progress {$build->checked}/{$build->total}";
-            return [State::Operational, "repository is current; {$progress}"];
+            return [State::Operational, implode('; ', ['repository is current', $progress, ...$notes])];
         }
-        return [State::Degraded, implode('; ', $reasons)];
+        return [State::Degraded, implode('; ', [...$reasons, ...$notes])];
     }
 
     /** @param list<string> $arguments */

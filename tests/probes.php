@@ -148,7 +148,11 @@ expect(GitProbe::commitAgeDays('2026-05-16T12:00:00+00:00', Time::parse('2026-05
 $dirty = GitProbe::evaluate(new GitStatus('main', 'origin/main', 1, 2, true, 2, true), null);
 expect($dirty[0] === State::Degraded && str_contains($dirty[1], 'uncommitted changes') && str_contains($dirty[1], '1 ahead and 2 behind')
     && !str_contains($dirty[1], '/home/sawyer'), 'Dirty or diverged checkouts are degraded with public-safe reasons.');
-expect(GitProbe::evaluate(new GitStatus('main', 'origin/main', 0, 0, false, 45), null)[1] === 'latest commit is 45 days old', 'Old commits are reported.');
+$quiet = GitProbe::evaluate(new GitStatus('main', 'origin/main', 0, 0, false, 45), null);
+expect($quiet[0] === State::Operational && $quiet[1] === 'repository is current; BUILD progress unavailable; latest commit is 45 days old',
+    'Old commits are reported without degrading a clean, current repository.');
+expect(GitProbe::evaluate(new GitStatus('main', 'origin/main', 0, 0, false, 5), null)[1] === 'repository is current; BUILD progress unavailable',
+    'Recent commits add no note.');
 expect(GitProbe::evaluate(new GitStatus(), null)[0] === State::Unknown, 'Unreadable branches are unknown.');
 $repos = temporaryDirectory('status-git-');
 try {
