@@ -61,7 +61,8 @@ final class Inventory
             new SystemdTarget('php8.5-fpm', 'php8.5-fpm.service', 'Host infrastructure'),
             new SystemdTarget('docker', 'docker.service', 'Host infrastructure'),
             new SystemdTarget('containerd', 'containerd.service', 'Host infrastructure'),
-            new SystemdTarget('ssh', 'ssh.service', 'Network & access'),
+            // OpenSSH starts on demand; the socket stays active while ssh.service is idle.
+            new SystemdTarget('ssh', 'ssh.socket', 'Network & access'),
             new SystemdTarget('tailscaled', 'tailscaled.service', 'Network & access'),
             new SystemdTarget('fail2ban', 'fail2ban.service', 'Network & access'),
             new SystemdTarget('ufw', 'ufw.service', 'Network & access', oneShot: true),

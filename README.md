@@ -57,13 +57,18 @@ state: every site on Caddy, php8.5-fpm, and MySQL, with no
 - Databases: `mysql.service`
 - Host infrastructure: `caddy.service`, `php8.5-fpm.service`,
   `docker.service`, `containerd.service`, Caddy configuration, Cloudflare DDNS
-- Network and access: `ssh`, `tailscaled`, `fail2ban`, `ufw`, `cloudflare-ddns`
+- Network and access: `ssh.socket`, `tailscaled`, `fail2ban`, `ufw`, `cloudflare-ddns`
 - Maintenance: server disk cleanup, the RustDesk installer rebuild, and this
   site's backup, each with its timer
 - Host capacity: root filesystem usage
 - Repositories: `dunamismax.com`, `mtg-card-bot`, `status.dunamismax`,
   `xrayservice` (branch, upstream, ahead/behind, dirty state, `BUILD.md`
   progress; commit age is shown but never degrades a project)
+
+OpenSSH uses socket activation on this host, so the `ssh` target watches
+`ssh.socket`; an idle `ssh.service` is normal. Tailscale SSH runs through
+`tailscaled`, which is monitored separately. These are systemd availability
+checks, not end-to-end SSH login tests.
 
 ## Routes
 
