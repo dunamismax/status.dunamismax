@@ -36,6 +36,7 @@ and prints its rollback.
 | `deploy/30-deploy.sh` | Builds a release from the committed HEAD, runs `bin/check.php` and `tests/run.php` as the web user, and activates it. Replaces the collector units with the PHP collector, installs the backup script and timer, collects one snapshot, smoke-tests every route as the web user, and records the deployment. | None; Caddy still proxies to Rust |
 | `deploy/40-cutover.sh` | Moves the `status.dunamismax.com` block out of `/etc/caddy/Caddyfile` into `/etc/caddy/sites/status.dunamismax.com.caddy`, validates as `caddy` with `/usr/local/lib/caddy/caddy`, reloads, and verifies over HTTPS. Only then does it disable `status-dunamismax.service` and remove `status-dunamismax` from the docker group. It restores Caddy if any step fails. | The site switches to PHP |
 | `deploy/50-decommission.sh` | Confirms the cutover, then writes a final `pg_dump` to `/var/backups/status-dunamismax/`. Removes the Rust unit and binary, the Rust-era `status.env`, and the unused `/etc/caddy/status.dunamismax.caddy`, then drops the PostgreSQL database and its role. It leaves the PostgreSQL server and every other database alone. | None |
+| `deploy/60-enable-access-log.sh` | Backs up this site's Caddy block, adds `/var/log/caddy/status-dunamismax-access.log` with 10 MiB rolls and up to 30 rolled files retained for 30 days, validates as `caddy`, reloads, and verifies a request was logged. Restores the site block if verification fails. | A Caddy reload; the site stays on PHP |
 
 Verification after cutover:
 
@@ -47,6 +48,12 @@ systemctl list-timers status-dunamismax-collector.timer
 journalctl -u status-dunamismax-collector.service -n 5 --no-pager
 id status-dunamismax                                   # no docker group
 ```
+
+To enable or verify the status site's access log after cutover, run
+`sudo /home/sawyer/github/status.dunamismax/deploy/60-enable-access-log.sh`.
+The script prints its backup location and rollback commands. The log is owned
+by `caddy` and readable by `caddy` and root. Rotation limits apply to
+rolled files; the active file remains until it reaches 10 MiB.
 
 ## Routine releases
 

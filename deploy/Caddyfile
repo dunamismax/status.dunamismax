@@ -27,4 +27,12 @@ status.dunamismax.com {
 		rewrite * /index.php
 		php_fastcgi unix//run/php/status-dunamismax.sock
 	}
+
+	log {
+		output file /var/log/caddy/status-dunamismax-access.log {
+			roll_size 10MiB
+			roll_keep 30
+			roll_keep_for 720h
+		}
+	}
 }
