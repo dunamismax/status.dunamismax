@@ -101,6 +101,9 @@ ln -s "$release" "$base/current.next"
 mv -Tf "$base/current.next" "$base/current"
 systemctl enable --now astro-status-dunamismax.service
 systemctl restart astro-status-dunamismax.service
+install -m 0644 "$release/deploy/Caddyfile" /etc/caddy/sites/status.dunamismax.com.caddy
+runuser -u caddy -- /usr/local/lib/caddy/caddy validate --config /etc/caddy/Caddyfile > "$backup/caddy-validation.log" 2>&1
+systemctl reload caddy
 # Any timer-triggered verification run is also notification-free.
 install -d /run/systemd/system/astro-status-dunamismax-collector.service.d
 printf '[Service]\nExecStart=\nExecStart=/opt/astro-runtime/bin/node %s/build/src/collector/cli.js collect --no-notify\n' "$release" > /run/systemd/system/astro-status-dunamismax-collector.service.d/migration.conf
@@ -108,9 +111,6 @@ systemctl daemon-reload
 systemctl enable --now astro-status-dunamismax-collector.timer
 systemctl start astro-status-dunamismax-collector.service
 if [[ -e $backup/imported ]]; then touch "$backup/pg-writes"; fi
-install -m 0644 "$release/deploy/Caddyfile" /etc/caddy/sites/status.dunamismax.com.caddy
-runuser -u caddy -- /usr/local/lib/caddy/caddy validate --config /etc/caddy/Caddyfile > "$backup/caddy-validation.log" 2>&1
-systemctl reload caddy
 "$release/deploy/smoke.sh" https://status.dunamismax.com
 "$release/deploy/run-command.sh" record-deployment --service-id status-dunamismax --repo-name status.dunamismax --commit-sha "$commit"
 systemctl disable status-dunamismax-collector.timer
