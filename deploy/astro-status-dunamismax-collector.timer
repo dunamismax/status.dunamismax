@@ -1,0 +1,9 @@
+[Unit]
+Description=Collect Dunamis Status history every five minutes
+[Timer]
+OnBootSec=2min
+OnUnitActiveSec=5min
+RandomizedDelaySec=30s
+Unit=astro-status-dunamismax-collector.service
+[Install]
+WantedBy=timers.target

@@ -1,0 +1,28 @@
+[Unit]
+Description=Dunamis Status TypeScript bounded collector
+After=network-online.target postgresql.service
+Wants=network-online.target
+[Service]
+Type=oneshot
+User=status-dunamismax
+Group=status-dunamismax
+WorkingDirectory=/srv/www/status.dunamismax.com/current
+EnvironmentFile=/etc/astro-apps/status_dunamismax/collector.env
+EnvironmentFile=/etc/status-dunamismax/astro-collector.env
+ExecStart=/opt/astro-runtime/bin/node /srv/www/status.dunamismax.com/current/build/src/collector/cli.js collect
+TimeoutStartSec=4min
+UMask=0077
+StateDirectory=astro-status-dunamismax-collector
+StateDirectoryMode=0700
+NoNewPrivileges=true
+PrivateTmp=true
+PrivateDevices=true
+ProtectHome=read-only
+ProtectSystem=strict
+ProtectKernelTunables=true
+ProtectKernelModules=true
+ProtectControlGroups=true
+RestrictSUIDSGID=true
+RestrictRealtime=true
+RestrictAddressFamilies=AF_UNIX AF_INET AF_INET6
+CapabilityBoundingSet=

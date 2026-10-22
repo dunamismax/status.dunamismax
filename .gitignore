@@ -10,3 +10,10 @@
 /*.sql
 /backups/
 /output/
+
+node_modules/
+dist/
+build/
+.astro/
+RELEASE
+__pycache__/

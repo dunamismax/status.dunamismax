@@ -1,0 +1,31 @@
+[Unit]
+Description=Dunamis Status Astro public read-only website
+After=network.target postgresql.service
+Wants=postgresql.service
+[Service]
+Type=simple
+User=status-dunamismax-web
+Group=status-dunamismax-web
+WorkingDirectory=/srv/www/status.dunamismax.com/current
+Environment=NODE_ENV=production HOST=127.0.0.1 PORT=4313
+EnvironmentFile=/etc/astro-apps/status_dunamismax/web.env
+EnvironmentFile=/etc/status-dunamismax/astro-web.env
+ExecStart=/opt/astro-runtime/bin/node --permission --allow-fs-read=/srv/www/status.dunamismax.com /srv/www/status.dunamismax.com/current/dist/server/entry.mjs
+Restart=on-failure
+RestartSec=3
+TimeoutStopSec=30
+UMask=0077
+NoNewPrivileges=true
+PrivateTmp=true
+PrivateDevices=true
+ProtectSystem=strict
+ProtectHome=true
+ProtectKernelTunables=true
+ProtectKernelModules=true
+ProtectControlGroups=true
+RestrictSUIDSGID=true
+RestrictRealtime=true
+RestrictAddressFamilies=AF_UNIX AF_INET AF_INET6
+CapabilityBoundingSet=
+[Install]
+WantedBy=multi-user.target

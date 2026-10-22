@@ -1,124 +1,114 @@
-# Production runbook
+# Production operations
 
-## Installed layout
+Read `/home/sawyer/github/ubuntu-vm-backup/docs/astro-migration.md` first.
+Every shared mutation, schema migration, release switch and rollback must run
+on the VM under `/usr/local/sbin/with-deploy-lock`. The wrappers acquire it or
+reuse inherited descriptor 9; never nest separate acquisitions.
 
-| Item | Location or setting |
-| --- | --- |
-| Git checkout | `/home/sawyer/github/status.dunamismax` |
-| Releases | `/srv/www/status.dunamismax.com/releases/<full-commit>`, root-owned, read-only |
-| Active release | `/srv/www/status.dunamismax.com/current` symlink |
-| Document root | `/srv/www/status.dunamismax.com/current/public` |
-| Web user | `status-dunamismax-web`: system account, no other groups, no repository access |
-| Web settings | `/etc/status-dunamismax/web.env`, root:status-dunamismax-web 0640, linked as the release `.env` |
-| FPM pool | `/etc/status-dunamismax/php-fpm.conf`, linked from `/etc/php/8.5/fpm/pool.d/status-dunamismax.conf` |
-| FPM socket | `/run/php/status-dunamismax.sock`, caddy 0600 |
-| Collector user | `status-dunamismax`: read-only ACL on `/home/sawyer/github`, not in the docker group |
-| Collector settings | `/etc/status-dunamismax/collector.env`, root:status-dunamismax 0640 |
-| Collector | `status-dunamismax-collector.timer` (every 5 minutes) → `.service` → `bin/collect.php` |
-| MySQL | `status_dunamismax` on 127.0.0.1; `status_web` has SELECT on rollups, incidents, maintenance_windows, and deployment_events only; `status_collector` has SELECT/INSERT/UPDATE/DELETE |
-| Caddy site | `/etc/caddy/sites/status.dunamismax.com.caddy` |
-| Backups | `status-dunamismax-backup.timer`, daily 06:30 UTC → `/var/backups/status-dunamismax`, 14 days |
+## Runtime and access
 
-The web user cannot read `collector.env`, and the collector cannot read
-`web.env`. Neither file is ever printed by the scripts.
+- Releases: `/srv/www/status.dunamismax.com/releases/<commit>`, root-owned and
+  immutable, with atomic `current`. Build outside the lock as sawyer.
+- Web: `astro-status-dunamismax.service`, `status-dunamismax-web`, loopback 4313.
+- Collector: `astro-status-dunamismax-collector.timer` → `.service`, existing
+  `status-dunamismax` account, every five minutes plus up to 30s jitter, 4min cap.
+- PostgreSQL: `status_dunamismax`, owner schema `app`. Role files remain root-only
+  under `/etc/astro-apps/status_dunamismax/`; each unit loads only its own role.
+- Application settings: `/etc/status-dunamismax/astro-web.env` (operator token,
+  freshness and repo-root metadata) and `astro-collector.env` (webhook, repeat,
+  maximum notifications, retention and repo root), root 0600. Changes need an
+  owning Node service restart or take effect on the next collector run.
+- Private collector HOME/state: `/var/lib/astro-status-dunamismax-collector`, 0700.
+- Existing PHP/MySQL services, their credentials, old releases and backup timer
+  remain for recovery and other consumers. The legacy collector timer is disabled.
 
-## Migrating from the Rust service
+## Release
 
-Run these from the checkout as root, in order, checking each script's
-verification output before starting the next. Each script is safe to re-run,
-backs up every file it changes to `/root/status-dunamismax-backup-<timestamp>/`,
-and prints its rollback.
-
-| Script | What it does | Public effect |
-| --- | --- | --- |
-| `deploy/10-provision.sh` | Creates `status-dunamismax-web`, the release and backup directories, the MySQL database, schema, and both accounts (passwords generated, sent over stdin), and both env files. It carries forward the operator token, alert webhook, and retention from the old `status.env` when present. Installs the FPM pool and checks the socket and file permissions. | None |
-| `deploy/20-migrate-history.sh` | Stops the Rust collector timer so PostgreSQL stops changing, writes a `pg_dump` safety copy to `/var/backups/status-dunamismax/`, exports every table as JSON lines, and imports them as `status_collector` with their original ids. Then compares row counts. | None; the Rust site keeps serving live probes |
-| `deploy/30-deploy.sh` | Builds a release from the committed HEAD, runs `bin/check.php` and `tests/run.php` as the web user, and activates it. Replaces the collector units with the PHP collector, installs the backup script and timer, collects one snapshot, smoke-tests every route as the web user, and records the deployment. | None; Caddy still proxies to Rust |
-| `deploy/40-cutover.sh` | Moves the `status.dunamismax.com` block out of `/etc/caddy/Caddyfile` into `/etc/caddy/sites/status.dunamismax.com.caddy`, validates as `caddy` with `/usr/local/lib/caddy/caddy`, reloads, and verifies over HTTPS. Only then does it disable `status-dunamismax.service` and remove `status-dunamismax` from the docker group. It restores Caddy if any step fails. | The site switches to PHP |
-| `deploy/50-decommission.sh` | Confirms the cutover, then writes a final `pg_dump` to `/var/backups/status-dunamismax/`. Removes the Rust unit and binary, the Rust-era `status.env`, and the unused `/etc/caddy/status.dunamismax.caddy`, then drops the PostgreSQL database and its role. It leaves the PostgreSQL server and every other database alone. | None |
-| `deploy/60-enable-access-log.sh` | Backs up this site's Caddy block, adds `/var/log/caddy/status-dunamismax-access.log` with 10 MiB rolls and up to 30 rolled files retained for 30 days, validates as `caddy`, reloads, and verifies a request was logged. Restores the site block if verification fails. | A Caddy reload; the site stays on PHP |
-
-Verification after cutover:
+Commit and dual-push the owning repository; update the clean VM checkout by
+fast-forward. `deploy/build.sh` builds/tests an exact Git archive and emits only
+the candidate path on stdout. Diagnostics go to stderr. Complete same-commit
+candidates are reusable after digest verification; partial candidates are rebuilt.
 
 ```sh
-curl -fsS https://status.dunamismax.com/healthz
-curl -fsS https://status.dunamismax.com/readyz        # mysql-ready,collector-snapshot-fresh
-curl -fsS https://status.dunamismax.com/api/status.json | head -c 300; echo
-systemctl list-timers status-dunamismax-collector.timer
-journalctl -u status-dunamismax-collector.service -n 5 --no-pager
-id status-dunamismax                                   # no docker group
+cd /home/sawyer/github/status.dunamismax
+candidate=$(deploy/build.sh)
+previous=$(readlink -f /srv/www/status.dunamismax.com/current)
+sudo deploy/deploy.sh "$candidate" "$previous"
 ```
 
-To enable or verify the status site's access log after cutover, run
-`sudo /home/sawyer/github/status.dunamismax/deploy/60-enable-access-log.sh`.
-The script prints its backup location and rollback commands. The log is owned
-by `caddy` and readable by `caddy` and root. Rotation limits apply to
-rolled files; the active file remains until it reaches 10 MiB.
+The deploy helper rechecks current state inside the lock, saves rollback copies
+and both database safety archives, applies transactional owner-only schema DDL,
+then (first cutover only) stops the legacy writer and imports/reconciles history.
+It validates a separate candidate on loopback 14313, atomically switches current,
+records a notification-free snapshot, changes only this Caddy fragment, validates
+as caddy with the custom binary, reloads Caddy and tests public routes. It records
+one deployment and enables the successor timer. Failure invokes rollback inside
+the same lock. Same-commit release retries validate the retained release digest.
 
-## Routine releases
+`/healthz`, `/readyz`, HTML, APIs, static bytes, HEAD/405, private paths and operator
+failure are checked by `deploy/smoke.sh`. An intentionally stale snapshot degrades
+readiness; never change its timestamp just to make a check green.
 
-Commit and push the reviewed change, update the server checkout with
-`git pull --ff-only`, then:
+## Operating commands
 
 ```sh
-sudo /home/sawyer/github/status.dunamismax/deploy/30-deploy.sh
+sudo /srv/www/status.dunamismax.com/current/deploy/run-command.sh collect --dry-run
+sudo /srv/www/status.dunamismax.com/current/deploy/run-command.sh collect --no-notify
+sudo /srv/www/status.dunamismax.com/current/deploy/run-command.sh record-deployment \
+  --service-id example --repo-name example --commit-sha abcdef0 --summary 'example deployed to production'
+systemctl status astro-status-dunamismax.service astro-status-dunamismax-collector.timer
+journalctl -u astro-status-dunamismax-collector.service -n 10 --no-pager
 ```
 
-It never overwrites an existing release. If the collector or the smoke test
-fails, it switches `current` back to the previous release. To roll back by
-hand:
+`collect` without either safety flag performs the configured real alert behavior.
+Do not use it for failure injection. The deployment wrapper holds the shared lock
+also for manual commands, preventing a manual deployment record racing history
+transfer. Toolworks uses these owning wrappers instead of legacy Rust/PHP commands.
 
-```sh
-previous=$(sudo cat /root/status-dunamismax-previous-release)
-sudo ln -sfn "$previous" /srv/www/status.dunamismax.com/current.rollback
-sudo mv -Tf /srv/www/status.dunamismax.com/current.rollback /srv/www/status.dunamismax.com/current
-sudo systemctl reload php8.5-fpm
-```
+## Historical reconciliation and rollback
 
-Schema changes need reviewed migration SQL, a backup first, and the MySQL
-administrator. `database/schema.sql` only creates missing tables.
+The first cutover exports all seven MySQL tables in one consistent transaction,
+including previously imported Rust history. Original IDs, every timestamp,
+metadata, JSON payload and sent/suppression rows are reconciled before activation.
+Private source files and count/digest manifests remain in the root-only rollback
+directory; never commit or publish them. A populated destination requires explicit
+`history import DIRECTORY --replace`, valid only with both writers stopped and a
+verified safety archive. Import failure rolls back the entire destination change.
 
-## Deployment evidence
+The latest rollback directory is recorded in `/root/status-astro-latest-rollback`.
+Run the **new release's** `deploy/rollback.sh DIRECTORY` as root. The wrapper takes
+the shared lock and stops the owning Node collector first. For a PHP rollback it
+writes a fresh PG safety dump, streams all current PG history back to the retained
+MySQL database transactionally, exports MySQL again and verifies every row against
+PostgreSQL. Only then does it restore the old release, Caddy fragment, backup helper
+and units and resume the legacy timer. A later Astro code rollback keeps PG as the
+source of truth and restarts only the owning Node service/timer. No shared database
+server is stopped. No old dump is restored over later writes.
 
-`30-deploy.sh` records each new release. Other deploy tooling, such as
-Toolworks, records deployments with the collector account:
+If reverse reconciliation fails, keep both writers stopped and inspect the private
+archives and manifests. Do not force the old writer online or discard later rows.
+After recovery verify routes, timer state, freshness and the other shared services.
 
-```sh
-sudo -u status-dunamismax env STATUS_ENV_FILE=/etc/status-dunamismax/collector.env \
-  php /srv/www/status.dunamismax.com/current/bin/record-deployment.php \
-  --service-id <service> --repo-name <repo> --commit-sha <sha> --summary '<repo> deployed to production'
-```
+## Backups and restore
 
-The command also reads the `STATUS_DEPLOYMENT_*` variables that the old
-`STATUS_RECORD_DEPLOYMENT=true status-web` mode used, so only the executable
-changes.
-
-## Operator view and alerts
-
-Set `STATUS_OPERATOR_TOKEN` (at least 32 characters) in `web.env` to enable
-`/operator`, then reload php8.5-fpm. It shows repository paths and readiness
-detail behind `Authorization: Bearer <token>`.
-
-Set `STATUS_ALERT_WEBHOOK_URL` in `collector.env` to send alerts. Payloads
-carry the target id and name, state, severity, time, title, and public
-summary, and never paths, command output, or secrets. The same alert repeats
-at most every `STATUS_ALERT_REPEAT_AFTER_MINUTES` (60), and each run sends at
-most `STATUS_ALERT_MAX_NOTIFICATIONS_PER_RUN` (5).
-
-## Backups
-
-`/usr/local/sbin/status-dunamismax-backup` writes a transactional MySQL
-dump, both env files, the pool, the Caddy site, the units, and the active
-release to `/var/backups/status-dunamismax/status-<stamp>.tar.gz`, with a
-SHA-256 file. It keeps 14 days of archives. The archives contain
-credentials: never publish them. The PostgreSQL dumps from migration and
-decommission stay in the same directory until removed by hand.
+The existing daily `status-dunamismax-backup.timer` remains. Its replacement helper
+acquires the shared lock, saves a custom-format PG dump with roles/ownership/ACLs,
+retained MySQL, role credentials, application settings, Caddy, units and release.
+It restores PostgreSQL into a temporary private Unix-socket cluster before publishing
+the root-only archive and SHA256. Archives expire after 14 days; migration safety
+archives remain until explicitly retired. Credentials must never be published.
 
 ```sh
 sudo systemctl start status-dunamismax-backup.service
-ls -l /var/backups/status-dunamismax
+sudo /home/sawyer/github/ubuntu-vm-backup/bin/backup --push
+sudo /home/sawyer/github/ubuntu-vm-backup/bin/restore check
+sudo /home/sawyer/github/ubuntu-vm-backup/bin/restore postgres-verify
 ```
 
-A dump does not recreate MySQL users. To rebuild the host, restore the env
-files, rerun `10-provision.sh` (it re-creates the accounts from those
-passwords), load the dump, then run `30-deploy.sh` and `40-cutover.sh`.
+The shared encrypted backup already captures this database in full, all astro-*
+units, both credential locations and the retained legacy recovery configuration.
+For an empty replacement host, restore role/config secrets first, verify the encrypted
+archive with the shared runbook, reconstruct the pinned runtime, restore roles and
+`pg_restore --create --exit-on-error` into an empty target, restore the immutable
+release/current and units, validate Caddy, then verify routes and timer freshness.
+Never use a live database as a restore-test destination.
