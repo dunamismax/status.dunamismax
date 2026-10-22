@@ -1,6 +1,6 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
-import { readFile } from 'node:fs/promises';
+import { readFile,mkdtemp,symlink,rm } from 'node:fs/promises';
 import { snapshot, freshness, timestamp, worst, type Snapshot } from '../src/lib/model.js';
 import { config } from '../src/lib/config.js';
 import { handle, readiness } from '../src/lib/web.js';
@@ -31,3 +31,5 @@ test('deployment CLI validates flags, timestamps, UTF8, legacy env fallback',()=
 test('history fingerprints preserve microseconds, IDs, JSON types and Unicode',()=>{assert.equal(canonical(normalize({id:10,checked_at:'2026-01-01 00:00:00.123456',snapshot:{b:'é',a:[true,null,1]}})),canonical(normalize({snapshot:{a:[true,null,1],b:'é'},checked_at:'2026-01-01T00:00:00.123456Z',id:'10'})));});
 
 test('public import graph has no probe, repository or subprocess access',async()=>{for(const path of ['src/lib/web.ts','src/lib/source.ts','src/lib/config.ts','src/lib/model.ts','src/lib/db.ts','src/pages/[...path].ts'])assert.doesNotMatch(await readFile(path,'utf8'),/node:child_process|from ['"]node:fs|collector\/|fetch\s*\(/);});
+
+test('collector entry point executes through release symlinks',async()=>{const directory=await mkdtemp('/tmp/status-entry-test.');try{await symlink(process.cwd()+'/build/src/collector/cli.js',directory+'/cli.js');const result=await command(process.execPath,[directory+'/cli.js','--help']);assert.equal(result.exitCode,0);assert.match(result.stdout,/Usage: status collect/);}finally{await rm(directory,{recursive:true,force:true});}});
