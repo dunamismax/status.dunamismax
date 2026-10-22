@@ -38,9 +38,9 @@ failed() { code=$?; trap - ERR; echo 'Cutover failed; restoring previous release
 trap failed ERR
 # Stop only owning writers; retain shared services and legacy configuration.
 systemctl stop status-dunamismax-collector.timer
-while systemctl is-active --quiet status-dunamismax-collector.service; do sleep 1; done
+while [[ $(systemctl show status-dunamismax-collector.service -p ActiveState --value) =~ ^(active|activating|deactivating|reloading)$ ]]; do sleep 1; done
 systemctl stop astro-status-dunamismax-collector.timer 2>/dev/null || true
-while systemctl is-active --quiet astro-status-dunamismax-collector.service; do sleep 1; done
+while [[ $(systemctl show astro-status-dunamismax-collector.service -p ActiveState --value) =~ ^(active|activating|deactivating|reloading)$ ]]; do sleep 1; done
 # Preserve both databases and credentials before schema or data changes.
 runuser -u postgres -- pg_dump -Fc --create status_dunamismax > "$backup/pre-postgresql.dump"
 mysqldump --single-transaction --no-tablespaces --set-gtid-purged=OFF status_dunamismax | gzip > "$backup/pre-mysql.sql.gz"
@@ -106,8 +106,7 @@ install -d /run/systemd/system/astro-status-dunamismax-collector.service.d
 printf '[Service]\nExecStart=\nExecStart=/opt/astro-runtime/bin/node %s/build/src/collector/cli.js collect --no-notify\n' "$release" > /run/systemd/system/astro-status-dunamismax-collector.service.d/migration.conf
 systemctl daemon-reload
 systemctl enable --now astro-status-dunamismax-collector.timer
-while systemctl is-active --quiet astro-status-dunamismax-collector.service; do sleep 1; done
-"$release/deploy/run-command.sh" collect --no-notify
+systemctl start astro-status-dunamismax-collector.service
 if [[ -e $backup/imported ]]; then touch "$backup/pg-writes"; fi
 install -m 0644 "$release/deploy/Caddyfile" /etc/caddy/sites/status.dunamismax.com.caddy
 runuser -u caddy -- /usr/local/lib/caddy/caddy validate --config /etc/caddy/Caddyfile > "$backup/caddy-validation.log" 2>&1

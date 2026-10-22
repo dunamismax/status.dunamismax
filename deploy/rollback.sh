@@ -11,7 +11,7 @@ base=/srv/www/status.dunamismax.com
 previous=$(cat "$backup/previous")
 [[ $previous == "$base/releases/"* && -d $previous ]] || exit 1
 systemctl stop astro-status-dunamismax-collector.timer 2>/dev/null || true
-while systemctl is-active --quiet astro-status-dunamismax-collector.service; do sleep 1; done
+while [[ $(systemctl show astro-status-dunamismax-collector.service -p ActiveState --value) =~ ^(active|activating|deactivating|reloading)$ ]]; do sleep 1; done
 rm -f /run/systemd/system/astro-status-dunamismax-collector.service.d/migration.conf
 systemctl stop astro-status-candidate.service 2>/dev/null || true
 if [[ -e $backup/legacy && -e $backup/imported ]]; then
