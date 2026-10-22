@@ -93,9 +93,9 @@ After recovery verify routes, timer state, freshness and the other shared servic
 
 The existing daily `status-dunamismax-backup.timer` remains. Its replacement helper
 acquires the shared lock, saves a custom-format PG dump with roles/ownership/ACLs,
-retained MySQL, role credentials, application settings, Caddy, units and release.
+role credentials, application settings, Caddy, units and release.
 It restores PostgreSQL into a temporary private Unix-socket cluster before publishing
-the root-only archive and SHA256. Archives expire after 14 days; migration safety
+the root-only archive and SHA256. Legacy archives are preserved; migration safety
 archives remain until explicitly retired. Credentials must never be published.
 
 ```sh
@@ -112,3 +112,12 @@ archive with the shared runbook, reconstruct the pinned runtime, restore roles a
 `pg_restore --create --exit-on-error` into an empty target, restore the immutable
 release/current and units, validate Caddy, then verify routes and timer freshness.
 Never use a live database as a restore-test destination.
+
+
+## Host runtime retirement
+
+After the final host cleanup, ordinary deployments and backups need PostgreSQL
+only. PHP/MySQL target IDs remain in historical tables but are not probed. Legacy
+rollback records are archival: recover them only in an isolated legacy host.
+Use a compatible Astro release for code rollback and retain current PG data.
+The host recovery runbook owns the preserved final full MySQL archive.

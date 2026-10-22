@@ -24,9 +24,6 @@ cp -a /etc/systemd/system/status-dunamismax-* "$backup/"
 cp -a /etc/systemd/system/astro-status-dunamismax* "$backup/" 2>/dev/null || true
 cp -a /usr/local/sbin/status-dunamismax-backup "$backup/backup.sh"
 cp -a /etc/status-dunamismax "$backup/settings"
-systemctl is-enabled status-dunamismax-collector.timer > "$backup/legacy-enabled" || true
-systemctl is-active status-dunamismax-collector.timer > "$backup/legacy-active" || true
-if [[ -f $previous/public/index.php ]]; then touch "$backup/legacy"; fi
 ( cd "$candidate" && sha256sum --quiet --check MANIFEST.sha256 )
 if [[ ! -d $release ]]; then
  install -d -m 0755 "$release"
@@ -36,22 +33,12 @@ if [[ ! -d $release ]]; then
 fi
 failed() { code=$?; trap - ERR; echo 'Cutover failed; restoring previous release' >&2; "$release/deploy/rollback.sh" "$backup" || echo 'Rollback failed; inspect root-only diagnostics' >&2; exit "$code"; }
 trap failed ERR
-# Stop only owning writers; retain shared services and legacy configuration.
-systemctl stop status-dunamismax-collector.timer
-while [[ $(systemctl show status-dunamismax-collector.service -p ActiveState --value) =~ ^(active|activating|deactivating|reloading)$ ]]; do sleep 1; done
+# Ordinary Astro deployment: PostgreSQL is authoritative; no legacy writer/import.
 systemctl stop astro-status-dunamismax-collector.timer 2>/dev/null || true
 while [[ $(systemctl show astro-status-dunamismax-collector.service -p ActiveState --value) =~ ^(active|activating|deactivating|reloading)$ ]]; do sleep 1; done
-# Preserve both databases and credentials before schema or data changes.
 runuser -u postgres -- pg_dump -Fc --create status_dunamismax > "$backup/pre-postgresql.dump"
-mysqldump --single-transaction --no-tablespaces --set-gtid-purged=OFF status_dunamismax | gzip > "$backup/pre-mysql.sql.gz"
-gzip -t "$backup/pre-mysql.sql.gz"
 set -a; source /etc/astro-apps/status_dunamismax/migration.env; set +a
 psql -X -1 -v ON_ERROR_STOP=1 -f "$release/database/schema.sql" > "$backup/schema.log" 2>&1
-if [[ -e $backup/legacy ]]; then
- "$release/deploy/history-transfer.py" export "$backup/history"
- /opt/astro-runtime/bin/node "$release/build/scripts/history.js" import "$backup/history" --replace > "$backup/reconciliation.json"
- touch "$backup/imported"
-fi
 unset PGPASSWORD DATABASE_URL PGUSER PGDATABASE PGHOST PGPORT
 # Copy only role-appropriate settings; secrets never enter the release.
 python3 - <<'CONFIG'
@@ -61,14 +48,7 @@ base=Path('/etc/status-dunamismax')
 for role,keys in [('web',['STATUS_OPERATOR_TOKEN','STATUS_STALE_AFTER_MINUTES','STATUS_REPO_ROOT']),('collector',['STATUS_ALERT_WEBHOOK_URL','STATUS_RETENTION_DAYS','STATUS_ALERT_REPEAT_AFTER_MINUTES','STATUS_ALERT_MAX_NOTIFICATIONS_PER_RUN','STATUS_REPO_ROOT'])]:
  target=base/('astro-'+role+'.env')
  if target.exists():continue
- values={}
- for line in (base/(role+'.env')).read_text().splitlines():
-  if '=' not in line or line.lstrip().startswith('#'):continue
-  k,v=line.split('=',1)
-  if k in keys:
-   parts=shlex.split(v,comments=True);values[k]=parts[0] if parts else ''
- target.write_text(''.join(k+'='+shlex.quote(v)+'\n' for k,v in values.items()))
- os.chmod(target,0o600)
+ raise SystemExit('Restore the separate Astro role settings before deployment')
 CONFIG
 # Reuse the already separate nologin accounts and existing read-only collector ACLs.
 [[ $(id -nG status-dunamismax) != *docker* ]]
@@ -81,19 +61,6 @@ sed -e "s|/srv/www/status.dunamismax.com/current|$release|g" -e 's/PORT=4313/POR
 systemctl daemon-reload
 systemctl start astro-status-candidate.service
 "$release/deploy/smoke.sh" http://127.0.0.1:14313
-if [[ -e $backup/legacy ]]; then
- for path in status incidents; do
-  curl -fsS "https://status.dunamismax.com/api/$path.json" > "$backup/legacy-$path.json"
-  curl -fsS "http://127.0.0.1:14313/api/$path.json" > "$backup/candidate-$path.json"
-  python3 - "$backup" "$path" <<'COMPARE'
-import json,sys
-from pathlib import Path
-p=Path(sys.argv[1]);kind=sys.argv[2]
-assert json.loads((p/('legacy-'+kind+'.json')).read_text()) == json.loads((p/('candidate-'+kind+'.json')).read_text()), 'API compatibility mismatch'
-COMPARE
- done
- for path in assets/status.css icon.svg robots.txt; do cmp "$previous/public/$path" "$release/public/$path"; done
-fi
 systemctl stop astro-status-candidate.service
 rm /run/systemd/system/astro-status-candidate.service
 systemctl daemon-reload
@@ -110,10 +77,8 @@ printf '[Service]\nExecStart=\nExecStart=/opt/astro-runtime/bin/node %s/build/sr
 systemctl daemon-reload
 systemctl enable --now astro-status-dunamismax-collector.timer
 systemctl start astro-status-dunamismax-collector.service
-if [[ -e $backup/imported ]]; then touch "$backup/pg-writes"; fi
 "$release/deploy/smoke.sh" https://status.dunamismax.com
 "$release/deploy/run-command.sh" record-deployment --service-id status-dunamismax --repo-name status.dunamismax --commit-sha "$commit"
-systemctl disable status-dunamismax-collector.timer
 rm /run/systemd/system/astro-status-dunamismax-collector.service.d/migration.conf
 systemctl daemon-reload
 trap - ERR

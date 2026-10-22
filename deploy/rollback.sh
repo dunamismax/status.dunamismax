@@ -10,6 +10,10 @@ release=$(cd "$(dirname "$0")/.." && pwd -P)
 base=/srv/www/status.dunamismax.com
 previous=$(cat "$backup/previous")
 [[ $previous == "$base/releases/"* && -d $previous ]] || exit 1
+if [[ -f /var/lib/astro-migration/legacy-retired && -e $backup/legacy ]]; then
+ echo 'PHP/MySQL are retired; restore legacy resources in isolation only' >&2
+ exit 1
+fi
 systemctl stop astro-status-dunamismax-collector.timer 2>/dev/null || true
 while [[ $(systemctl show astro-status-dunamismax-collector.service -p ActiveState --value) =~ ^(active|activating|deactivating|reloading)$ ]]; do sleep 1; done
 rm -f /run/systemd/system/astro-status-dunamismax-collector.service.d/migration.conf

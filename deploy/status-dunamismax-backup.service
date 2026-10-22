@@ -1,6 +1,6 @@
 [Unit]
-Description=Back up Dunamis Status PostgreSQL, retained MySQL and configuration
-After=postgresql.service mysql.service
+Description=Back up Dunamis Status PostgreSQL and application recovery
+After=postgresql.service
 [Service]
 Type=oneshot
 ExecStart=/usr/local/sbin/status-dunamismax-backup

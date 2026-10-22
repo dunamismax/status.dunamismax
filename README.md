@@ -39,7 +39,7 @@ Timestamps retain the established fixed UTC-05:00 EST display and UTC API format
 public HTTPS targets, systemd services/timers, RustDesk TCP 21115–21117, Caddy
 parse/reload evidence, Cloudflare DDNS recency, root disk capacity, and the four
 existing repository targets. It additionally monitors the new status Node
-service and PostgreSQL; PHP/MySQL checks remain while other host consumers exist.
+service and PostgreSQL. Retired PHP/MySQL targets remain only in historical snapshots.
 No Docker socket, restart action, fetch/pull/reset, remote shell or raw journal
 is exposed. Quiet repositories remain healthy.
 
@@ -67,5 +67,4 @@ the legacy `STATUS_DEPLOYMENT_*` environment names are preserved by the CLI.
 
 See [production operations](docs/production.md), [architecture](docs/architecture.md),
 and [migration evidence](docs/migration.md). The old PHP implementation is removed
-from this source tree; retained production releases/MySQL/configuration support
-recovery until the host's final cleanup assignment.
+from this source tree. Legacy resources are protected recovery material; use PostgreSQL and Astro releases for active recovery.
