@@ -2,7 +2,7 @@
 check:
 	npm run check
 	npm test
-	bash -n deploy/*.sh tests/postgres.sh
+	for file in deploy/*.sh tests/postgres.sh; do bash -n "$$file" || exit; done
 	python3 -m py_compile deploy/history-transfer.py
 build:
 	npm run build

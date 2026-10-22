@@ -22,7 +22,7 @@ gzip -t "$work/legacy-mysql.sql.gz"
 cp -a /etc/status-dunamismax "$work/settings"
 cp -a /etc/astro-apps/status_dunamismax "$work/pg-credentials"
 cp /etc/caddy/sites/status.dunamismax.com.caddy "$work/"
-cp /etc/systemd/system/astro-status-dunamismax* /etc/systemd/system/status-dunamismax-* "$work/"
+cp -a /etc/systemd/system/astro-status-dunamismax* /etc/systemd/system/status-dunamismax-* "$work/"
 cp /usr/local/sbin/status-dunamismax-backup "$work/backup.sh"
 readlink -f "$base/current" > "$work/release.txt"
 tar -czf "$work/application.tar.gz" -C "$base/current" --exclude=./.env .

@@ -10,9 +10,10 @@ Astro + strict TypeScript + PostgreSQL migration, October 22, 2026.
 - [x] Remove superseded PHP application, collectors, tests and deployment scripts.
 - [x] Strict checks, automated behavior tests and isolated PostgreSQL integration.
 - [x] Full historical-data rehearsal (259,587 checks, 17,312 rollups; all seven table digests).
-- [ ] Complete production reconciliation.
-- [ ] Commit/dual-push, deploy, production/timer/access checks, rollback rehearsal.
-- [ ] Verify and push post-cutover backups, encrypted restore and integration updates.
+- [x] Production reconciliation: all seven table digests match; subsequent writes retained.
+- [x] Commit/dual-push, deploy, production/access checks and real reverse-migration rollback.
+- [x] PostgreSQL-aware daily backup passed restore; Toolworks integration dual-pushed.
+- [x] Encrypted shared backup/restore and normal timer observation (10:35:12 UTC).
 
 See docs/migration.md for completed acceptance results. Rollups remain retained
 indefinitely; richer incident/maintenance authoring remains an operator SQL task.

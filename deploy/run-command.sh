@@ -11,6 +11,6 @@ exec systemd-run --quiet --wait --pipe --collect --unit="astro-status-command-$$
  --property=EnvironmentFile=/etc/astro-apps/status_dunamismax/collector.env \
  --property=EnvironmentFile=/etc/status-dunamismax/astro-collector.env \
  --property=StateDirectory=astro-status-dunamismax-collector --property=StateDirectoryMode=0700 \
- --property=UMask=0077 --property=NoNewPrivileges=true --property=ProtectSystem=strict \
+ --property=RuntimeMaxSec=4min --property=UMask=0077 --property=NoNewPrivileges=true --property=ProtectSystem=strict \
  --property=ProtectHome=read-only --property=PrivateTmp=true --property=PrivateDevices=true \
  /opt/astro-runtime/bin/node "$release/build/src/collector/cli.js" "$@"
