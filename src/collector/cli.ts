@@ -1,3 +1,5 @@
+import { realpathSync } from 'node:fs';
+import { pathToFileURL } from 'node:url';
 import { mkdir, lstat } from 'node:fs/promises';
 import { database } from '../lib/db.js';
 import { config } from '../lib/config.js';
@@ -32,4 +34,4 @@ export async function main(args:string[]) {
  }finally{db.release();await pool.end();}
 }
 async function childHome(){const home=process.env.STATE_DIRECTORY||`/tmp/status-collector-${process.getuid?.()??'local'}`;await mkdir(home,{mode:0o700,recursive:true});const s=await lstat(home);if(s.isSymbolicLink()||!s.isDirectory()||s.uid!==process.getuid?.()||(s.mode&0o077)!==0)throw new Error('Collector home must be private');return home;}
-if(import.meta.url===`file://${process.argv[1]}`)main(process.argv.slice(2)).catch(()=>{console.error('Status command failed; verify configuration, database access, and probe availability.');process.exitCode=1;});
+if(process.argv[1] && import.meta.url===pathToFileURL(realpathSync(process.argv[1])).href)main(process.argv.slice(2)).catch(()=>{console.error('Status command failed; verify configuration, database access, and probe availability.');process.exitCode=1;});
