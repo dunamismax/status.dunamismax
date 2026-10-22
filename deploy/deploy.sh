@@ -81,6 +81,19 @@ sed -e "s|/srv/www/status.dunamismax.com/current|$release|g" -e 's/PORT=4313/POR
 systemctl daemon-reload
 systemctl start astro-status-candidate.service
 "$release/deploy/smoke.sh" http://127.0.0.1:14313
+if [[ -e $backup/legacy ]]; then
+ for path in status incidents; do
+  curl -fsS "https://status.dunamismax.com/api/$path.json" > "$backup/legacy-$path.json"
+  curl -fsS "http://127.0.0.1:14313/api/$path.json" > "$backup/candidate-$path.json"
+  python3 - "$backup" "$path" <<'COMPARE'
+import json,sys
+from pathlib import Path
+p=Path(sys.argv[1]);kind=sys.argv[2]
+assert json.loads((p/('legacy-'+kind+'.json')).read_text()) == json.loads((p/('candidate-'+kind+'.json')).read_text()), 'API compatibility mismatch'
+COMPARE
+ done
+ for path in assets/status.css icon.svg robots.txt; do cmp "$previous/public/$path" "$release/public/$path"; done
+fi
 systemctl stop astro-status-candidate.service
 rm /run/systemd/system/astro-status-candidate.service
 systemctl daemon-reload
