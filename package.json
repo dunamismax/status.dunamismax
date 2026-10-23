@@ -19,12 +19,12 @@
   "dependencies": {
     "astro": "7.4.2",
     "@astrojs/node": "11.1.9",
-    "pg": "8.16.3"
+    "pg": "8.23.1"
   },
   "devDependencies": {
     "@astrojs/check": "0.9.12",
     "typescript": "6.0.3",
     "@types/node": "24.19.2",
-    "@types/pg": "8.15.6"
+    "@types/pg": "8.23.1"
   }
 }
