@@ -128,3 +128,8 @@ REVOKE ALL ON ALL SEQUENCES IN SCHEMA app FROM status_dunamismax_web;
 ALTER DEFAULT PRIVILEGES FOR ROLE status_dunamismax_owner IN SCHEMA app REVOKE SELECT ON TABLES FROM status_dunamismax_web;
 CREATE INDEX IF NOT EXISTS deployment_events_deployed_at_idx ON app.deployment_events(deployed_at);
 RESET ROLE;
+
+SET ROLE status_dunamismax_owner;
+ALTER TABLE app.alert_notifications DROP CONSTRAINT IF EXISTS alert_notifications_state_check;
+ALTER TABLE app.alert_notifications ADD CONSTRAINT alert_notifications_state_check CHECK(observed_state IN ('operational','degraded','down','unknown'));
+RESET ROLE;

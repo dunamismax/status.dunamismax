@@ -1,4 +1,5 @@
 import { createConnection } from 'node:net';
+import { connect as tlsConnect } from 'node:tls';
 import { readFile, stat } from 'node:fs/promises';
 import { command, type CommandResult } from './command.js';
 import { snapshot, type State, type Service, type Project, type GitStatus, type BuildProgress } from '../lib/model.js';
@@ -36,16 +37,19 @@ export type Facts=Record<string,string>;
 export function parseFacts(s:string):Facts {return Object.fromEntries(s.split(/\r?\n/).filter(l=>l.includes('=')).map(l=>[l.slice(0,l.indexOf('=')),l.slice(l.indexOf('=')+1).trim()]));}
 export function systemTime(s:string|undefined):number|null {if(!s||['n/a','0'].includes(s))return null;const t=/^@\d+$/.test(s)?Number(s.slice(1))*1000:Date.parse(s);return Number.isFinite(t)?t:null;}
 export function execFailed(s:string|undefined):boolean {const m=s?.match(/code=([^ ;}]+)\s*;\s*status=(\d+)/);return !!m&&(['killed','dumped'].includes(m[1]!)||(m[1]==='exited'&&Number(m[2])!==0));}
-export function evaluateUnit(t:UnitTarget,f:Facts):Evaluation {
+export function evaluateUnit(t:UnitTarget,f:Facts,now=Date.now()):Evaluation {
  if(f.LoadState!=='loaded')return ['unknown','unit is not loaded'];
  const active=f.ActiveState,res=f.Result||'success',code=Number(f.ExecMainStatus||0);
  if(!t.oneShot){if(active==='active')return res==='success'&&Number(f.NRestarts||0)<5?['operational','unit is active']:['degraded','unit is active but restart or result evidence needs attention'];if(['reloading','activating','deactivating'].includes(active??''))return ['degraded','unit is transitioning'];return active==='failed'?['down','unit failed']:active==='inactive'?['down','unit is inactive']:['unknown','unit state is unknown'];}
  if(['active','activating'].includes(active??''))return ['operational','one-shot is running'];
- if(res==='success'&&code===0)return ['operational','latest one-shot run succeeded'];
+ if(res==='success'&&code===0){
+  if(t.maxAgeMinutes){const last=systemTime(f.ExecMainExitTimestamp);if(last===null)return ['unknown','successful completion time is unavailable'];if(now-last>t.maxAgeMinutes*60000)return ['degraded','successful completion is overdue'];}
+  return ['operational','latest one-shot run succeeded'];
+ }
  return active==='failed'||code>0||['exit-code','signal','timeout'].includes(res)?['down','latest one-shot run failed']:['unknown','latest one-shot result is unknown'];
 }
 export async function show(unit:string,props:string[],home:string):Promise<[Facts|null,CommandResult]> {const r=await command('/usr/bin/systemctl',['show',unit,'--timestamp=unix',...props.map(p=>'--property='+p)],{home});return [r.exitCode===0?parseFacts(r.stdout):null,r];}
-export async function unitProbe(t:UnitTarget,home:string):Promise<Service>{const at=new Date().toISOString();const [f,r]=await show(t.unit,['LoadState','ActiveState','SubState','Result','ExecMainStatus','NRestarts'],home);return result(t.id,t.unit,t.group,'systemd',f?evaluateUnit(t,f):['unknown','systemd state unavailable'],at,r.durationMs,'systemd-v1');}
+export async function unitProbe(t:UnitTarget,home:string):Promise<Service>{const at=new Date().toISOString();const [f,r]=await show(t.unit,['LoadState','ActiveState','SubState','Result','ExecMainStatus','NRestarts','ExecMainExitTimestamp'],home);return result(t.id,t.unit,t.group,'systemd',f?evaluateUnit(t,await completedFacts(t.unit,f)):['unknown','systemd state unavailable'],at,r.durationMs,'systemd-v1');}
 export function evaluateCaddy(r:CommandResult,f:Facts|null):Evaluation {
  if(r.exitCode===null)return ['unknown','Caddyfile check unavailable'];
  if(r.exitCode!==0)return /permission denied/i.test(r.stderr)?['unknown','Caddyfile could not be read']:['degraded','Caddyfile failed to parse; the running config is unchanged until reload'];
@@ -58,7 +62,7 @@ export function evaluateCaddy(r:CommandResult,f:Facts|null):Evaluation {
 export function evaluateDdns(f:Facts,now=Date.now()):Evaluation {
  if(f.LoadState!=='loaded')return ['unknown','Cloudflare DDNS unit is not loaded'];
  if(['active','activating'].includes(f.ActiveState??''))return ['operational','Cloudflare DDNS update is running'];
- const res=f.Result||'success',code=Number(f.ExecMainStatus||0),last=systemTime(f.InactiveEnterTimestamp);
+ const res=f.Result||'success',code=Number(f.ExecMainStatus||0),last=systemTime(f.ExecMainExitTimestamp??f.InactiveEnterTimestamp);
  if(res==='success'&&code===0){if(last===null)return ['degraded','Cloudflare DDNS success time is unavailable'];const minutes=Math.floor(Math.max(0,now-last)/60000);return minutes>30?['degraded',`latest Cloudflare DDNS run succeeded ${minutes} minutes ago`]:['operational','latest Cloudflare DDNS run succeeded'];}
  return f.ActiveState==='failed'||code>0||['exit-code','signal','timeout'].includes(res)?['down','latest Cloudflare DDNS run failed']:['unknown','latest Cloudflare DDNS result is unknown'];
 }
@@ -81,7 +85,26 @@ async function gitProbe(t:ProjectTarget,home:string):Promise<Project> {
 export async function collect(repoRoot:string,home:string) {
  const services:Service[]=[];for(const t of httpTargets)services.push(await httpProbe(t));for(const t of units)services.push(await unitProbe(t,home));for(const port of [21115,21116,21117])services.push(await tcpProbe(port));
  let at=new Date().toISOString();const adapt=await command('/usr/local/lib/caddy/caddy',['adapt','--config','/etc/caddy/Caddyfile','--adapter','caddyfile'],{home,discardStdout:true});const [caddy,showResult]=adapt.exitCode===0?await show('caddy.service',['ActiveState','Result','ActiveEnterTimestamp','ExecReload'],home):[null,null];services.push(result('caddy-config','Caddy configuration','Host infrastructure','caddy',evaluateCaddy(adapt,caddy),at,adapt.durationMs+(showResult?.durationMs??0),'caddy-v2'));
- at=new Date().toISOString();const [ddns,d]=await show('cloudflare-ddns.service',['LoadState','ActiveState','Result','ExecMainStatus','InactiveEnterTimestamp'],home);services.push(result('cloudflare-ddns-update','Cloudflare DDNS','Host infrastructure','cloudflare-ddns',ddns?evaluateDdns(ddns):['unknown','Cloudflare DDNS status unavailable'],at,d.durationMs,'cloudflare-ddns-v2'));
+ at=new Date().toISOString();const [ddns,d]=await show('astro-cloudflare-ddns.service',['LoadState','ActiveState','Result','ExecMainStatus','ExecMainExitTimestamp'],home);services.push(result('cloudflare-ddns-update','Cloudflare DDNS','Host infrastructure','cloudflare-ddns',ddns?evaluateDdns(await completedFacts('astro-cloudflare-ddns.service',ddns)):['unknown','Cloudflare DDNS status unavailable'],at,d.durationMs,'cloudflare-ddns-v2'));
  at=new Date().toISOString();const disk=await command('/usr/bin/df',['--output=pcent,avail','/'],{home});services.push(result('root-disk','Root filesystem','Host capacity','disk',disk.exitCode===0?evaluateDisk(disk.stdout):['unknown','root filesystem usage unavailable'],at,disk.durationMs,'disk-v1'));
+ services.push(await memoryProbe());
+ for(const t of httpTargets)services.push(await certificateProbe(new URL(t.publicUrl).hostname));
+ let growth:Evaluation;try{const kib=Number((await readFile('/var/lib/ops-success/backup-git-kib','utf8')).trim());const m=await stat('/var/lib/ops-success/backup-git-kib');growth=Number.isFinite(kib)&&kib>0&&Date.now()-m.mtimeMs<26*3600000?[kib>=10*1024*1024?'down':kib>=5*1024*1024?'degraded':'operational',`backup Git storage is ${Math.round(kib/1024)} MiB`]:['unknown','backup storage measurement is stale or invalid'];}catch{growth=['unknown','backup storage measurement unavailable'];}services.push(result('backup-repository-growth','Backup repository size','Host capacity','capacity',growth,new Date().toISOString(),null,'growth-v1'));
  const projectResults:Project[]=[];for(const t of projects(repoRoot))projectResults.push(await gitProbe(t,home));return snapshot(services,projectResults);
+}
+
+export function evaluateMemory(meminfo:string,pressure:string):Evaluation {
+ const total=Number(meminfo.match(/^MemTotal:\s+(\d+)/m)?.[1]),available=Number(meminfo.match(/^MemAvailable:\s+(\d+)/m)?.[1]);
+ const stall=Number(pressure.match(/^full .*avg60=([\d.]+)/m)?.[1]);
+ if(!total||!Number.isFinite(available)||!Number.isFinite(stall))return ['unknown','memory pressure evidence unavailable'];
+ const percent=available/total*100;
+ return [percent<5||stall>=10?'down':percent<10||stall>=2?'degraded':'operational',`available memory ${Math.round(percent)}%; full-stall average ${stall.toFixed(2)}%`];
+}
+async function memoryProbe():Promise<Service>{let e:Evaluation;try{e=evaluateMemory(await readFile('/proc/meminfo','utf8'),await readFile('/proc/pressure/memory','utf8'));}catch{e=['unknown','memory pressure evidence unavailable'];}return result('memory-pressure','Memory pressure','Host capacity','memory',e,new Date().toISOString(),null,'memory-v1');}
+export function evaluateCertificate(validTo:string,now=Date.now()):Evaluation {const days=Math.floor((Date.parse(validTo)-now)/86400000);return Number.isFinite(days)?[days<7?'down':days<21?'degraded':'operational',`certificate expires in ${days} days`]:['unknown','certificate expiry unavailable'];}
+export function certificateProbe(host:string):Promise<Service>{const at=new Date().toISOString();return new Promise(resolve=>{let done=false;const socket=tlsConnect({host,port:443,servername:host,rejectUnauthorized:true});const finish=(e:Evaluation)=>{if(done)return;done=true;clearTimeout(timer);socket.destroy();resolve(result('certificate-'+host,host+' certificate','Public certificates','tls',e,at,null,'tls-v1'));};const timer=setTimeout(()=>finish(['down','certificate check timed out']),5000);socket.once('secureConnect',()=>finish(evaluateCertificate(socket.getPeerCertificate().valid_to)));socket.once('error',()=>finish(['down','certificate validation failed']));});}
+
+async function completedFacts(unit:string,f:Facts):Promise<Facts>{
+ try{const value=(await readFile('/var/lib/ops-success/'+unit,'utf8')).trim();if(/^\d{10}$/.test(value))return {...f,ExecMainExitTimestamp:'@'+value};}catch{}
+ return f;
 }

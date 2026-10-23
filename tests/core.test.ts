@@ -6,7 +6,7 @@ import { config } from '../src/lib/config.js';
 import { handle, readiness } from '../src/lib/web.js';
 import type { Source } from '../src/lib/source.js';
 import { command } from '../src/collector/command.js';
-import { evaluateHttp,evaluateUnit,evaluateCaddy,evaluateDdns,evaluateDisk,evaluateGit,buildProgress,httpProbe,parseFacts } from '../src/collector/probes.js';
+import { evaluateMemory,evaluateCertificate,evaluateHttp,evaluateUnit,evaluateCaddy,evaluateDdns,evaluateDisk,evaluateGit,buildProgress,httpProbe,parseFacts } from '../src/collector/probes.js';
 import { alerts, notify } from '../src/collector/alerts.js';
 import { deployment } from '../src/collector/cli.js';
 import { canonical,normalize } from '../scripts/history.js';
@@ -33,3 +33,15 @@ test('history fingerprints preserve microseconds, IDs, JSON types and Unicode',(
 test('public import graph has no probe, repository or subprocess access',async()=>{for(const path of ['src/lib/web.ts','src/lib/source.ts','src/lib/config.ts','src/lib/model.ts','src/lib/db.ts','src/pages/[...path].ts'])assert.doesNotMatch(await readFile(path,'utf8'),/node:child_process|from ['"]node:fs|collector\/|fetch\s*\(/);});
 
 test('collector entry point executes through release symlinks',async()=>{const directory=await mkdtemp('/tmp/status-entry-test.');try{await symlink(process.cwd()+'/build/src/collector/cli.js',directory+'/cli.js');const result=await command(process.execPath,[directory+'/cli.js','--help']);assert.equal(result.exitCode,0);assert.match(result.stdout,/Usage: status collect/);}finally{await rm(directory,{recursive:true,force:true});}});
+
+test('successful completion freshness survives an enabled timer; memory uses available and pressure, certificates warn early',()=>{
+ const t={id:'backup',unit:'backup.service',group:'Maintenance',oneShot:true,maxAgeMinutes:1560};
+ const f={LoadState:'loaded',ActiveState:'inactive',Result:'success',ExecMainStatus:'0',ExecMainExitTimestamp:'@'+((now-25*3600000)/1000)};
+ assert.equal(evaluateUnit(t,f,now)[0],'operational');assert.equal(evaluateUnit(t,f,now+2*3600000)[0],'degraded');
+ assert.equal(evaluateUnit(t,{...f,Result:'exit-code',ExecMainStatus:'1'},now)[0],'down');
+ assert.equal(evaluateUnit(t,{...f,ExecMainExitTimestamp:''},now)[0],'unknown');
+ assert.equal(evaluateMemory('MemTotal: 10000 kB\nMemAvailable: 8000 kB','full avg10=0.00 avg60=0.00 avg300=0.00 total=0')[0],'operational');
+ assert.equal(evaluateMemory('MemTotal: 10000 kB\nMemAvailable: 400 kB','full avg10=0.00 avg60=0.00')[0],'down');
+ assert.equal(evaluateMemory('MemTotal: 10000 kB\nMemAvailable: 8000 kB','full avg10=0.00 avg60=3.00')[0],'degraded');
+ assert.equal(evaluateCertificate(new Date(now+20*86400000).toISOString(),now)[0],'degraded');assert.equal(evaluateCertificate(new Date(now+6*86400000).toISOString(),now)[0],'down');
+});

@@ -35,10 +35,10 @@ Timestamps retain the established fixed UTC-05:00 EST display and UTC API format
 
 ## Collection and history
 
-`src/collector/inventory.ts` is the reviewed probe inventory: the four existing
+`src/collector/inventory.ts` is the reviewed probe inventory: all five active
 public HTTPS targets, systemd services/timers, RustDesk TCP 21115–21117, Caddy
-parse/reload evidence, Cloudflare DDNS recency, root disk capacity, and the four
-existing repository targets. It additionally monitors the new status Node
+parse/reload evidence, Cloudflare DDNS recency, root disk capacity, memory PSI/available RAM, certificate expiry, backup
+Git size, and the six active application repository targets. It additionally monitors the new status Node
 service and PostgreSQL. Retired PHP/MySQL targets remain only in historical snapshots.
 No Docker socket, restart action, fetch/pull/reset, remote shell or raw journal
 is exposed. Quiet repositories remain healthy.
@@ -47,8 +47,11 @@ Every snapshot and its individual check rows are transactional. Check rows
 expire after the configured retention (30 days default). Rollups, incidents,
 maintenance, deployments and alert history remain. Down alerts are critical;
 degraded/unknown alerts are warnings; maintenance/operational states are silent.
-Durable existing dedup keys, repeat window (60 minutes) and per-run limit (5)
-remain. Webhook delivery failure fails the run and never records a sent alert.
+Failure and recovery deliveries require two matching observations within 20 minutes.
+Existing failure dedup keys, repeat window (60 minutes) and per-run limit (5)
+remain. A delivered failure receives one confirmed recovery; a subsequent failure
+is a new event even inside the repeat window. Delivery remains unconfigured at
+the owner’s request; loopback and disposable-database tests cover this behavior. Webhook delivery failure fails the run and never records a sent alert.
 A collector advisory lock prevents overlapping notification runs.
 
 ## Development

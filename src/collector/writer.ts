@@ -15,13 +15,26 @@ export async function recordSnapshot(db:pg.PoolClient,s:Snapshot){
 /** Caller holds the collector's advisory session lock across selection, delivery and recording. */
 export async function sendAlerts(db:pg.PoolClient,s:Snapshot,c:Config,send=notify):Promise<number>{
  if(!c.webhook)return 0;let sent=0;
- for(const a of alerts(s)){
+ const candidates=alerts(s);
+ // Recovery is sent only for a target with an actually delivered failure.
+ for(const v of [...s.services.map(v=>({id:v.target.id,name:v.target.name,state:v.check.state,at:v.check.checked_at})),...s.projects.map(v=>({id:v.target.id,name:v.target.name,state:v.state,at:v.checked_at}))]){
+  if(v.state!=='operational')continue;
+  const {rows}=await db.query<{observed_state:string}>('SELECT observed_state FROM app.alert_notifications WHERE target_id=$1 ORDER BY id DESC LIMIT 1',[v.id]);
+  if(rows[0]&&rows[0].observed_state!=='operational')candidates.push({dedup_key:`recovery:${v.id}:operational`,target_id:v.id,target_name:v.name,severity:'warning',state:'operational',observed_at:v.at,title:`${v.name} recovered`,public_summary:`${v.name} recovered: checks are operational`});
+ }
+ for(const a of candidates){
   if(sent>=c.maxAlerts)break;
-  const {rows}=await db.query<{recent:boolean}>("SELECT EXISTS(SELECT 1 FROM app.alert_notifications WHERE dedup_key=$1 AND sent_at >= now()-$2*interval '1 minute') AS recent",[a.dedup_key,c.repeat]);
-  if(rows[0]?.recent)continue;
+  // Require consecutive observations in a recent window; old failures cannot
+  // confirm a new incident after downtime. Selection happens under advisory lock.
+  const {rows:checks}=await db.query<{state:string}>("SELECT state FROM app.check_runs WHERE target_id=$1 AND checked_at >= now()-interval '20 minutes' ORDER BY checked_at DESC,id DESC LIMIT $2",[a.target_id,c.confirmations]);
+  if(checks.length<c.confirmations||checks.some(v=>v.state!==a.state))continue;
+  const {rows:latest}=await db.query<{observed_state:string;recent:boolean}>("SELECT observed_state,sent_at >= now()-$2*interval '1 minute' AS recent FROM app.alert_notifications WHERE target_id=$1 ORDER BY id DESC LIMIT 1",[a.target_id,c.repeat]);
+  // A new failure after recovery is a new event, even inside the repeat window.
+  if(latest[0]?.observed_state===a.state&&(a.state==='operational'||latest[0].recent))continue;
   await send(c.webhook,a);
   await db.query('INSERT INTO app.alert_notifications(dedup_key,target_id,severity,observed_state,title,public_summary,observed_at,notification_target,public_payload) VALUES($1,$2,$3,$4,$5,$6,$7,$8,$9)',[a.dedup_key,a.target_id,a.severity,a.state,a.title,a.public_summary,a.observed_at,'webhook',JSON.stringify(a)]);sent++;
  }
+
  return sent;
 }
 export async function prune(db:pg.PoolClient,days:number){return (await db.query("DELETE FROM app.check_runs WHERE checked_at < now()-$1*interval '1 day'",[days])).rowCount;}

@@ -121,3 +121,45 @@ only. PHP/MySQL target IDs remain in historical tables but are not probed. Legac
 rollback records are archival: recover them only in an isolated legacy host.
 Use a compatible Astro release for code rollback and retain current PG data.
 The host recovery runbook owns the preserved final full MySQL archive.
+
+## Monitoring policy
+
+The collector includes every retained website, four Astro services, the Python
+bot, PostgreSQL, Docker, Caddy, access services, DDNS and its timer, RustDesk's
+three TCP listeners, cleanup, installer builder and every backup job/timer.
+Successful completion must be within 26 hours for daily jobs, eight days for the
+weekly builder, 30 minutes for DDNS and 15 minutes for the collector. Enabled
+or active timers alone never prove backup freshness. Root-owned completion
+markers in `/var/lib/ops-success` survive reboot; ExecStartPost records them only
+after successful job exit (the full backup includes restore verification and
+both remote pushes). Failed Results override old success markers. The collector
+is the single backup-failure alert path; no duplicate OnFailure notifier exists.
+
+Root disk warns at 80% and fails at 90%; available RAM warns below 10% and fails
+below 5%, or memory full-stall PSI avg60 reaches 2%/10%. Cached RAM alone is not
+pressure. Certificates warn with less than 21 days remaining and fail below seven.
+Backup Git storage warns at 5 GiB and fails at 10 GiB; stale observations are unknown.
+Service restart evidence is visible, with five restarts indicating degradation.
+
+`STATUS_ALERT_CONFIRMATIONS` defaults to two recent matching observations for
+failure and recovery. The global five-per-run cap and 60-minute repeat window
+bound delivery. Delivery failures remain unsent and retry later; URL-bearing
+exceptions are redacted. Schema changes add operational recovery evidence to
+existing alert history without changing the public API or web grants. Configure
+a verified endpoint only in the root-only collector environment; it never enters
+GitHub Actions or the public web process. The owner elected to skip real webhook
+delivery; no notification destination or credential was created.
+
+`.github/workflows/external-probe.yml` probes public HTML, the demo's noindex and
+collector age from a GitHub-hosted Linux runner, independently of this VM and
+home network. It requires no production credentials. Check its actual Actions
+runs; schedules are best effort and can be delayed/disabled by GitHub. Failed
+runs use the owner's GitHub notification preferences, with no custom webhook.
+`workflow_dispatch` supports manual verification. The separate HTTP/3 validation
+workflow performs a certificate-verified, HTTP/3-only public request and asserts
+ALPN `h3` plus HTTP 200. An Alt-Svc header never satisfies it.
+
+CI uses the exact Node/npm pins and frozen npm lock, synthetic disposable
+PostgreSQL, strict checks/tests/builds and advisory checks. Weekly Dependabot
+proposals require review; no workflow deploys an update. Apply the host resource,
+backup and maintenance procedures from ubuntu-vm-backup before production changes.

@@ -8,6 +8,6 @@ export function config(env: NodeJS.ProcessEnv = process.env) {
   if (token && Buffer.byteLength(token)<32) throw new Error('Operator token is too short');
   const webhook = env.STATUS_ALERT_WEBHOOK_URL?.trim() || null;
   if (webhook && !['http:','https:'].includes(new URL(webhook).protocol)) throw new Error('Invalid webhook protocol');
-  return { token, webhook, stale: integer(env,'STATUS_STALE_AFTER_MINUTES',15,1,10080), retention: integer(env,'STATUS_RETENTION_DAYS',30,1,3650), repeat: integer(env,'STATUS_ALERT_REPEAT_AFTER_MINUTES',60,0,525600), maxAlerts: integer(env,'STATUS_ALERT_MAX_NOTIFICATIONS_PER_RUN',5,0,1000), repoRoot: env.STATUS_REPO_ROOT || '/home/sawyer/github' };
+  return { token, webhook, stale: integer(env,'STATUS_STALE_AFTER_MINUTES',15,1,10080), retention: integer(env,'STATUS_RETENTION_DAYS',30,1,3650), repeat: integer(env,'STATUS_ALERT_REPEAT_AFTER_MINUTES',60,0,525600), confirmations: integer(env,'STATUS_ALERT_CONFIRMATIONS',2,1,10), maxAlerts: integer(env,'STATUS_ALERT_MAX_NOTIFICATIONS_PER_RUN',5,0,1000), repoRoot: env.STATUS_REPO_ROOT || '/home/sawyer/github' };
 }
 export type Config = ReturnType<typeof config>;
