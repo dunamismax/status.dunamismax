@@ -160,6 +160,6 @@ workflow performs a certificate-verified, HTTP/3-only public request and asserts
 ALPN `h3` plus HTTP 200. An Alt-Svc header never satisfies it.
 
 CI uses the exact Node/npm pins and frozen npm lock, synthetic disposable
-PostgreSQL, strict checks/tests/builds and advisory checks. Weekly Dependabot
-proposals require review; no workflow deploys an update. Apply the host resource,
+PostgreSQL, strict checks/tests/builds and advisory checks. Dependency updates are reviewed
+and made directly on `main`; no workflow deploys an update. Apply the host resource,
 backup and maintenance procedures from ubuntu-vm-backup before production changes.
