@@ -2,9 +2,9 @@
 
 The final target is Astro + PostgreSQL + Drizzle. Astro/PostgreSQL/systemd are
 implemented. Drizzle schemas, queries, the reviewed baseline migration and the
-owner-only runner are in source and pass disposable PostgreSQL rehearsals; the
-production adoption and deployment gates in [BUILD.md Phase 0](BUILD.md) remain.
-Production still applies `database/schema.sql`. Python and Swift are conditional
+owner-only runner are in source; deployment applies migrations through that runner,
+adopting the existing schema on first use only after an exact catalog match. See
+[BUILD.md Phase 0](BUILD.md) for acceptance status. Python and Swift are conditional
 on actual project needs or a request.
 
 Public operational status for Stephen Sawyer's self-hosted ecosystem at

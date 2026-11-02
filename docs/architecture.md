@@ -87,8 +87,9 @@ membership, or owner default ACLs granting web.
 
 Adopt all seven historical tables without relocating, truncating or reimporting
 history. Keep current `app.schema_migrations` separate from Drizzle bookkeeping.
-Fresh installation and adoption of a nonempty legacy `schema.sql` database are
-rehearsed in the disposable cluster; production-restore introspection is pending.
+Fresh installation, adoption of a nonempty legacy `schema.sql` database and of its
+dump/restore copy are tested in the disposable cluster. A private restore of
+production adopted with identical every-row digests (see BUILD.md Phase 0).
 Preserve identities/next sequence values, timestamptz(6), JSONB, nulls, constraints,
 indexes and updated-at triggers. Do not use JS Date or Number conversions that
 lose microseconds or bigint IDs. Compare every-row digests and catalog semantics.

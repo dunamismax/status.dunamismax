@@ -2,9 +2,9 @@
 
 The active service remains Astro Node standalone with native PostgreSQL and
 systemd. [BUILD.md Phase 0](../BUILD.md) adopts Drizzle, not a new web
-framework/database engine/deployment platform. The Drizzle runner below is
-implemented and rehearsed only in disposable clusters; deployment still applies
-`database/schema.sql` until the production adoption gates pass.
+framework/database engine/deployment platform. Deployment applies reviewed Drizzle
+migrations through the owner-only runner; `database/schema.sql` is retained for
+older releases and history tooling only.
 
 Read `/home/sawyer/github/ubuntu-vm-backup/docs/astro-migration.md` first.
 Every shared mutation, schema migration, release switch and rollback must run
@@ -44,9 +44,10 @@ sudo deploy/deploy.sh "$candidate" "$previous"
 ```
 
 The deploy helper rechecks current state inside the lock, saves rollback copies,
-drains the owning collector, takes a PostgreSQL safety archive and applies
-transactional owner-only schema DDL. The first PHP cutover/import is
-historical; current deployments must not reimport legacy history.
+drains the owning collector, takes a PostgreSQL safety archive and applies reviewed
+Drizzle migrations through the owner-only runner (see Drizzle operations below),
+bracketed by every-row digests. The first PHP cutover/import is historical;
+current deployments must not reimport legacy history.
 It validates a separate candidate on loopback 14313, atomically switches current,
 records a notification-free snapshot, changes only this Caddy fragment, validates
 as caddy with the custom binary, reloads Caddy and tests public routes. It records
@@ -185,27 +186,28 @@ units, five-minute collector and backup timers, CLI interfaces and loopback port
 project database, schema and separate roles. No Compose conversion, SQLite file,
 Litestream replication or Python/Swift application is required by this project.
 
-Current state: releases built from this source read and write through Drizzle
-but need no Drizzle bookkeeping, so the existing deploy helper (idempotent
-`schema.sql` under migration credentials) remains valid; that DDL leaves the
-baseline catalog unchanged. The reviewed runner is `build/src/db/migrate.js`
-(`npm run db:migrate`). It refuses the web/collector logins, requires a
-provisioned schema `app`, and needs only the root-only migration role settings:
+`deploy/deploy.sh` runs the reviewed runner, `build/src/db/migrate.js`
+(`npm run db:migrate`), with the root-only migration role settings inside the lock
+after draining the collector and taking the safety dump. The runner refuses the
+web/collector logins and requires a provisioned schema `app`. When
+`app.drizzle_migrations` is absent the helper passes `--adopt-baseline`, which
+executes no DDL: it records `0000_baseline` only if the live structural catalog
+equals `drizzle/baseline-catalog.json` (CHECK text is compared in its dump/restore
+form, so restored databases adopt too), otherwise it prints the private differences
+and the whole deployment rolls back. `history.js digest` writes every-row counts/
+SHA256 and sequence positions before and after into the root-only rollback
+directory; when no migration was applied they must be byte-identical.
 
 ```sh
-# Inside the deploy transaction only (inherited FD9), writers drained, safety dump taken.
+# Manual use only inside a deploy-lock transaction with writers drained:
 set -a; source /etc/astro-apps/status_dunamismax/migration.env; set +a
-/opt/astro-runtime/bin/node "$release/build/src/db/migrate.js" --adopt-baseline  # once, existing schema
-/opt/astro-runtime/bin/node "$release/build/src/db/migrate.js"                   # later releases; no-op when current
+/opt/astro-runtime/bin/node "$release/build/scripts/history.js" digest > "$backup/pre-digest.json"
+/opt/astro-runtime/bin/node "$release/build/src/db/migrate.js"   # --adopt-baseline only without a journal
 ```
 
-`--adopt-baseline` executes no DDL: it records `0000_baseline` only if the live
-structural catalog equals `drizzle/baseline-catalog.json`, otherwise it prints the
-private differences to the root console and rolls back. It is refused once a
-journal exists. Do not run it in production until the restore introspection and
-every-row digest gates below have passed. Replace active `database/schema.sql`
-application in deployment only after the production fresh-install, existing-baseline
-and repeated no-op paths pass.
+Compatible retained releases (including pre-Drizzle `1149ae6`) run unchanged on an
+adopted database; the private journal table is invisible to their code paths.
+
 Retain historical schema/transfer tooling needed by backups and old releases.
 Introspection/baseline operations may write bookkeeping: rehearse on a disposable
 restore first; production writes occur only under the inherited-FD9 deploy lock.

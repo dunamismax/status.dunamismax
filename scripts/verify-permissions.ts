@@ -6,7 +6,7 @@ export async function verifyPermissions() {
  try{
   for(const table of ['rollups','incidents','maintenance_windows','deployment_events'])await db.query('SELECT 1 FROM app.'+table+' LIMIT 1');
   await db.query('SET default_transaction_read_only=off');
-  for(const sql of ['SELECT 1 FROM app.targets','SELECT 1 FROM app.check_runs','SELECT 1 FROM app.alert_notifications','SELECT 1 FROM app.schema_migrations',"UPDATE app.rollups SET overall_state=overall_state WHERE false",'DELETE FROM app.deployment_events WHERE false','CREATE TABLE app._permission_probe(id integer)','CREATE TEMP TABLE _permission_probe(id integer)',"SELECT nextval('app.rollups_id_seq')",'SET ROLE status_dunamismax_owner','SET ROLE status_dunamismax_collector']) {
+  for(const sql of ['SELECT 1 FROM app.targets','SELECT 1 FROM app.check_runs','SELECT 1 FROM app.alert_notifications','SELECT 1 FROM app.schema_migrations','SELECT 1 FROM app.drizzle_migrations',"UPDATE app.rollups SET overall_state=overall_state WHERE false",'DELETE FROM app.deployment_events WHERE false','CREATE TABLE app._permission_probe(id integer)','CREATE TEMP TABLE _permission_probe(id integer)',"SELECT nextval('app.rollups_id_seq')","SELECT nextval('app.drizzle_migrations_id_seq')",'SET ROLE status_dunamismax_owner','SET ROLE status_dunamismax_collector']) {
    await db.query('BEGIN');let denied=false;
    try{await db.query(sql);}catch(error){denied=(error as {code?:string}).code==='42501';}
    finally{await db.query('ROLLBACK');}

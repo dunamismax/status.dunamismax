@@ -2,7 +2,8 @@ import test from 'node:test';
 import assert from 'node:assert/strict';
 import pg from 'pg';
 import { readFile, mkdtemp, writeFile, rm } from 'node:fs/promises';
-import { tables, importHistory, fingerprint } from '../scripts/history.js';
+import { execFileSync } from 'node:child_process';
+import { tables, importHistory, digest } from '../scripts/history.js';
 import { database } from '../src/lib/db.js';
 import { config } from '../src/lib/config.js';
 import { snapshot } from '../src/lib/model.js';
@@ -62,8 +63,7 @@ test('isolated PostgreSQL: Drizzle fresh install, lossless legacy adoption, repe
   await p.query("CREATE SCHEMA app AUTHORIZATION status_dunamismax_owner; GRANT USAGE ON SCHEMA app TO status_dunamismax_web,status_dunamismax_collector; ALTER DEFAULT PRIVILEGES FOR ROLE status_dunamismax_owner IN SCHEMA app GRANT SELECT,INSERT,UPDATE,DELETE ON TABLES TO status_dunamismax_collector; ALTER DEFAULT PRIVILEGES FOR ROLE status_dunamismax_owner IN SCHEMA app GRANT USAGE ON SEQUENCES TO status_dunamismax_collector;");
   const m=new pg.Client(connect(name,'status_dunamismax_migration'));await m.connect();clients.push(m);return {superuser:p,migration:m};};
  const denied=async(database:string,user:string,sql:string)=>{const c=new pg.Client(connect(database,user));await c.connect();try{await c.query('SET default_transaction_read_only=off');await assert.rejects(c.query(sql),(e:{code?:string})=>e.code==='42501');}finally{await c.end();}};
- const fingerprints=async(p:pg.Pool)=>{const c=await p.connect();try{await c.query('BEGIN ISOLATION LEVEL REPEATABLE READ');const out:Record<string,unknown>={};for(const t of tables)out[t]=await fingerprint(c,t);
-  out.sequences=(await c.query("SELECT c.relname,pg_sequence_last_value(c.oid)::text AS last_value FROM pg_class c JOIN pg_namespace n ON n.oid=c.relnamespace WHERE n.nspname='app' AND c.relkind='S' AND c.relname<>'drizzle_migrations_id_seq' ORDER BY 1")).rows;await c.query('ROLLBACK');return out;}finally{c.release();}};
+ const fingerprints=async(p:pg.Pool)=>{const c=await p.connect();try{return await digest(c);}finally{c.release();}};
  try{
   const fresh=await provision('status_fresh');
   assert.deepEqual(await migrate(fresh.migration),{applied:['0000_baseline'],adopted:null});
@@ -90,7 +90,18 @@ test('isolated PostgreSQL: Drizzle fresh install, lossless legacy adoption, repe
    INSERT INTO app.deployment_events(service_id,repo_name,commit_sha,deployed_at,public_summary,metadata) VALUES ('svc','repo','abcdef0','2026-01-01T00:00:00.000001Z','Unicode é','{"k":[1,"2",null]}');
    INSERT INTO app.alert_notifications(dedup_key,target_id,severity,observed_state,title,public_summary,observed_at,notification_target,public_payload) VALUES ('service:t-é:down','t-é','critical','down','Target é down','summary','2026-01-01T00:00:00.999999Z','webhook','{"n":1}');
    UPDATE app.incidents SET public_notes=public_notes;`);
+  // A backup restore re-parses CHECK text; it must still adopt cleanly.
+  const dump=execFileSync('/usr/lib/postgresql/18/bin/pg_dump',['-d','status_legacy'],{env:{...process.env,PGUSER:process.env.USER??''},maxBuffer:64<<20});
+  await admin.query('CREATE DATABASE status_restored TEMPLATE template0');
+  execFileSync('/usr/lib/postgresql/18/bin/psql',['-X','-q','-v','ON_ERROR_STOP=1','-d','status_restored'],{input:dump,env:{...process.env,PGUSER:process.env.USER??''}});
+  const restoredSuperuser=new pg.Pool(connect('status_restored',process.env.USER??''));pools.push(restoredSuperuser);
+  const restoredMigration=new pg.Client(connect('status_restored','status_dunamismax_migration'));await restoredMigration.connect();clients.push(restoredMigration);
+  const restoredBefore=await fingerprints(restoredSuperuser);
+  assert.deepEqual(await migrate(restoredMigration,{adopt:true}),{applied:[],adopted:'0000_baseline'});
+  assert.deepEqual(await fingerprints(restoredSuperuser),restoredBefore);
+  assert.deepEqual(await catalog(restoredMigration),freshCatalog);
   const before=await fingerprints(legacy.superuser);
+  assert.deepEqual(before,restoredBefore);
   assert.deepEqual(await migrate(legacy.migration,{adopt:true}),{applied:[],adopted:'0000_baseline'});
   assert.deepEqual(await fingerprints(legacy.superuser),before); // no table recreated, truncated or reimported
   assert.deepEqual(await migrate(legacy.migration),{applied:[],adopted:null});

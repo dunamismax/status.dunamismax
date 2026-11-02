@@ -38,7 +38,16 @@ systemctl stop astro-status-dunamismax-collector.timer 2>/dev/null || true
 while [[ $(systemctl show astro-status-dunamismax-collector.service -p ActiveState --value) =~ ^(active|activating|deactivating|reloading)$ ]]; do sleep 1; done
 runuser -u postgres -- pg_dump -Fc --create status_dunamismax > "$backup/pre-postgresql.dump"
 set -a; source /etc/astro-apps/status_dunamismax/migration.env; set +a
-psql -X -1 -v ON_ERROR_STOP=1 -f "$release/database/schema.sql" > "$backup/schema.log" 2>&1
+# Reviewed Drizzle migrations through the owner-only runner (never schema push).
+# An existing schema without a journal is adopted only on an exact catalog match;
+# every-row digests prove adoption/no-op runs leave history untouched.
+node=/opt/astro-runtime/bin/node
+"$node" "$release/build/scripts/history.js" digest > "$backup/pre-digest.json"
+adopt=()
+[[ $(psql -X -At -v ON_ERROR_STOP=1 -c "SELECT to_regclass('app.drizzle_migrations') IS NOT NULL") == t ]] || adopt=(--adopt-baseline)
+"$node" "$release/build/src/db/migrate.js" "${adopt[@]}" > "$backup/migration.log" 2>&1
+"$node" "$release/build/scripts/history.js" digest > "$backup/post-digest.json"
+if grep -q 'applied=none' "$backup/migration.log"; then cmp -s "$backup/pre-digest.json" "$backup/post-digest.json"; fi
 unset PGPASSWORD DATABASE_URL PGUSER PGDATABASE PGHOST PGPORT
 # Copy only role-appropriate settings; secrets never enter the release.
 python3 - <<'CONFIG'

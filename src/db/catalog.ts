@@ -35,6 +35,12 @@ const queries = {
 
 export type Catalog = Record<keyof typeof queries, unknown[]>;
 
+// pg_dump/pg_restore re-parses `col IN (...)` checks from
+// `(ARRAY['a'::character varying])::text[]` into the equivalent
+// `ARRAY[('a'::character varying)::text]`; compare the restored (fixpoint) form.
+export const normalizeCheck = (definition: string) => definition.replace(/\(ARRAY\[((?:'(?:[^']|'')*'::character varying(?:, )?)+)\]\)::text\[\]/g,
+  (_, items: string) => 'ARRAY[' + (items.match(/'(?:[^']|'')*'::character varying/g) ?? []).map(i => `(${i})::text`).join(', ') + ']');
+
 export async function catalog(db: pg.ClientBase): Promise<Catalog> {
   const result: Partial<Catalog> = {};
   // Deparsed definitions depend on search_path; always schema-qualify them.
@@ -43,7 +49,7 @@ export async function catalog(db: pg.ClientBase): Promise<Catalog> {
   try {
     for (const [key, text] of Object.entries(queries) as [keyof typeof queries, string][]) {
       const { rows } = await db.query(text, text.includes('$1') ? [bookkeeping] : []);
-      result[key] = rows;
+      result[key] = key === 'constraints' ? rows.map(r => r.type === 'c' ? { ...r, definition: normalizeCheck(r.definition) } : r) : rows;
     }
   } finally { await db.query("SELECT set_config('search_path', $1, false)", [path?.search_path ?? '"$user", public']); }
   return result as Catalog;

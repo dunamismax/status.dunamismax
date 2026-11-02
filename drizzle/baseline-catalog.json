@@ -828,7 +828,7 @@
    "table": "alert_notifications",
    "name": "alert_notifications_severity_check",
    "type": "c",
-   "definition": "CHECK (((severity)::text = ANY ((ARRAY['warning'::character varying, 'critical'::character varying])::text[])))"
+   "definition": "CHECK (((severity)::text = ANY (ARRAY[('warning'::character varying)::text, ('critical'::character varying)::text])))"
   },
   {
    "table": "alert_notifications",
@@ -840,7 +840,7 @@
    "table": "alert_notifications",
    "name": "alert_notifications_state_check",
    "type": "c",
-   "definition": "CHECK (((observed_state)::text = ANY ((ARRAY['operational'::character varying, 'degraded'::character varying, 'down'::character varying, 'unknown'::character varying])::text[])))"
+   "definition": "CHECK (((observed_state)::text = ANY (ARRAY[('operational'::character varying)::text, ('degraded'::character varying)::text, ('down'::character varying)::text, ('unknown'::character varying)::text])))"
   },
   {
    "table": "alert_notifications",
@@ -906,7 +906,7 @@
    "table": "check_runs",
    "name": "check_runs_state_check",
    "type": "c",
-   "definition": "CHECK (((state)::text = ANY ((ARRAY['operational'::character varying, 'degraded'::character varying, 'down'::character varying, 'maintenance'::character varying, 'unknown'::character varying])::text[])))"
+   "definition": "CHECK (((state)::text = ANY (ARRAY[('operational'::character varying)::text, ('degraded'::character varying)::text, ('down'::character varying)::text, ('maintenance'::character varying)::text, ('unknown'::character varying)::text])))"
   },
   {
    "table": "check_runs",
@@ -1014,7 +1014,7 @@
    "table": "incidents",
    "name": "incidents_state_check",
    "type": "c",
-   "definition": "CHECK (((state)::text = ANY ((ARRAY['investigating'::character varying, 'identified'::character varying, 'monitoring'::character varying, 'resolved'::character varying])::text[])))"
+   "definition": "CHECK (((state)::text = ANY (ARRAY[('investigating'::character varying)::text, ('identified'::character varying)::text, ('monitoring'::character varying)::text, ('resolved'::character varying)::text])))"
   },
   {
    "table": "incidents",
@@ -1086,7 +1086,7 @@
    "table": "maintenance_windows",
    "name": "maintenance_windows_state_check",
    "type": "c",
-   "definition": "CHECK (((state)::text = ANY ((ARRAY['scheduled'::character varying, 'in_progress'::character varying, 'complete'::character varying, 'canceled'::character varying])::text[])))"
+   "definition": "CHECK (((state)::text = ANY (ARRAY[('scheduled'::character varying)::text, ('in_progress'::character varying)::text, ('complete'::character varying)::text, ('canceled'::character varying)::text])))"
   },
   {
    "table": "maintenance_windows",
@@ -1170,7 +1170,7 @@
    "table": "rollups",
    "name": "rollups_state_check",
    "type": "c",
-   "definition": "CHECK (((overall_state)::text = ANY ((ARRAY['operational'::character varying, 'degraded'::character varying, 'down'::character varying, 'maintenance'::character varying, 'unknown'::character varying])::text[])))"
+   "definition": "CHECK (((overall_state)::text = ANY (ARRAY[('operational'::character varying)::text, ('degraded'::character varying)::text, ('down'::character varying)::text, ('maintenance'::character varying)::text, ('unknown'::character varying)::text])))"
   },
   {
    "table": "rollups",
