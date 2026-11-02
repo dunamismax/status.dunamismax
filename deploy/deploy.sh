@@ -43,8 +43,12 @@ set -a; source /etc/astro-apps/status_dunamismax/migration.env; set +a
 # every-row digests prove adoption/no-op runs leave history untouched.
 node=/opt/astro-runtime/bin/node
 "$node" "$release/build/scripts/history.js" digest > "$backup/pre-digest.json"
+# The NOINHERIT migration login has no USAGE on app; probe the catalog instead.
+# A failed probe must abort (ERR trap), never fall through to adoption.
+journal=$(psql -X -At -v ON_ERROR_STOP=1 -c "SELECT EXISTS (SELECT 1 FROM pg_catalog.pg_class c JOIN pg_catalog.pg_namespace n ON n.oid=c.relnamespace WHERE n.nspname='app' AND c.relname='drizzle_migrations')")
+[[ $journal == t || $journal == f ]]
 adopt=()
-[[ $(psql -X -At -v ON_ERROR_STOP=1 -c "SELECT to_regclass('app.drizzle_migrations') IS NOT NULL") == t ]] || adopt=(--adopt-baseline)
+[[ $journal == t ]] || adopt=(--adopt-baseline)
 "$node" "$release/build/src/db/migrate.js" "${adopt[@]}" > "$backup/migration.log" 2>&1
 "$node" "$release/build/scripts/history.js" digest > "$backup/post-digest.json"
 if grep -q 'applied=none' "$backup/migration.log"; then cmp -s "$backup/pre-digest.json" "$backup/post-digest.json"; fi
