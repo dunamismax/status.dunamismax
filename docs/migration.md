@@ -1,7 +1,7 @@
 # Astro/PostgreSQL migration verification
 
 This is historical acceptance evidence for the October 22, 2026 migration, not
-verification of the planned Next.js/Drizzle/Compose rewrite. The first unfinished
+verification of the planned Drizzle adoption. The first unfinished
 work is [BUILD.md Phase 0](../BUILD.md); none of the results below satisfy its new
 gates. PostgreSQL remains authoritative. Retired PHP/MySQL recovery now belongs
 in isolation under the current VM runbook, not an ordinary live rollback.

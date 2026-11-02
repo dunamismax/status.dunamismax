@@ -2,12 +2,11 @@
 
 Read README.md, BUILD.md, docs/architecture.md, docs/production.md and the current
 `/home/sawyer/github/ubuntu-vm-backup/docs/astro-migration.md` before changing the
-live service. BUILD.md Phase 0 is the first unfinished work: replace the current
-Astro web application with Next.js/React/Tailwind/shadcn/ui, adopt Drizzle over the
-existing PostgreSQL database, and deploy the web server with Docker Compose.
-This target supersedes the Astro-only, vanilla-CSS-only, no-ORM and no-web-container
-restrictions. It does not describe an already implemented migration. Preserve
-private source visibility and the owner's content, access and deployment boundaries.
+live service. The final target is Astro + PostgreSQL + Drizzle. BUILD.md Phase 0
+adopts Drizzle into the existing application; retain Astro Node standalone SSR,
+the host TypeScript collector and systemd deployment. Python and Swift are used
+only when actually needed or explicitly requested, not as mandatory conversions.
+Preserve private source visibility and the owner's content/access boundaries.
 
 Reality first: do not invent uptime, hide unknown/stale evidence or claim checks
 that did not run. This is an observer, never a restart panel, deploy orchestrator,
@@ -15,21 +14,20 @@ remote shell or command-output feed. No private paths, arguments, env values,
 credentials, topology, database names, logs or stack traces on public routes.
 Only bearer-authenticated /operator may show its deliberate private metadata.
 
-Current commands use Node 24.22.1/npm 11.19.1 at /opt/astro-runtime through
-astro-runtime. Keep exact versions, package-lock.json and npm ci; strict TypeScript
-with noUncheckedIndexedAccess and exactOptionalPropertyTypes. Phase 0 targets the
-Next.js App Router, output: 'standalone', server-rendered React, compiled Tailwind
-and only needed shadcn/ui components. Core status content must work without browser
-JavaScript; framework scripts require a tested CSP. No analytics or remote fonts.
-Better Auth, Stripe, AI SDK, Tauri and Expo are conditional future choices, not
-requirements of this read-only observer. Keep the existing bearer operator contract.
+Use Node 24.22.1/npm 11.19.1 at /opt/astro-runtime through astro-runtime. Exact
+versions, package-lock.json and npm ci; strict TypeScript with noUncheckedIndexedAccess
+and exactOptionalPropertyTypes. Astro standalone SSR, semantic HTML, existing
+vanilla CSS, no browser JavaScript, inline style, fonts or analytics for current
+pages. Drizzle with the existing pg driver is the planned ORM. React islands,
+Tailwind and shadcn/ui are available only for an actual interactive UI need;
+Astro Actions/API endpoints only for needed forms/server or client APIs. Preserve
+current no-script behavior until a concrete feature justifies changing it.
+No unnecessary framework, hosted monitoring or container migration.
 
-Current web code under src/lib and src/pages (target: src/app, src/components and
-server-only src/lib modules) only reads four permitted PostgreSQL models.
+Web code under src/lib and src/pages only reads four permitted PostgreSQL models.
 It never imports collector code, runs commands, probes URLs or reads repositories.
-Keep OS identities, root-only role env files, tested Node permission restrictions,
-read-only filesystem, PostgreSQL grants and no owner/writer membership as independent
-controls. Do not silently discard a control to make the Next.js container start.
+Keep OS identities, root-only role env files, Node permission restrictions, read-only
+filesystem, PostgreSQL grants and no owner/writer membership as independent controls.
 Future tables must not automatically gain web SELECT access. Neither process gets
 the other's env/token/webhook. Never add collector to Docker or widen repository ACLs.
 
@@ -65,36 +63,38 @@ only in its disposable private cluster. For production verify failures, role gra
 process env/file separation, timers, fresh snapshots, static bytes, headers, API
 compatibility, rollback/data reconciliation and encrypted backup restore.
 
-## Target layout and hosting conventions (Phase 0; not implemented yet)
+## Final stack and layout (Phase 0 pending)
 
-- Web: `src/app/`, `src/components/`, server-only `src/lib/`; Next standalone
-  `server.js` plus `public/` and `.next/static/`. Collector: `src/collector/`,
-  separately compiled and run only on the host. Shared pure models contain no probes.
-- Database: retain native PostgreSQL 18, database `status_dunamismax`, schema `app`,
-  separate `status_dunamismax_{owner,migration,web,collector}` roles. TypeScript
-  schema under `src/db/`, reviewed migrations under `drizzle/`, owner-only runner.
-- Deployment files to add: `Dockerfile`, `.dockerignore`, `compose.yaml`; immutable
-  commit-tagged/digest-recorded web image. Proposed Compose project
-  `status-dunamismax`; no collector/PostgreSQL/Caddy containers in this project.
-- Keep public upstream `127.0.0.1:4313`; candidate loopback `127.0.0.1:14313`.
-  Default internal port 3000; explicitly publish only loopback. Reserve/check ports
-  under the shared lock. Connect to native PG through a narrowly mounted Unix socket
-  with scoped SCRAM authentication; container loopback is not host loopback.
-- Keep `/etc/caddy/Caddyfile`, owning fragment
+- Web: Astro `src/pages/`, server-only `src/lib/`, semantic HTML/current CSS.
+  Keep `@astrojs/node` standalone server output for this database-backed observer.
+  Static output is appropriate for other content-only projects, not live status.
+- Database: native PostgreSQL 18, `status_dunamismax`, schema `app`, separate
+  owner/migration/web/collector roles. Add typed schema in `src/db/`, reviewed
+  migrations in `drizzle/`, `drizzle.config.ts` and an owner-only migration runner.
+  Preserve exactly four web-readable models and no future-table default grants.
+- Hosting: existing systemd units, `/srv/www/status.dunamismax.com/releases/<commit>`,
+  atomic `current`, web 127.0.0.1:4313 and candidate 127.0.0.1:14313. No required
+  Compose conversion. Root-only role settings stay in `/etc/astro-apps/status_dunamismax/`
+  and app settings in `/etc/status-dunamismax/astro-{web,collector}.env`.
+- Caddy: `/etc/caddy/Caddyfile`, owning fragment
   `/etc/caddy/sites/status.dunamismax.com.caddy`, binary `/usr/local/lib/caddy/caddy`.
-  Cloudflare Full (strict) when proxied; retain/add DNS plugin through host-owned
-  integration, with a scoped token available only to Caddy. Never replace its other
-  compiled modules or put a competing proxy/dashboard in front of this app.
-- Existing root-only `/etc/astro-apps/status_dunamismax/` role files and
-  `/etc/status-dunamismax/astro-{web,collector}.env` remain until a backed-up,
-  reversible path transition. The web container receives web settings only.
-- Keep `/srv/www/status.dunamismax.com/releases/<commit>` and atomic `current`;
-  root-controlled Compose lifecycle outside the observer. Preserve collector IDs,
-  timer, CLI wrapper and repository ACLs; no Docker socket/group for either runtime.
-- Nightly PG dumps, roles/ACLs, secrets, image reconstruction/recovery and off-host
-  encrypted copies must be covered by existing backups and isolated restore drills.
-  Reconcile shared runbooks/integrations before cutover; this documentation change
-  does not alter host configuration. See BUILD.md for the ordered acceptance gates.
+  Preserve current modules/TLS; Full (strict) when Cloudflare proxies DNS. Any
+  DNS-challenge plugin/token work belongs to shared host integration, Caddy only.
+- Backups: nightly pg_dump with roles/ACLs/settings, encrypted off-host copies and
+  isolated restores. Keep PostgreSQL; SQLite/Litestream are not target requirements.
+- Conditional product additions: Better Auth with PostgreSQL for requested accounts,
+  Vercel AI SDK inside Astro endpoints for needed LLM features. Neither is needed
+  by this observer; preserve bearer-only `/operator` and read-only web access.
+- Conditional native work: Swift/SwiftUI on Apple platforms only when needed or
+  requested. Record Swift/minimum OS versions and a working xcodebuild/test command;
+  prefer @Observable where supported, SwiftData or GRDB as appropriate. Clients
+  call Astro HTTPS APIs, never the server database. No native target is planned here.
+- Conditional Python work: use uv, locked dependencies and ruff; choose Typer/httpx/
+  Pydantic only as needed, systemd timers for recurring jobs. Keep the working
+  TypeScript collector and existing Python recovery/probe utilities; no language
+  rewrite solely for uniformity. Future Python changes should adopt that tooling.
+- Do not create extra language-template/continuity files here. Update this existing
+  guidance with actual implemented versions/commands when such work is introduced.
 
 ## Git rules (owner's standing instructions)
 

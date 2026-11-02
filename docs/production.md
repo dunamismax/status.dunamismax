@@ -1,9 +1,9 @@
 # Production operations
 
-The current runbook below operates the Astro baseline. The required
-[Compose successor](#planned-compose-operations-phase-0) is not implemented yet;
-do not run the existing Astro deploy script against a Next/image candidate.
-[BUILD.md Phase 0](../BUILD.md) owns the ordered migration gates.
+The active service remains Astro Node standalone with native PostgreSQL and
+systemd. [BUILD.md Phase 0](../BUILD.md) plans Drizzle adoption, not a new web
+framework/database engine/deployment platform. The target migration commands below
+must be implemented and tested before they replace current schema application.
 
 Read `/home/sawyer/github/ubuntu-vm-backup/docs/astro-migration.md` first.
 Every shared mutation, schema migration, release switch and rollback must run
@@ -175,58 +175,50 @@ PostgreSQL, strict checks/tests/builds and advisory checks. Dependency updates a
 and made directly on `main`; no workflow deploys an update. Apply the host resource,
 backup and maintenance procedures from ubuntu-vm-backup before production changes.
 
-## Planned Compose operations (Phase 0)
 
-These are target conventions and implementation requirements, not commands that
-work in the current tree. The migration must update scripts, units, CI and the
-shared integrations before this section becomes the active runbook.
+## Planned Drizzle operations (Phase 0)
 
-| Item | Target / retained convention |
-| --- | --- |
-| Application | Next App Router/React, `output: 'standalone'`, generated `server.js`, copied `public/` and `.next/static/`. |
-| Deployment sources | New root `Dockerfile`, `.dockerignore`, `compose.yaml`; Compose project `status-dunamismax`, immutable commit image and recorded digest. |
-| Host lifecycle | Root-controlled owning deployment/supervision service; runtime container nonroot, no Docker API in web or collector. Reconcile the existing `astro-status-dunamismax.service` identity without making a running launcher evidence of a healthy web process. |
-| Ports | Active published `127.0.0.1:4313:3000`, candidate `127.0.0.1:14313:3000`; internal `HOSTNAME=0.0.0.0`, `PORT=3000`. Recheck collision/reservation under lock. |
-| Database | Existing native PostgreSQL 18, `status_dunamismax`, schema `app`; no DB container in this Compose project, no public DB listener. |
-| Database transport | Preferred read-only PG socket directory bind at `/run/postgresql`, `PGHOST=/run/postgresql`; verify nonroot socket permissions and scoped local SCRAM HBA for this web role. Keep collector's host connection unchanged. |
-| Database roles | Existing independent owner/migration/web/collector; web reads exactly four models, owner-only reviewed Drizzle migrations, private journals. |
-| Credentials | Existing root-only `/etc/astro-apps/status_dunamismax/{web,collector,migration}.env` and `/etc/status-dunamismax/astro-{web,collector}.env`. Privileged lifecycle reads/injects only web settings into web; no secrets in image/config output. Any rename requires reversible backups and updated consumers. |
-| Proxy/TLS | Host `/etc/caddy/Caddyfile`, fragment `/etc/caddy/sites/status.dunamismax.com.caddy`, binary `/usr/local/lib/caddy/caddy`, same 4313 upstream. Cloudflare DNS plugin/challenge with scoped Caddy-only token; Full (strict) if proxied. Preserve all existing binary modules and other sites. |
-| Release/state | Retain `/srv/www/status.dunamismax.com/releases/<commit>`, atomic `current`, root-only rollback material; image+host CLI+schema metadata share a manifest. Writable web paths are measured tmpfs/cache only. |
-| Collector | Existing host nologin `status-dunamismax`, `astro-status-dunamismax-collector.{timer,service}`, private state and CLI wrapper; never Docker group/socket or broader repository ACLs. |
-| Backups | Existing nightly site/shared PostgreSQL dumps, role/ACL/secret capture and off-host encrypted dual pushes; extend application restore to exact image/Compose plus host CLI. |
+Retain the runtime, accounts, root-only env files, release/current paths, systemd
+units, five-minute collector and backup timers, CLI interfaces and loopback ports
+4313/14313 described above. PostgreSQL remains native/loopback-only with the same
+project database, schema and separate roles. No Compose conversion, SQLite file,
+Litestream replication or Python/Swift application is required by this project.
 
-A container cannot use its own 127.0.0.1 to reach host PostgreSQL. Do not use a
-host-gateway shortcut against a loopback-only listener or widen PG to a wildcard
-address. Rehearse the Unix-socket/authentication arrangement before cutover;
-changes to HBA are shared mutations requiring the lock and rollback copies.
+Add reviewed Drizzle migrations and a migration runner that explicitly SET ROLEs
+the existing owner. Replace active `database/schema.sql` application in deployment
+only after the new fresh-install, existing-baseline and repeated no-op paths pass.
+Retain historical schema/transfer tooling needed by backups and old releases.
+Introspection/baseline operations may write bookkeeping: rehearse on a disposable
+restore first; production writes occur only under the inherited-FD9 deploy lock.
+Never use schema push, runtime startup migrations or public runtime credentials.
 
-Build/test images and host CLI candidates outside the lock, with no production
-credentials in a build. Inside one inherited-FD9 transaction recheck expected
-current/ports/config, capture rollback material and PG safety dump, drain writers,
-baseline/migrate/reconcile, validate the candidate on 14313, then replace only this
-app's 4313 listener and atomically switch current. Verify final-port health, full
-public smoke and Caddy headers/CSP; failure restores the previous app/config/image
-in the same transaction. Never stop the shared PostgreSQL/Docker/Caddy services.
-Reload validated Caddy only as needed. Resume one collector and record deployment
-using the retained CLI interface with notifications suppressed for acceptance.
+Build/check candidates outside the lock. Inside one transaction recheck expected
+current/configuration, back up PostgreSQL and affected configuration, drain all
+owning writers, verify matching baseline and every-row digests, apply reviewed DDL,
+verify grants/constraints/sequences, smoke candidate on 14313, atomically switch
+current and validate/reload custom Caddy as needed. Resume exactly one collector,
+verify fresh evidence and record deployment without notifications during acceptance.
+No shared PostgreSQL restart, other-site change or listener relocation is needed.
 
-Rollback uses the retained Astro image-independent release or previous Next image
-with current PG data and a compatible schema. Do not run the old Astro-only rollback
-script unmodified after a Compose activation, restore a pre-cutover dump over new
-writes or restart retired PHP collectors. Test later writes, alert suppression and
-timer freshness after rollback. Retain images, releases and backups until the
-host-owned cleanup permits removing them.
+Rollback keeps current PostgreSQL history using a compatible retained Astro release.
+Verify later writes and alert state survive. If schema changes break compatibility,
+rehearse a lossless reverse adapter before activation; never restore an old dump
+over subsequent writes. Keep journals/roles private and retain recovery archives.
 
-The existing `ubuntu-vm-backup` restore drill starts Astro entrypoints. Update its
-status consumer, release capture, image recovery and isolated application drill,
-plus Toolworks' owning wrapper contract and host runtime/port inventory, before
-activation. This documentation-only task makes no cross-repository/host changes.
-An exact image must be recoverable from encrypted backup or a demonstrated pinned
-rebuild, with all roles/secrets/ACLs restored first in a private disposable database.
-Prove off-host copies and full restore, not just `pg_dump` success.
+Nightly pg_dump, roles/ACLs/settings, encrypted off-host dual copies and isolated
+restore remain required. Update the shared ubuntu-vm-backup and Toolworks consumers
+only where Drizzle migration/release metadata changes their interface. Include
+locked source/dependencies, migration metadata and actual schema in the restore
+drill; verify the restored Astro app using its restricted web role. Do not replace
+PostgreSQL monitoring/readiness with engine labels for a database not actually used.
 
-At completion replace the active Astro operations sections with tested commands,
-record actual acceptance evidence separately from the historical migration results,
-and update AGENTS/README/BUILD in the same implementation change. Do not label this
-target operational based on the planning document alone.
+Caddy remains host-owned at `/etc/caddy/Caddyfile`, status fragment
+`/etc/caddy/sites/status.dunamismax.com.caddy`, custom binary
+`/usr/local/lib/caddy/caddy`. Preserve its modules, admin socket, TLS and headers;
+Full (strict) applies when Cloudflare proxies DNS. Any scoped DNS-challenge token
+belongs only to Caddy and any binary/module adjustment to the shared host runbook.
+
+At completion replace current schema-operation instructions with the tested Drizzle
+commands and record new acceptance evidence. Earlier PostgreSQL migration results
+are historical and cannot prove the new adoption passed. This planning change
+changes no application, database, credentials, timer or live service.

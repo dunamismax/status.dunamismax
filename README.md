@@ -1,9 +1,9 @@
 # Dunamis Status
 
-The implementation described below is the current Astro baseline. The next work
-is [BUILD.md Phase 0](BUILD.md#phase-0--unified-stack-migration-required-before-other-work):
-Next.js/React/Tailwind/shadcn/ui, Drizzle over the existing native PostgreSQL,
-and Docker Compose for the web server. That migration is planned, not implemented.
+The final target is Astro + PostgreSQL + Drizzle. Astro/PostgreSQL/systemd are
+already implemented; [BUILD.md Phase 0](BUILD.md) plans Drizzle schema/query/migration
+adoption and its verification. This is documentation only; no runtime conversion
+has occurred. Python and Swift are conditional on actual project needs or a request.
 
 Public operational status for Stephen Sawyer's self-hosted ecosystem at
 <https://status.dunamismax.com>. Astro 7 renders semantic HTML and stable JSON
@@ -59,28 +59,25 @@ is a new event even inside the repeat window. Delivery remains unconfigured at
 the owner’s request; loopback and disposable-database tests cover this behavior. Webhook delivery failure fails the run and never records a sent alert.
 A collector advisory lock prevents overlapping notification runs.
 
-## Migration direction
+## Stack direction
 
-Phase 0 comes before all previous build work, whose checked items remain historical
-acceptance evidence. It covers the web rewrite, lossless Drizzle schema adoption,
-Compose isolation, release/rollback changes, shared backup integration and parity
-tests. See [target architecture](docs/architecture.md#planned-unified-stack-phase-0)
-and [target operations](docs/production.md#planned-compose-operations-phase-0).
+Keep the current Astro Node standalone server and host TypeScript collector.
+No web framework, database engine, deployment platform or collector language rewrite
+is needed. The pending work introduces typed Drizzle schemas and reviewed migrations
+over the same PostgreSQL history and access boundaries. See
+[target architecture](docs/architecture.md#planned-drizzle-adoption-phase-0) and
+[target operations](docs/production.md#planned-drizzle-operations-phase-0).
 
-The collector stays on the host under its existing systemd identity/timer and
-repository access controls. PostgreSQL stays native with the same database, schema,
-history and separate owner/migration/web/collector roles. The web container reads
-only the four existing permitted models. Caddy remains the host proxy on the same
-subdomain and loopback upstream; no Vercel hosting is required.
-
-There is no current user-account, payment, LLM, desktop or mobile feature. Better
-Auth, Stripe, AI SDK, Tauri and Expo are therefore conditional future choices;
-the existing bearer-only operator boundary remains. No rewrite or live-service
-change is included in the documentation planning change.
+React islands/Tailwind/shadcn/ui are optional for needed interactivity; Astro Actions
+and API endpoints serve future forms/clients when requested. Better Auth and AI SDK
+are optional for actual account/LLM features. This observer currently needs none.
+Swift/SwiftUI is the choice for any future requested Apple client, communicating
+through Astro HTTPS APIs. Python/uv/ruff is available for appropriate future tools;
+existing TypeScript collection is retained and existing Python utilities remain.
 
 ## Development
 
-These commands remain the current Astro commands until Phase 0 replaces them.
+These are the current commands; Phase 0 must update them only where Drizzle needs it.
 
 On ubuntu-vm use `astro-runtime npm ci`, `astro-runtime npm run check`,
 `astro-runtime npm test`, `bash tests/postgres.sh`, and `astro-runtime npm run build`.
