@@ -2,9 +2,10 @@
 
 The final target is Astro + PostgreSQL + Drizzle. Astro/PostgreSQL/systemd are
 implemented. Drizzle schemas, queries, the reviewed baseline migration and the
-owner-only runner are in source; deployment applies migrations through that runner,
-adopting the existing schema on first use only after an exact catalog match. See
-[BUILD.md Phase 0](BUILD.md) for acceptance status. Python and Swift are conditional
+owner-only runner are live: production adopted the baseline on November 2, 2026
+after an exact catalog match and identical every-row digests, and deployment applies
+migrations through that runner. See [BUILD.md Phase 0](BUILD.md) and
+[migration evidence](docs/migration.md). Python and Swift are conditional
 on actual project needs or a request.
 
 Public operational status for Stephen Sawyer's self-hosted ecosystem at
@@ -66,7 +67,7 @@ A collector advisory lock prevents overlapping notification runs.
 Keep the current Astro Node standalone server and host TypeScript collector.
 No web framework, database engine, deployment platform or collector language rewrite
 is needed. Typed Drizzle schemas and reviewed migrations cover the same PostgreSQL
-history and access boundaries; production adoption is pending. See
+history and access boundaries; production adopted them. See
 [architecture](docs/architecture.md#drizzle-adoption-phase-0) and
 [operations](docs/production.md#drizzle-operations-phase-0).
 

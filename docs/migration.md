@@ -1,9 +1,57 @@
 # Astro/PostgreSQL migration verification
 
-This is historical acceptance evidence for the October 22, 2026 migration, not
-verification of the Drizzle adoption. The first unfinished
-work is [BUILD.md Phase 0](../BUILD.md); none of the results below satisfy its new
-gates. PostgreSQL remains authoritative. Retired PHP/MySQL recovery now belongs
+The first section records the November 2, 2026 Drizzle adoption. The remainder is
+historical acceptance evidence for the October 22, 2026 migration and does not
+satisfy [BUILD.md Phase 0](../BUILD.md) gates by itself.
+
+## Drizzle adoption acceptance (November 2, 2026 UTC)
+
+Source `1811438` (schema, queries, runner), `5fb1713` (runner-based deploys) and
+`50da380` (journal probe fix). Private evidence: root-only
+`/root/status-astro-rollback-20261102T2017*`, `…T2019*`, `…T2020*` and
+`/root/status-phase0-evidence/`; nothing private is committed.
+
+- Pre-change baseline: release `1149ae6`, 16/16 tests on the pinned runtime; roles,
+  HBA, ownership, grants and default ACLs matched the documented contract.
+- Private no-TCP restore of production: the first adoption attempt was refused
+  because dump/restore re-parses six CHECK constraints into equivalent text; the
+  live catalog has the original form. After normalizing to the restored fixpoint
+  form, adoption recorded only the baseline with identical every-row digests and
+  sequence positions, a repeat was a no-op, and the web role passed 4 reads/13
+  denials. Old (`1149ae6`) and new releases served byte-identical bodies/headers on
+  every HTML/API/readiness/operator route; both collectors wrote on adopted data.
+- Production deploy `5fb1713`: collector drained, safety dump, digests, then
+  `--adopt-baseline` recorded `0000_baseline` without DDL. Digests for 60 targets,
+  315,862 checks, 20,327 rollups, 78 deployments, three empty tables and all
+  sequences were byte-identical. The helper's `to_regclass` journal probe failed
+  for the NOINHERIT migration login and fell through to the (correct) adoption;
+  `50da380` probes pg_catalog and aborts on failure.
+- Deploy `50da380`: journal present, `applied=none`, digests identical (production
+  repeat no-op). Rollback via `rollback.sh` to pre-Drizzle `1149ae6`: smoke passed,
+  its collector wrote rollup 44035; roll-forward to `50da380` (no-op, identical
+  digests) kept that row and all deployment records.
+- Production checks: web role 4 reads/13 denials with read-only default off; runner
+  policy 0 violations, 0 catalog differences; web process runs `--permission` as
+  its own user with only web role env; static bytes identical, headers identical
+  apart from ETag/Last-Modified; private/source paths 404, other methods 405;
+  0 failed units; Caddy/PostgreSQL/Docker/bot/other site PIDs unchanged except a
+  concurrent, lock-serialized dunamismax.com deployment by another session.
+- Scheduled collector (20:26 UTC) on `50da380`: operational, 48 services/6 projects,
+  0 alerts, 32 expired checks pruned; readiness fresh.
+- Injected failed activation: candidate port 14313 held by a loopback 404 listener;
+  deploying `5fb1713` over `50da380` failed candidate smoke (exit 22) and the ERR trap
+  restored `50da380` automatically. No deployment row or latest-rollback change; its
+  migration step was a no-op with identical digests. Listener and candidate unit removed.
+- Backups: status site backup with isolated restore succeeded; host snapshot `3d1d352`
+  pushed to both remotes; 95 encrypted files decrypted, 0 failures; all 7 databases
+  restored with owner/ACL replay; `applications-verify` served `50da380` HTTP 200
+  from restored PostgreSQL with locked dependencies reinstalled.
+- No notification destination exists; every run here used `--no-notify` or none.
+- Limitations: alert delivery/recovery is proven only against loopback sinks in the
+  disposable suite (no live webhook); the restore drill is logical, not a bare-metal
+  rebuild; `ubuntu-vm-backup/docs/final-integration.md` still lists `51cb1c1` as the
+  status release and belongs to the shared host repository.
+ PostgreSQL remains authoritative. Retired PHP/MySQL recovery now belongs
 in isolation under the current VM runbook, not an ordinary live rollback.
 
 The migration replaces the PHP application, collector and operating commands.

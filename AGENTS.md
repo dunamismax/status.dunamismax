@@ -2,8 +2,8 @@
 
 Read README.md, BUILD.md, docs/architecture.md, docs/production.md and the current
 `/home/sawyer/github/ubuntu-vm-backup/docs/astro-migration.md` before changing the
-live service. The final target is Astro + PostgreSQL + Drizzle. BUILD.md Phase 0
-adopts Drizzle into the existing application; retain Astro Node standalone SSR,
+live service. The final stack is Astro + PostgreSQL + Drizzle. BUILD.md Phase 0
+adopted Drizzle into the existing application; retain Astro Node standalone SSR,
 the host TypeScript collector and systemd deployment. Python and Swift are used
 only when actually needed or explicitly requested, not as mandatory conversions.
 Preserve private source visibility and the owner's content/access boundaries.
@@ -63,7 +63,7 @@ only in its disposable private cluster. For production verify failures, role gra
 process env/file separation, timers, fresh snapshots, static bytes, headers, API
 compatibility, rollback/data reconciliation and encrypted backup restore.
 
-## Final stack and layout (Phase 0 in progress)
+## Final stack and layout (Phase 0 complete)
 
 - Web: Astro `src/pages/`, server-only `src/lib/`, semantic HTML/current CSS.
   Keep `@astrojs/node` standalone server output for this database-backed observer.
@@ -73,7 +73,8 @@ compatibility, rollback/data reconciliation and encrypted backup restore.
   migrations in `drizzle/` (baseline catalog `drizzle/baseline-catalog.json`),
   `drizzle.config.ts` and owner-only runner `src/db/migrate.ts` (`npm run db:migrate`,
   `--adopt-baseline` for an existing matching schema). Journal `app.drizzle_migrations`
-  is private to the owner. Never `drizzle-kit push`. Production adoption pending.
+  is private to the owner. Never `drizzle-kit push`. Production adopted 2026-11-02;
+  `deploy/deploy.sh` runs the runner with before/after every-row digests.
   Preserve exactly four web-readable models and no future-table default grants.
 - Hosting: existing systemd units, `/srv/www/status.dunamismax.com/releases/<commit>`,
   atomic `current`, web 127.0.0.1:4313 and candidate 127.0.0.1:14313. No required

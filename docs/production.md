@@ -239,7 +239,8 @@ Caddy remains host-owned at `/etc/caddy/Caddyfile`, status fragment
 Full (strict) applies when Cloudflare proxies DNS. Any scoped DNS-challenge token
 belongs only to Caddy and any binary/module adjustment to the shared host runbook.
 
-At completion replace current schema-operation instructions with the tested Drizzle
-commands and record new acceptance evidence. Earlier PostgreSQL migration results
-are historical and cannot prove the new adoption passed. The November 2, 2026
-source change touched no live database, credentials, timer or service.
+Deployment now uses these Drizzle commands; acceptance evidence for the November 2,
+2026 adoption (production restore rehearsal, adoption, no-op redeploy, live
+rollback/roll-forward, injected failed activation and encrypted restore) is in
+[migration evidence](migration.md). Earlier PostgreSQL migration results remain
+historical. No credentials, roles, units or timers changed during adoption.

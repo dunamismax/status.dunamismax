@@ -1,14 +1,12 @@
 # Build plan
 
-The final stack is Astro + PostgreSQL + Drizzle. Phase 0 is the first unfinished
-work; completed implementation history follows it. As of November 2, 2026 the
-Drizzle schema, queries, reviewed baseline and owner-only runner are in source and
-pass disposable-cluster rehearsals. No production database, deployment, timer or
-service has changed; production still applies `database/schema.sql`. Python and
-Swift are used only for an actual project need or explicit request. Keep the
-working TypeScript collector and existing Python utilities.
+The final stack is Astro + PostgreSQL + Drizzle. Phase 0 is complete (November 2,
+2026): production adopted the Drizzle baseline and deployment applies reviewed
+migrations through the owner-only runner. Later work follows Astro/PostgreSQL/
+Drizzle and the conditional tools below; completed history follows Phase 0. Python and Swift are used only for an actual project need or
+explicit request. Keep the working TypeScript collector and existing Python utilities.
 
-### Phase 0 — Align Astro/PostgreSQL with Drizzle (do first)
+### Phase 0 — Align Astro/PostgreSQL with Drizzle (complete)
 
 Retain Astro Node standalone SSR, native PostgreSQL, host systemd deployment and
 current UI. Add typed Drizzle schemas, queries and reviewed migrations. This phase
@@ -16,7 +14,7 @@ replaces the previous web rewrite plan. Work on main only; no branches/worktrees
 
 #### 0.1 Review reality and preserve contracts
 
-- [ ] Read AGENTS, README, architecture/production/migration docs and the current
+- [x] Read AGENTS, README, architecture/production/migration docs and the current
   VM-owned `/home/sawyer/github/ubuntu-vm-backup/docs/astro-migration.md` plus its
   restore/final integration references. Check local/host commits, current release,
   units, roles, schema, timers, backups and port reservations; do not assume parity.
@@ -25,15 +23,19 @@ replaces the previous web rewrite plan. Work on main only; no branches/worktrees
     `1149ae6` (final-integration.md's `51cb1c1` is now a retained older release).
     Web, collector timer, backup timer and postgresql@18-main active; collector ran
     on schedule; readiness `ready`/`postgresql-ready,collector-snapshot-fresh`;
-    loopback 4311–4315 and 5432 listening, 14313 free. **Open:** roles, grants,
-    actual `app` catalog and backup contents need root/postgres (no non-interactive
-    sudo), so they were not inspected.
-- [ ] Run current pinned-runtime checks before implementation. Capture sanitized
+    loopback 4311–4315 and 5432 listening, 14313 free. As root: four status roles
+    match the contract (NOLOGIN owner; NOINHERIT migration login with SET-only owner
+    membership; web/collector without membership), HBA loopback SCRAM per role,
+    database/schema owned by the owner, web SELECT on exactly four tables, collector
+    revoked from `schema_migrations`, no web default ACLs; status backup succeeded
+    at 06:32 UTC.
+- [x] Run current pinned-runtime checks before implementation. Capture sanitized
   fixtures and private baseline digests/catalog evidence. Keep private snapshots,
   role credentials, env files and raw probe outputs out of source control.
   - Progress: pinned-runtime baseline passed on the VM in a scratch archive of
     `1149ae6` (npm ci, check 0 errors, 16/16 tests with PG 18 integration, build,
-    shell/Python syntax). **Open:** private production digests/catalog capture needs root.
+    shell/Python syntax). Private every-row digests, catalog diffs and safety dumps are
+    in root-only `/root/status-astro-rollback-*` and `/root/status-phase0-evidence/`.
 
 | Current source | Work / retained contract |
 | --- | --- |
@@ -75,13 +77,16 @@ and fixed UTC-05:00 EST display. Never invent uptime or conceal unknown evidence
   - Done: `src/db/schema.ts`, `drizzle.config.ts`, `drizzle/0000_baseline.sql` + Kit
     metadata, `drizzle/baseline-catalog.json`, `src/db/{migrate,catalog}.ts`; scripts
     `db:generate`, `db:check` (Kit check + drift gate, in Makefile/CI), `db:migrate`.
-- [ ] Introspect a private disposable restore of schema `app`; compare with actual
+- [x] Introspect a private disposable restore of schema `app`; compare with actual
   catalogs and `database/schema.sql`. Preserve targets, check_runs, rollups,
   incidents, maintenance_windows, deployment_events and alert_notifications.
   Keep `app.schema_migrations` distinct from Drizzle journal/version metadata.
-  - Progress: the comparison tool exists (`--adopt-baseline` diffs the structural
-    catalog against `drizzle/baseline-catalog.json`); journal is `app.drizzle_migrations`.
-    **Open:** run it against a private disposable restore of production (needs root).
+  - Done: a private no-TCP restore of production first **refused** adoption because
+    pg_dump/pg_restore re-parses the six CHECK constraints into an equivalent text form
+    (the live catalog has the original form). Catalog comparison now uses the restored
+    fixpoint form and the suite adopts a dump/restore copy. Re-run: adopted with
+    identical every-row digests and sequences, repeat no-op; journal is owner-only
+    `app.drizzle_migrations`, distinct from `app.schema_migrations`.
 - [x] Rehearse a fresh empty install and adoption of an existing verified matching
   schema without recreating/truncating/reimporting tables. Confirm pinned Kit's
   baseline mechanism (documented pull --init can write bookkeeping). Apply only
@@ -112,14 +117,16 @@ and fixed UTC-05:00 EST display. Never invent uptime or conceal unknown evidence
   - Done in disposable PG 18: runner `SET LOCAL ROLE`s owner and fails closed on
     access violations; tests prove actual 42501 denials (future table, both journals,
     private tables, writes, sequences, SET ROLE) with read-only default off.
-    Production grant acceptance remains part of 0.4/0.5.
-- [ ] Drain owning writers and compare every-column ordered counts/digests for all
+    Production: same policy check passes; web role passed four reads and 13 denials.
+- [x] Drain owning writers and compare every-column ordered counts/digests for all
   seven history tables before/after adoption; verify catalog triggers/constraints,
   sequences and migration journals separately. Include synthetic nonempty incidents,
   maintenance and alerts, big IDs, JSON types, Unicode and microseconds. Keep all
   reconciliation files private. No MySQL or SQLite conversion is part of this phase.
-  - Progress: synthetic digest/sequence/catalog comparison passes in the disposable
-    suite. **Open:** production drain + every-row comparison needs root under the lock.
+  - Done: synthetic nonempty cases pass in the disposable suite. Production adoption
+    (deploy `5fb1713`, collector drained under the lock) recorded only `0000_baseline`;
+    pre/post digests for 60 targets, 315,862 checks, 20,327 rollups, 78 deployments and
+    the empty incident/maintenance/alert tables plus sequences were byte-identical.
 
 #### 0.3 Keep only needed stack components
 
@@ -143,52 +150,93 @@ and fixed UTC-05:00 EST display. Never invent uptime or conceal unknown evidence
 
 #### 0.4 Retain safe systemd deployment and recovery
 
-- [ ] Keep host units/accounts, collector timer/jitter/cap, private HOME, read-only
+- [x] Keep host units/accounts, collector timer/jitter/cap, private HOME, read-only
   repo ACLs, Node permission restrictions and root-only role env separation. No
   collector Docker group/socket. All subprocesses retain absolute argv/no shell,
   minimal env, deadlines/bounded output and process-group termination; preserve
   TLS/redirect/body limits, TCP connect-only, one-shot/restart/freshness evidence,
   custom Caddy binary and permission=unknown behavior. No repo fetch/pull/reset.
-- [ ] Adapt deploy/build.sh, deploy/deploy.sh, rollback, command wrapper and smoke
+  - Verified: units/accounts unchanged; web runs as `status-dunamismax-web` with
+    `--permission` and only web role env; collector as `status-dunamismax` with only
+    its role files (deploy asserts no docker group). Probe code is unchanged.
+- [x] Adapt deploy/build.sh, deploy/deploy.sh, rollback, command wrapper and smoke
   for reviewed Drizzle migrations, keeping CANDIDATE EXPECTED_CURRENT, exact-commit
   manifests, release/current and loopback 4313/candidate 14313. Build/test outside
   shared lock. No required Docker/Compose or reverse-proxy migration.
-- [ ] All shared roles/schema/units/ACL/Caddy/release/rollback changes run in one VM
+  - Done: `deploy.sh` replaces raw `schema.sql` with the runner (adoption only when
+    the journal is absent, probed via pg_catalog), plus pre/post digests that must
+    match on no-op runs. build/rollback/run-command/smoke interfaces are unchanged.
+    The first adoption exposed a journal probe the NOINHERIT login could not run
+    (fell through to the correct adoption); fixed in `50da380` and redeployed.
+- [x] All shared roles/schema/units/ACL/Caddy/release/rollback changes run in one VM
   transaction under with-deploy-lock with inherited FD9. Recheck current, back up,
   drain collector/other owning writers, baseline/migrate/reconcile, validate candidate,
   atomic switch and public smoke. Restart only owning service; custom Caddy
   validation/reload as needed. Resume one collector and record deployment without
   notifications during acceptance. Alert tests only use mock/loopback/safety flags.
-- [ ] Rehearse failure/rollback using current PG data and a compatible retained Astro
+  - Done: deploys of `5fb1713` (adoption), `50da380` (no-op) and its roll-forward each
+    ran in one with-deploy-lock transaction: candidate smoke on 14313, atomic switch,
+    custom-Caddy validation/reload, public smoke, `--no-notify` collector, recorded
+    deployment. Static bytes and non-ETag headers unchanged; shared service PIDs
+    unchanged except a concurrent, lock-serialized dunamismax.com deployment by
+    another session.
+- [x] Rehearse failure/rollback using current PG data and a compatible retained Astro
   release. Preserve writes made after activation and alert sent/dedup/recovery state;
   never restore an old dump over newer history. Require a lossless reverse adapter
   before any incompatible schema change. Do not restart retired PHP/MySQL services.
-- [ ] Preserve native loopback-only PostgreSQL, nightly pg_dump/role/ACL/config
+  - Done: the production-restore rehearsal served byte-identical HTML/API from
+    pre-Drizzle `1149ae6` and the new build on adopted data. Live: `rollback.sh` restored
+    `1149ae6`, whose collector wrote rollup 44035 on the adopted database; roll-forward
+    kept it and every deployment row. No alert rows exist (webhook unconfigured).
+- [x] Preserve native loopback-only PostgreSQL, nightly pg_dump/role/ACL/config
   backups, encrypted off-host dual copies and isolated full restore. Update shared
   ubuntu-vm-backup/Toolworks interfaces only where migration metadata demands it;
   verify restored Astro runtime and restricted roles, not just dump success.
-- [ ] Keep host Caddy paths/custom modules/TLS, Cloudflare Full (strict) when proxied,
+  - Done: status site backup (isolated restore) succeeded; host `bin/backup --push`
+    snapshot `3d1d352` on both remotes; `restore check` decrypted 95 files, 0 failures;
+    `postgres-verify` restored all 7 databases with owners/ACL replay;
+    `applications-verify` reinstalled `50da380` with locked dependencies and served
+    HTTP 200 from restored PG. No shared backup/Toolworks interface change was needed.
+- [x] Keep host Caddy paths/custom modules/TLS, Cloudflare Full (strict) when proxied,
   and existing route headers. Any DNS challenge/plugin/token work stays in the
   host-owned transaction with scoped Caddy-only credentials. No unrelated site edit
   or shared service restart; no R2/Litestream requirement for this PostgreSQL plan.
+  - Verified: the unchanged status fragment validated with the custom binary and
+    reloaded; Caddy MainPID unchanged; static cache headers pass without duplicates.
 
 #### 0.5 Acceptance and final documentation
 
-- [ ] Run npm ci, npm run check, npm test, bash tests/postgres.sh, npm run build,
+- [x] Run npm ci, npm run check, npm test, bash tests/postgres.sh, npm run build,
   shell syntax/Python compile and git diff --check with the pinned runtime. Extend
   CI/Makefile for Drizzle fresh/adoption/no-op tests in disposable no-TCP PG only.
-- [ ] Verify route/API/static/header parity, escaping, auth-before-query, DB outage
+  - Done on the VM pinned runtime and in CI (`db:check` added; 17/17 tests).
+- [x] Verify route/API/static/header parity, escaping, auth-before-query, DB outage
   redaction, no-script mobile/light/dark/keyboard UI, stale/missing/fresh transitions
   without rebuild, lossless times/IDs, import graph and environment/file isolation.
   Test actual denials and future-table grants, not only ORM query conventions.
-- [ ] Verify collector timer/freshness, failure/recovery confirmation, advisory lock,
+  - Done: old/new releases returned byte-identical bodies and headers for every HTML,
+    API, readiness and operator route on the same data, so the no-script UI is unchanged.
+    Escaping, auth-before-query, outage redaction and freshness remain covered by tests;
+    production web role passed four reads and 13 real denials; private paths 404,
+    other methods 405 with `Allow: GET, HEAD`.
+- [x] Verify collector timer/freshness, failure/recovery confirmation, advisory lock,
   repeat/caps/sent evidence and retention. Keep real webhook delivery unconfigured.
   Rehearse failed activation, later-write rollback and encrypted off-host restore.
-- [ ] Replace active raw-schema application with tested Drizzle commands only after
+  - Done: scheduled 20:26 UTC run on `50da380` stored an operational snapshot (48
+    services, 6 projects), sent 0 alerts and pruned 32 expired checks; readiness fresh.
+    Confirmation/repeat/caps/sent/advisory-lock behavior is covered by the disposable
+    suite against the Drizzle writer; webhook stays unconfigured. Injected failed
+    activation (candidate port occupied by a loopback 404 listener) aborted at candidate
+    smoke and the ERR trap restored `50da380` automatically with no deployment row.
+    Later-write rollback and encrypted restore are recorded in 0.4.
+- [x] Replace active raw-schema application with tested Drizzle commands only after
   parity. Keep historical recovery tooling/resources. Update all docs/AGENTS/scripts/
   CI in the same change, record actual evidence and limitations, commit to main and
   push origin main; verify both GitHub/Codeberg tips. Mark Phase 0 complete only
   after all gates pass; later work follows Astro/PostgreSQL and conditional tools.
+  - Done: `deploy.sh` uses the runner; `database/schema.sql`, history transfer and
+    legacy tooling are retained for old releases/recovery. Evidence and limitations
+    are in docs/migration.md. Active release `50da380`; both remote tips verified.
 
 References (refresh for implementation pins):
 [Astro Node](https://docs.astro.build/en/guides/integrations-guide/node/),

@@ -1,8 +1,8 @@
 # Architecture
 
 This describes the implemented Astro/PostgreSQL baseline. The final stack retains
-both and adds Drizzle, implemented in source as described below; its production
-adoption remains in [BUILD.md Phase 0](../BUILD.md).
+both and adds Drizzle, adopted in production on November 2, 2026 as described
+below and in [BUILD.md Phase 0](../BUILD.md).
 
 Astro's Node standalone adapter serves the exact routes through a TypeScript
 endpoint. `src/lib/web.ts` renders escaped semantic HTML and JSON with no-store,
@@ -89,7 +89,7 @@ Adopt all seven historical tables without relocating, truncating or reimporting
 history. Keep current `app.schema_migrations` separate from Drizzle bookkeeping.
 Fresh installation, adoption of a nonempty legacy `schema.sql` database and of its
 dump/restore copy are tested in the disposable cluster. A private restore of
-production adopted with identical every-row digests (see BUILD.md Phase 0).
+production, and then production itself, adopted with identical every-row digests.
 Preserve identities/next sequence values, timestamptz(6), JSONB, nulls, constraints,
 indexes and updated-at triggers. Do not use JS Date or Number conversions that
 lose microseconds or bigint IDs. Compare every-row digests and catalog semantics.
