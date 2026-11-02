@@ -1,5 +1,10 @@
 # Dunamis Status
 
+The implementation described below is the current Astro baseline. The next work
+is [BUILD.md Phase 0](BUILD.md#phase-0--unified-stack-migration-required-before-other-work):
+Next.js/React/Tailwind/shadcn/ui, Drizzle over the existing native PostgreSQL,
+and Docker Compose for the web server. That migration is planned, not implemented.
+
 Public operational status for Stephen Sawyer's self-hosted ecosystem at
 <https://status.dunamismax.com>. Astro 7 renders semantic HTML and stable JSON
 from PostgreSQL 18. Strict TypeScript runs both the public application and the
@@ -54,7 +59,28 @@ is a new event even inside the repeat window. Delivery remains unconfigured at
 the owner’s request; loopback and disposable-database tests cover this behavior. Webhook delivery failure fails the run and never records a sent alert.
 A collector advisory lock prevents overlapping notification runs.
 
+## Migration direction
+
+Phase 0 comes before all previous build work, whose checked items remain historical
+acceptance evidence. It covers the web rewrite, lossless Drizzle schema adoption,
+Compose isolation, release/rollback changes, shared backup integration and parity
+tests. See [target architecture](docs/architecture.md#planned-unified-stack-phase-0)
+and [target operations](docs/production.md#planned-compose-operations-phase-0).
+
+The collector stays on the host under its existing systemd identity/timer and
+repository access controls. PostgreSQL stays native with the same database, schema,
+history and separate owner/migration/web/collector roles. The web container reads
+only the four existing permitted models. Caddy remains the host proxy on the same
+subdomain and loopback upstream; no Vercel hosting is required.
+
+There is no current user-account, payment, LLM, desktop or mobile feature. Better
+Auth, Stripe, AI SDK, Tauri and Expo are therefore conditional future choices;
+the existing bearer-only operator boundary remains. No rewrite or live-service
+change is included in the documentation planning change.
+
 ## Development
+
+These commands remain the current Astro commands until Phase 0 replaces them.
 
 On ubuntu-vm use `astro-runtime npm ci`, `astro-runtime npm run check`,
 `astro-runtime npm test`, `bash tests/postgres.sh`, and `astro-runtime npm run build`.

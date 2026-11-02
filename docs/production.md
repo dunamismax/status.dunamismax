@@ -1,5 +1,10 @@
 # Production operations
 
+The current runbook below operates the Astro baseline. The required
+[Compose successor](#planned-compose-operations-phase-0) is not implemented yet;
+do not run the existing Astro deploy script against a Next/image candidate.
+[BUILD.md Phase 0](../BUILD.md) owns the ordered migration gates.
+
 Read `/home/sawyer/github/ubuntu-vm-backup/docs/astro-migration.md` first.
 Every shared mutation, schema migration, release switch and rollback must run
 on the VM under `/usr/local/sbin/with-deploy-lock`. The wrappers acquire it or
@@ -19,8 +24,9 @@ reuse inherited descriptor 9; never nest separate acquisitions.
   maximum notifications, retention and repo root), root 0600. Changes need an
   owning Node service restart or take effect on the next collector run.
 - Private collector HOME/state: `/var/lib/astro-status-dunamismax-collector`, 0700.
-- Existing PHP/MySQL services, their credentials, old releases and backup timer
-  remain for recovery and other consumers. The legacy collector timer is disabled.
+- Retired PHP/MySQL data, credentials and old releases are archival recovery
+  material under the host runbook. Never reactivate their services/collector for
+  ordinary rollback; keep the current PostgreSQL backup timer.
 
 ## Release
 
@@ -36,9 +42,10 @@ previous=$(readlink -f /srv/www/status.dunamismax.com/current)
 sudo deploy/deploy.sh "$candidate" "$previous"
 ```
 
-The deploy helper rechecks current state inside the lock, saves rollback copies
-and both database safety archives, applies transactional owner-only schema DDL,
-then (first cutover only) stops the legacy writer and imports/reconciles history.
+The deploy helper rechecks current state inside the lock, saves rollback copies,
+drains the owning collector, takes a PostgreSQL safety archive and applies
+transactional owner-only schema DDL. The first PHP cutover/import is
+historical; current deployments must not reimport legacy history.
 It validates a separate candidate on loopback 14313, atomically switches current,
 records a notification-free snapshot, changes only this Caddy fragment, validates
 as caddy with the custom binary, reloads Caddy and tests public routes. It records
@@ -66,6 +73,10 @@ also for manual commands, preventing a manual deployment record racing history
 transfer. Toolworks uses these owning wrappers instead of legacy Rust/PHP commands.
 
 ## Historical reconciliation and rollback
+
+The PHP export/reverse-migration flow in this section records the original cutover.
+After host retirement it is recovery documentation for an isolated legacy host;
+ordinary active rollback keeps PostgreSQL and uses a compatible application release.
 
 The first cutover exports all seven MySQL tables in one consistent transaction,
 including previously imported Rust history. Original IDs, every timestamp,
@@ -163,3 +174,59 @@ CI uses the exact Node/npm pins and frozen npm lock, synthetic disposable
 PostgreSQL, strict checks/tests/builds and advisory checks. Dependency updates are reviewed
 and made directly on `main`; no workflow deploys an update. Apply the host resource,
 backup and maintenance procedures from ubuntu-vm-backup before production changes.
+
+## Planned Compose operations (Phase 0)
+
+These are target conventions and implementation requirements, not commands that
+work in the current tree. The migration must update scripts, units, CI and the
+shared integrations before this section becomes the active runbook.
+
+| Item | Target / retained convention |
+| --- | --- |
+| Application | Next App Router/React, `output: 'standalone'`, generated `server.js`, copied `public/` and `.next/static/`. |
+| Deployment sources | New root `Dockerfile`, `.dockerignore`, `compose.yaml`; Compose project `status-dunamismax`, immutable commit image and recorded digest. |
+| Host lifecycle | Root-controlled owning deployment/supervision service; runtime container nonroot, no Docker API in web or collector. Reconcile the existing `astro-status-dunamismax.service` identity without making a running launcher evidence of a healthy web process. |
+| Ports | Active published `127.0.0.1:4313:3000`, candidate `127.0.0.1:14313:3000`; internal `HOSTNAME=0.0.0.0`, `PORT=3000`. Recheck collision/reservation under lock. |
+| Database | Existing native PostgreSQL 18, `status_dunamismax`, schema `app`; no DB container in this Compose project, no public DB listener. |
+| Database transport | Preferred read-only PG socket directory bind at `/run/postgresql`, `PGHOST=/run/postgresql`; verify nonroot socket permissions and scoped local SCRAM HBA for this web role. Keep collector's host connection unchanged. |
+| Database roles | Existing independent owner/migration/web/collector; web reads exactly four models, owner-only reviewed Drizzle migrations, private journals. |
+| Credentials | Existing root-only `/etc/astro-apps/status_dunamismax/{web,collector,migration}.env` and `/etc/status-dunamismax/astro-{web,collector}.env`. Privileged lifecycle reads/injects only web settings into web; no secrets in image/config output. Any rename requires reversible backups and updated consumers. |
+| Proxy/TLS | Host `/etc/caddy/Caddyfile`, fragment `/etc/caddy/sites/status.dunamismax.com.caddy`, binary `/usr/local/lib/caddy/caddy`, same 4313 upstream. Cloudflare DNS plugin/challenge with scoped Caddy-only token; Full (strict) if proxied. Preserve all existing binary modules and other sites. |
+| Release/state | Retain `/srv/www/status.dunamismax.com/releases/<commit>`, atomic `current`, root-only rollback material; image+host CLI+schema metadata share a manifest. Writable web paths are measured tmpfs/cache only. |
+| Collector | Existing host nologin `status-dunamismax`, `astro-status-dunamismax-collector.{timer,service}`, private state and CLI wrapper; never Docker group/socket or broader repository ACLs. |
+| Backups | Existing nightly site/shared PostgreSQL dumps, role/ACL/secret capture and off-host encrypted dual pushes; extend application restore to exact image/Compose plus host CLI. |
+
+A container cannot use its own 127.0.0.1 to reach host PostgreSQL. Do not use a
+host-gateway shortcut against a loopback-only listener or widen PG to a wildcard
+address. Rehearse the Unix-socket/authentication arrangement before cutover;
+changes to HBA are shared mutations requiring the lock and rollback copies.
+
+Build/test images and host CLI candidates outside the lock, with no production
+credentials in a build. Inside one inherited-FD9 transaction recheck expected
+current/ports/config, capture rollback material and PG safety dump, drain writers,
+baseline/migrate/reconcile, validate the candidate on 14313, then replace only this
+app's 4313 listener and atomically switch current. Verify final-port health, full
+public smoke and Caddy headers/CSP; failure restores the previous app/config/image
+in the same transaction. Never stop the shared PostgreSQL/Docker/Caddy services.
+Reload validated Caddy only as needed. Resume one collector and record deployment
+using the retained CLI interface with notifications suppressed for acceptance.
+
+Rollback uses the retained Astro image-independent release or previous Next image
+with current PG data and a compatible schema. Do not run the old Astro-only rollback
+script unmodified after a Compose activation, restore a pre-cutover dump over new
+writes or restart retired PHP collectors. Test later writes, alert suppression and
+timer freshness after rollback. Retain images, releases and backups until the
+host-owned cleanup permits removing them.
+
+The existing `ubuntu-vm-backup` restore drill starts Astro entrypoints. Update its
+status consumer, release capture, image recovery and isolated application drill,
+plus Toolworks' owning wrapper contract and host runtime/port inventory, before
+activation. This documentation-only task makes no cross-repository/host changes.
+An exact image must be recoverable from encrypted backup or a demonstrated pinned
+rebuild, with all roles/secrets/ACLs restored first in a private disposable database.
+Prove off-host copies and full restore, not just `pg_dump` success.
+
+At completion replace the active Astro operations sections with tested commands,
+record actual acceptance evidence separately from the historical migration results,
+and update AGENTS/README/BUILD in the same implementation change. Do not label this
+target operational based on the planning document alone.
