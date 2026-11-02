@@ -14,17 +14,27 @@
     "test": "tsc -p tsconfig.cli.json && node --test build/tests/*.test.js",
     "start": "node dist/server/entry.mjs",
     "collect": "node build/src/collector/cli.js collect",
-    "record-deployment": "node build/src/collector/cli.js record-deployment"
+    "record-deployment": "node build/src/collector/cli.js record-deployment",
+    "db:generate": "drizzle-kit generate",
+    "db:check": "drizzle-kit check && drizzle-kit generate --name drift | tee /dev/stderr | grep -q 'No schema changes'",
+    "db:migrate": "node build/src/db/migrate.js"
   },
   "dependencies": {
-    "astro": "7.4.2",
     "@astrojs/node": "11.1.9",
+    "astro": "7.4.2",
+    "drizzle-orm": "0.45.4",
     "pg": "8.16.3"
   },
   "devDependencies": {
     "@astrojs/check": "0.9.12",
-    "typescript": "6.0.3",
     "@types/node": "24.19.2",
-    "@types/pg": "8.15.6"
+    "@types/pg": "8.15.6",
+    "drizzle-kit": "0.31.11",
+    "typescript": "6.0.3"
+  },
+  "overrides": {
+    "@esbuild-kit/core-utils": {
+      "esbuild": "0.25.12"
+    }
   }
 }

@@ -1,0 +1,1413 @@
+{
+ "schema": [
+  {
+   "name": "app",
+   "owner": "status_dunamismax_owner"
+  }
+ ],
+ "relations": [
+  {
+   "name": "alert_notifications",
+   "kind": "r",
+   "owner": "status_dunamismax_owner"
+  },
+  {
+   "name": "alert_notifications_id_seq",
+   "kind": "S",
+   "owner": "status_dunamismax_owner"
+  },
+  {
+   "name": "check_runs",
+   "kind": "r",
+   "owner": "status_dunamismax_owner"
+  },
+  {
+   "name": "check_runs_id_seq",
+   "kind": "S",
+   "owner": "status_dunamismax_owner"
+  },
+  {
+   "name": "deployment_events",
+   "kind": "r",
+   "owner": "status_dunamismax_owner"
+  },
+  {
+   "name": "deployment_events_id_seq",
+   "kind": "S",
+   "owner": "status_dunamismax_owner"
+  },
+  {
+   "name": "incidents",
+   "kind": "r",
+   "owner": "status_dunamismax_owner"
+  },
+  {
+   "name": "incidents_id_seq",
+   "kind": "S",
+   "owner": "status_dunamismax_owner"
+  },
+  {
+   "name": "maintenance_windows",
+   "kind": "r",
+   "owner": "status_dunamismax_owner"
+  },
+  {
+   "name": "maintenance_windows_id_seq",
+   "kind": "S",
+   "owner": "status_dunamismax_owner"
+  },
+  {
+   "name": "rollups",
+   "kind": "r",
+   "owner": "status_dunamismax_owner"
+  },
+  {
+   "name": "rollups_id_seq",
+   "kind": "S",
+   "owner": "status_dunamismax_owner"
+  },
+  {
+   "name": "schema_migrations",
+   "kind": "r",
+   "owner": "status_dunamismax_owner"
+  },
+  {
+   "name": "targets",
+   "kind": "r",
+   "owner": "status_dunamismax_owner"
+  }
+ ],
+ "columns": [
+  {
+   "table": "alert_notifications",
+   "position": 1,
+   "name": "id",
+   "type": "bigint",
+   "not_null": true,
+   "identity": "d",
+   "default": null,
+   "collation": null
+  },
+  {
+   "table": "alert_notifications",
+   "position": 2,
+   "name": "dedup_key",
+   "type": "character varying(255)",
+   "not_null": true,
+   "identity": "",
+   "default": null,
+   "collation": "default"
+  },
+  {
+   "table": "alert_notifications",
+   "position": 3,
+   "name": "target_id",
+   "type": "character varying(128)",
+   "not_null": true,
+   "identity": "",
+   "default": null,
+   "collation": "default"
+  },
+  {
+   "table": "alert_notifications",
+   "position": 4,
+   "name": "severity",
+   "type": "character varying(16)",
+   "not_null": true,
+   "identity": "",
+   "default": null,
+   "collation": "default"
+  },
+  {
+   "table": "alert_notifications",
+   "position": 5,
+   "name": "observed_state",
+   "type": "character varying(16)",
+   "not_null": true,
+   "identity": "",
+   "default": null,
+   "collation": "default"
+  },
+  {
+   "table": "alert_notifications",
+   "position": 6,
+   "name": "title",
+   "type": "character varying(512)",
+   "not_null": true,
+   "identity": "",
+   "default": null,
+   "collation": "default"
+  },
+  {
+   "table": "alert_notifications",
+   "position": 7,
+   "name": "public_summary",
+   "type": "text",
+   "not_null": true,
+   "identity": "",
+   "default": null,
+   "collation": "default"
+  },
+  {
+   "table": "alert_notifications",
+   "position": 8,
+   "name": "observed_at",
+   "type": "timestamp(6) with time zone",
+   "not_null": true,
+   "identity": "",
+   "default": null,
+   "collation": null
+  },
+  {
+   "table": "alert_notifications",
+   "position": 9,
+   "name": "notification_target",
+   "type": "character varying(64)",
+   "not_null": true,
+   "identity": "",
+   "default": null,
+   "collation": "default"
+  },
+  {
+   "table": "alert_notifications",
+   "position": 10,
+   "name": "public_payload",
+   "type": "jsonb",
+   "not_null": true,
+   "identity": "",
+   "default": null,
+   "collation": null
+  },
+  {
+   "table": "alert_notifications",
+   "position": 11,
+   "name": "sent_at",
+   "type": "timestamp(6) with time zone",
+   "not_null": true,
+   "identity": "",
+   "default": "CURRENT_TIMESTAMP(6)",
+   "collation": null
+  },
+  {
+   "table": "check_runs",
+   "position": 1,
+   "name": "id",
+   "type": "bigint",
+   "not_null": true,
+   "identity": "d",
+   "default": null,
+   "collation": null
+  },
+  {
+   "table": "check_runs",
+   "position": 2,
+   "name": "target_id",
+   "type": "character varying(128)",
+   "not_null": true,
+   "identity": "",
+   "default": null,
+   "collation": "default"
+  },
+  {
+   "table": "check_runs",
+   "position": 3,
+   "name": "check_kind",
+   "type": "character varying(32)",
+   "not_null": true,
+   "identity": "",
+   "default": null,
+   "collation": "default"
+  },
+  {
+   "table": "check_runs",
+   "position": 4,
+   "name": "state",
+   "type": "character varying(16)",
+   "not_null": true,
+   "identity": "",
+   "default": null,
+   "collation": "default"
+  },
+  {
+   "table": "check_runs",
+   "position": 5,
+   "name": "checked_at",
+   "type": "timestamp(6) with time zone",
+   "not_null": true,
+   "identity": "",
+   "default": null,
+   "collation": null
+  },
+  {
+   "table": "check_runs",
+   "position": 6,
+   "name": "latency_ms",
+   "type": "bigint",
+   "not_null": false,
+   "identity": "",
+   "default": null,
+   "collation": null
+  },
+  {
+   "table": "check_runs",
+   "position": 7,
+   "name": "reason",
+   "type": "text",
+   "not_null": true,
+   "identity": "",
+   "default": null,
+   "collation": "default"
+  },
+  {
+   "table": "check_runs",
+   "position": 8,
+   "name": "probe_version",
+   "type": "character varying(64)",
+   "not_null": true,
+   "identity": "",
+   "default": null,
+   "collation": "default"
+  },
+  {
+   "table": "check_runs",
+   "position": 9,
+   "name": "public_payload",
+   "type": "jsonb",
+   "not_null": true,
+   "identity": "",
+   "default": null,
+   "collation": null
+  },
+  {
+   "table": "check_runs",
+   "position": 10,
+   "name": "inserted_at",
+   "type": "timestamp(6) with time zone",
+   "not_null": true,
+   "identity": "",
+   "default": "CURRENT_TIMESTAMP(6)",
+   "collation": null
+  },
+  {
+   "table": "deployment_events",
+   "position": 1,
+   "name": "id",
+   "type": "bigint",
+   "not_null": true,
+   "identity": "d",
+   "default": null,
+   "collation": null
+  },
+  {
+   "table": "deployment_events",
+   "position": 2,
+   "name": "service_id",
+   "type": "character varying(128)",
+   "not_null": false,
+   "identity": "",
+   "default": null,
+   "collation": "default"
+  },
+  {
+   "table": "deployment_events",
+   "position": 3,
+   "name": "repo_name",
+   "type": "character varying(255)",
+   "not_null": false,
+   "identity": "",
+   "default": null,
+   "collation": "default"
+  },
+  {
+   "table": "deployment_events",
+   "position": 4,
+   "name": "commit_sha",
+   "type": "character varying(64)",
+   "not_null": false,
+   "identity": "",
+   "default": null,
+   "collation": "default"
+  },
+  {
+   "table": "deployment_events",
+   "position": 5,
+   "name": "environment",
+   "type": "character varying(64)",
+   "not_null": true,
+   "identity": "",
+   "default": "'production'::character varying",
+   "collation": "default"
+  },
+  {
+   "table": "deployment_events",
+   "position": 6,
+   "name": "deployed_at",
+   "type": "timestamp(6) with time zone",
+   "not_null": true,
+   "identity": "",
+   "default": null,
+   "collation": null
+  },
+  {
+   "table": "deployment_events",
+   "position": 7,
+   "name": "public_summary",
+   "type": "text",
+   "not_null": true,
+   "identity": "",
+   "default": "''::text",
+   "collation": "default"
+  },
+  {
+   "table": "deployment_events",
+   "position": 8,
+   "name": "metadata",
+   "type": "jsonb",
+   "not_null": true,
+   "identity": "",
+   "default": "'{}'::jsonb",
+   "collation": null
+  },
+  {
+   "table": "deployment_events",
+   "position": 9,
+   "name": "inserted_at",
+   "type": "timestamp(6) with time zone",
+   "not_null": true,
+   "identity": "",
+   "default": "CURRENT_TIMESTAMP(6)",
+   "collation": null
+  },
+  {
+   "table": "incidents",
+   "position": 1,
+   "name": "id",
+   "type": "bigint",
+   "not_null": true,
+   "identity": "d",
+   "default": null,
+   "collation": null
+  },
+  {
+   "table": "incidents",
+   "position": 2,
+   "name": "title",
+   "type": "character varying(255)",
+   "not_null": true,
+   "identity": "",
+   "default": null,
+   "collation": "default"
+  },
+  {
+   "table": "incidents",
+   "position": 3,
+   "name": "affected_targets",
+   "type": "jsonb",
+   "not_null": true,
+   "identity": "",
+   "default": "'[]'::jsonb",
+   "collation": null
+  },
+  {
+   "table": "incidents",
+   "position": 4,
+   "name": "state",
+   "type": "character varying(16)",
+   "not_null": true,
+   "identity": "",
+   "default": null,
+   "collation": "default"
+  },
+  {
+   "table": "incidents",
+   "position": 5,
+   "name": "started_at",
+   "type": "timestamp(6) with time zone",
+   "not_null": true,
+   "identity": "",
+   "default": null,
+   "collation": null
+  },
+  {
+   "table": "incidents",
+   "position": 6,
+   "name": "resolved_at",
+   "type": "timestamp(6) with time zone",
+   "not_null": false,
+   "identity": "",
+   "default": null,
+   "collation": null
+  },
+  {
+   "table": "incidents",
+   "position": 7,
+   "name": "public_notes",
+   "type": "text",
+   "not_null": true,
+   "identity": "",
+   "default": "''::text",
+   "collation": "default"
+  },
+  {
+   "table": "incidents",
+   "position": 8,
+   "name": "created_at",
+   "type": "timestamp(6) with time zone",
+   "not_null": true,
+   "identity": "",
+   "default": "CURRENT_TIMESTAMP(6)",
+   "collation": null
+  },
+  {
+   "table": "incidents",
+   "position": 9,
+   "name": "updated_at",
+   "type": "timestamp(6) with time zone",
+   "not_null": true,
+   "identity": "",
+   "default": "CURRENT_TIMESTAMP(6)",
+   "collation": null
+  },
+  {
+   "table": "maintenance_windows",
+   "position": 1,
+   "name": "id",
+   "type": "bigint",
+   "not_null": true,
+   "identity": "d",
+   "default": null,
+   "collation": null
+  },
+  {
+   "table": "maintenance_windows",
+   "position": 2,
+   "name": "title",
+   "type": "character varying(255)",
+   "not_null": true,
+   "identity": "",
+   "default": null,
+   "collation": "default"
+  },
+  {
+   "table": "maintenance_windows",
+   "position": 3,
+   "name": "affected_targets",
+   "type": "jsonb",
+   "not_null": true,
+   "identity": "",
+   "default": "'[]'::jsonb",
+   "collation": null
+  },
+  {
+   "table": "maintenance_windows",
+   "position": 4,
+   "name": "state",
+   "type": "character varying(16)",
+   "not_null": true,
+   "identity": "",
+   "default": null,
+   "collation": "default"
+  },
+  {
+   "table": "maintenance_windows",
+   "position": 5,
+   "name": "starts_at",
+   "type": "timestamp(6) with time zone",
+   "not_null": true,
+   "identity": "",
+   "default": null,
+   "collation": null
+  },
+  {
+   "table": "maintenance_windows",
+   "position": 6,
+   "name": "ends_at",
+   "type": "timestamp(6) with time zone",
+   "not_null": true,
+   "identity": "",
+   "default": null,
+   "collation": null
+  },
+  {
+   "table": "maintenance_windows",
+   "position": 7,
+   "name": "public_notes",
+   "type": "text",
+   "not_null": true,
+   "identity": "",
+   "default": "''::text",
+   "collation": "default"
+  },
+  {
+   "table": "maintenance_windows",
+   "position": 8,
+   "name": "created_at",
+   "type": "timestamp(6) with time zone",
+   "not_null": true,
+   "identity": "",
+   "default": "CURRENT_TIMESTAMP(6)",
+   "collation": null
+  },
+  {
+   "table": "maintenance_windows",
+   "position": 9,
+   "name": "updated_at",
+   "type": "timestamp(6) with time zone",
+   "not_null": true,
+   "identity": "",
+   "default": "CURRENT_TIMESTAMP(6)",
+   "collation": null
+  },
+  {
+   "table": "rollups",
+   "position": 1,
+   "name": "id",
+   "type": "bigint",
+   "not_null": true,
+   "identity": "d",
+   "default": null,
+   "collation": null
+  },
+  {
+   "table": "rollups",
+   "position": 2,
+   "name": "overall_state",
+   "type": "character varying(16)",
+   "not_null": true,
+   "identity": "",
+   "default": null,
+   "collation": "default"
+  },
+  {
+   "table": "rollups",
+   "position": 3,
+   "name": "checked_at",
+   "type": "timestamp(6) with time zone",
+   "not_null": true,
+   "identity": "",
+   "default": null,
+   "collation": null
+  },
+  {
+   "table": "rollups",
+   "position": 4,
+   "name": "operational_count",
+   "type": "integer",
+   "not_null": true,
+   "identity": "",
+   "default": null,
+   "collation": null
+  },
+  {
+   "table": "rollups",
+   "position": 5,
+   "name": "degraded_count",
+   "type": "integer",
+   "not_null": true,
+   "identity": "",
+   "default": null,
+   "collation": null
+  },
+  {
+   "table": "rollups",
+   "position": 6,
+   "name": "down_count",
+   "type": "integer",
+   "not_null": true,
+   "identity": "",
+   "default": null,
+   "collation": null
+  },
+  {
+   "table": "rollups",
+   "position": 7,
+   "name": "maintenance_count",
+   "type": "integer",
+   "not_null": true,
+   "identity": "",
+   "default": null,
+   "collation": null
+  },
+  {
+   "table": "rollups",
+   "position": 8,
+   "name": "unknown_count",
+   "type": "integer",
+   "not_null": true,
+   "identity": "",
+   "default": null,
+   "collation": null
+  },
+  {
+   "table": "rollups",
+   "position": 9,
+   "name": "snapshot",
+   "type": "jsonb",
+   "not_null": true,
+   "identity": "",
+   "default": null,
+   "collation": null
+  },
+  {
+   "table": "rollups",
+   "position": 10,
+   "name": "inserted_at",
+   "type": "timestamp(6) with time zone",
+   "not_null": true,
+   "identity": "",
+   "default": "CURRENT_TIMESTAMP(6)",
+   "collation": null
+  },
+  {
+   "table": "schema_migrations",
+   "position": 1,
+   "name": "version",
+   "type": "integer",
+   "not_null": true,
+   "identity": "",
+   "default": null,
+   "collation": null
+  },
+  {
+   "table": "schema_migrations",
+   "position": 2,
+   "name": "applied_at",
+   "type": "timestamp with time zone",
+   "not_null": true,
+   "identity": "",
+   "default": "now()",
+   "collation": null
+  },
+  {
+   "table": "targets",
+   "position": 1,
+   "name": "id",
+   "type": "character varying(128)",
+   "not_null": true,
+   "identity": "",
+   "default": null,
+   "collation": "default"
+  },
+  {
+   "table": "targets",
+   "position": 2,
+   "name": "name",
+   "type": "character varying(255)",
+   "not_null": true,
+   "identity": "",
+   "default": null,
+   "collation": "default"
+  },
+  {
+   "table": "targets",
+   "position": 3,
+   "name": "target_kind",
+   "type": "character varying(32)",
+   "not_null": true,
+   "identity": "",
+   "default": null,
+   "collation": "default"
+  },
+  {
+   "table": "targets",
+   "position": 4,
+   "name": "group_name",
+   "type": "character varying(128)",
+   "not_null": false,
+   "identity": "",
+   "default": null,
+   "collation": "default"
+  },
+  {
+   "table": "targets",
+   "position": 5,
+   "name": "public_url",
+   "type": "character varying(512)",
+   "not_null": false,
+   "identity": "",
+   "default": null,
+   "collation": "default"
+  },
+  {
+   "table": "targets",
+   "position": 6,
+   "name": "probe_url",
+   "type": "character varying(512)",
+   "not_null": false,
+   "identity": "",
+   "default": null,
+   "collation": "default"
+  },
+  {
+   "table": "targets",
+   "position": 7,
+   "name": "repo_name",
+   "type": "character varying(255)",
+   "not_null": false,
+   "identity": "",
+   "default": null,
+   "collation": "default"
+  },
+  {
+   "table": "targets",
+   "position": 8,
+   "name": "first_seen_at",
+   "type": "timestamp(6) with time zone",
+   "not_null": true,
+   "identity": "",
+   "default": null,
+   "collation": null
+  },
+  {
+   "table": "targets",
+   "position": 9,
+   "name": "last_seen_at",
+   "type": "timestamp(6) with time zone",
+   "not_null": true,
+   "identity": "",
+   "default": null,
+   "collation": null
+  }
+ ],
+ "constraints": [
+  {
+   "table": "alert_notifications",
+   "name": "alert_notifications_dedup_key_not_null",
+   "type": "n",
+   "definition": "NOT NULL dedup_key"
+  },
+  {
+   "table": "alert_notifications",
+   "name": "alert_notifications_id_not_null",
+   "type": "n",
+   "definition": "NOT NULL id"
+  },
+  {
+   "table": "alert_notifications",
+   "name": "alert_notifications_notification_target_not_null",
+   "type": "n",
+   "definition": "NOT NULL notification_target"
+  },
+  {
+   "table": "alert_notifications",
+   "name": "alert_notifications_observed_at_not_null",
+   "type": "n",
+   "definition": "NOT NULL observed_at"
+  },
+  {
+   "table": "alert_notifications",
+   "name": "alert_notifications_observed_state_not_null",
+   "type": "n",
+   "definition": "NOT NULL observed_state"
+  },
+  {
+   "table": "alert_notifications",
+   "name": "alert_notifications_pkey",
+   "type": "p",
+   "definition": "PRIMARY KEY (id)"
+  },
+  {
+   "table": "alert_notifications",
+   "name": "alert_notifications_public_payload_not_null",
+   "type": "n",
+   "definition": "NOT NULL public_payload"
+  },
+  {
+   "table": "alert_notifications",
+   "name": "alert_notifications_public_summary_not_null",
+   "type": "n",
+   "definition": "NOT NULL public_summary"
+  },
+  {
+   "table": "alert_notifications",
+   "name": "alert_notifications_sent_at_not_null",
+   "type": "n",
+   "definition": "NOT NULL sent_at"
+  },
+  {
+   "table": "alert_notifications",
+   "name": "alert_notifications_severity_check",
+   "type": "c",
+   "definition": "CHECK (((severity)::text = ANY ((ARRAY['warning'::character varying, 'critical'::character varying])::text[])))"
+  },
+  {
+   "table": "alert_notifications",
+   "name": "alert_notifications_severity_not_null",
+   "type": "n",
+   "definition": "NOT NULL severity"
+  },
+  {
+   "table": "alert_notifications",
+   "name": "alert_notifications_state_check",
+   "type": "c",
+   "definition": "CHECK (((observed_state)::text = ANY ((ARRAY['operational'::character varying, 'degraded'::character varying, 'down'::character varying, 'unknown'::character varying])::text[])))"
+  },
+  {
+   "table": "alert_notifications",
+   "name": "alert_notifications_target_id_not_null",
+   "type": "n",
+   "definition": "NOT NULL target_id"
+  },
+  {
+   "table": "alert_notifications",
+   "name": "alert_notifications_title_not_null",
+   "type": "n",
+   "definition": "NOT NULL title"
+  },
+  {
+   "table": "check_runs",
+   "name": "check_runs_check_kind_not_null",
+   "type": "n",
+   "definition": "NOT NULL check_kind"
+  },
+  {
+   "table": "check_runs",
+   "name": "check_runs_checked_at_not_null",
+   "type": "n",
+   "definition": "NOT NULL checked_at"
+  },
+  {
+   "table": "check_runs",
+   "name": "check_runs_id_not_null",
+   "type": "n",
+   "definition": "NOT NULL id"
+  },
+  {
+   "table": "check_runs",
+   "name": "check_runs_inserted_at_not_null",
+   "type": "n",
+   "definition": "NOT NULL inserted_at"
+  },
+  {
+   "table": "check_runs",
+   "name": "check_runs_pkey",
+   "type": "p",
+   "definition": "PRIMARY KEY (id)"
+  },
+  {
+   "table": "check_runs",
+   "name": "check_runs_probe_version_not_null",
+   "type": "n",
+   "definition": "NOT NULL probe_version"
+  },
+  {
+   "table": "check_runs",
+   "name": "check_runs_public_payload_not_null",
+   "type": "n",
+   "definition": "NOT NULL public_payload"
+  },
+  {
+   "table": "check_runs",
+   "name": "check_runs_reason_not_null",
+   "type": "n",
+   "definition": "NOT NULL reason"
+  },
+  {
+   "table": "check_runs",
+   "name": "check_runs_state_check",
+   "type": "c",
+   "definition": "CHECK (((state)::text = ANY ((ARRAY['operational'::character varying, 'degraded'::character varying, 'down'::character varying, 'maintenance'::character varying, 'unknown'::character varying])::text[])))"
+  },
+  {
+   "table": "check_runs",
+   "name": "check_runs_state_not_null",
+   "type": "n",
+   "definition": "NOT NULL state"
+  },
+  {
+   "table": "check_runs",
+   "name": "check_runs_target_fk",
+   "type": "f",
+   "definition": "FOREIGN KEY (target_id) REFERENCES app.targets(id) ON DELETE CASCADE"
+  },
+  {
+   "table": "check_runs",
+   "name": "check_runs_target_id_not_null",
+   "type": "n",
+   "definition": "NOT NULL target_id"
+  },
+  {
+   "table": "deployment_events",
+   "name": "deployment_events_deployed_at_not_null",
+   "type": "n",
+   "definition": "NOT NULL deployed_at"
+  },
+  {
+   "table": "deployment_events",
+   "name": "deployment_events_environment_not_null",
+   "type": "n",
+   "definition": "NOT NULL environment"
+  },
+  {
+   "table": "deployment_events",
+   "name": "deployment_events_id_not_null",
+   "type": "n",
+   "definition": "NOT NULL id"
+  },
+  {
+   "table": "deployment_events",
+   "name": "deployment_events_inserted_at_not_null",
+   "type": "n",
+   "definition": "NOT NULL inserted_at"
+  },
+  {
+   "table": "deployment_events",
+   "name": "deployment_events_metadata_not_null",
+   "type": "n",
+   "definition": "NOT NULL metadata"
+  },
+  {
+   "table": "deployment_events",
+   "name": "deployment_events_pkey",
+   "type": "p",
+   "definition": "PRIMARY KEY (id)"
+  },
+  {
+   "table": "deployment_events",
+   "name": "deployment_events_public_summary_not_null",
+   "type": "n",
+   "definition": "NOT NULL public_summary"
+  },
+  {
+   "table": "incidents",
+   "name": "incidents_affected_targets_not_null",
+   "type": "n",
+   "definition": "NOT NULL affected_targets"
+  },
+  {
+   "table": "incidents",
+   "name": "incidents_created_at_not_null",
+   "type": "n",
+   "definition": "NOT NULL created_at"
+  },
+  {
+   "table": "incidents",
+   "name": "incidents_id_not_null",
+   "type": "n",
+   "definition": "NOT NULL id"
+  },
+  {
+   "table": "incidents",
+   "name": "incidents_pkey",
+   "type": "p",
+   "definition": "PRIMARY KEY (id)"
+  },
+  {
+   "table": "incidents",
+   "name": "incidents_public_notes_not_null",
+   "type": "n",
+   "definition": "NOT NULL public_notes"
+  },
+  {
+   "table": "incidents",
+   "name": "incidents_resolved_check",
+   "type": "c",
+   "definition": "CHECK (((resolved_at IS NULL) OR (resolved_at >= started_at)))"
+  },
+  {
+   "table": "incidents",
+   "name": "incidents_started_at_not_null",
+   "type": "n",
+   "definition": "NOT NULL started_at"
+  },
+  {
+   "table": "incidents",
+   "name": "incidents_state_check",
+   "type": "c",
+   "definition": "CHECK (((state)::text = ANY ((ARRAY['investigating'::character varying, 'identified'::character varying, 'monitoring'::character varying, 'resolved'::character varying])::text[])))"
+  },
+  {
+   "table": "incidents",
+   "name": "incidents_state_not_null",
+   "type": "n",
+   "definition": "NOT NULL state"
+  },
+  {
+   "table": "incidents",
+   "name": "incidents_title_not_null",
+   "type": "n",
+   "definition": "NOT NULL title"
+  },
+  {
+   "table": "incidents",
+   "name": "incidents_updated_at_not_null",
+   "type": "n",
+   "definition": "NOT NULL updated_at"
+  },
+  {
+   "table": "maintenance_windows",
+   "name": "maintenance_windows_affected_targets_not_null",
+   "type": "n",
+   "definition": "NOT NULL affected_targets"
+  },
+  {
+   "table": "maintenance_windows",
+   "name": "maintenance_windows_created_at_not_null",
+   "type": "n",
+   "definition": "NOT NULL created_at"
+  },
+  {
+   "table": "maintenance_windows",
+   "name": "maintenance_windows_ends_at_not_null",
+   "type": "n",
+   "definition": "NOT NULL ends_at"
+  },
+  {
+   "table": "maintenance_windows",
+   "name": "maintenance_windows_id_not_null",
+   "type": "n",
+   "definition": "NOT NULL id"
+  },
+  {
+   "table": "maintenance_windows",
+   "name": "maintenance_windows_pkey",
+   "type": "p",
+   "definition": "PRIMARY KEY (id)"
+  },
+  {
+   "table": "maintenance_windows",
+   "name": "maintenance_windows_public_notes_not_null",
+   "type": "n",
+   "definition": "NOT NULL public_notes"
+  },
+  {
+   "table": "maintenance_windows",
+   "name": "maintenance_windows_range_check",
+   "type": "c",
+   "definition": "CHECK ((ends_at >= starts_at))"
+  },
+  {
+   "table": "maintenance_windows",
+   "name": "maintenance_windows_starts_at_not_null",
+   "type": "n",
+   "definition": "NOT NULL starts_at"
+  },
+  {
+   "table": "maintenance_windows",
+   "name": "maintenance_windows_state_check",
+   "type": "c",
+   "definition": "CHECK (((state)::text = ANY ((ARRAY['scheduled'::character varying, 'in_progress'::character varying, 'complete'::character varying, 'canceled'::character varying])::text[])))"
+  },
+  {
+   "table": "maintenance_windows",
+   "name": "maintenance_windows_state_not_null",
+   "type": "n",
+   "definition": "NOT NULL state"
+  },
+  {
+   "table": "maintenance_windows",
+   "name": "maintenance_windows_title_not_null",
+   "type": "n",
+   "definition": "NOT NULL title"
+  },
+  {
+   "table": "maintenance_windows",
+   "name": "maintenance_windows_updated_at_not_null",
+   "type": "n",
+   "definition": "NOT NULL updated_at"
+  },
+  {
+   "table": "rollups",
+   "name": "rollups_checked_at_not_null",
+   "type": "n",
+   "definition": "NOT NULL checked_at"
+  },
+  {
+   "table": "rollups",
+   "name": "rollups_degraded_count_not_null",
+   "type": "n",
+   "definition": "NOT NULL degraded_count"
+  },
+  {
+   "table": "rollups",
+   "name": "rollups_down_count_not_null",
+   "type": "n",
+   "definition": "NOT NULL down_count"
+  },
+  {
+   "table": "rollups",
+   "name": "rollups_id_not_null",
+   "type": "n",
+   "definition": "NOT NULL id"
+  },
+  {
+   "table": "rollups",
+   "name": "rollups_inserted_at_not_null",
+   "type": "n",
+   "definition": "NOT NULL inserted_at"
+  },
+  {
+   "table": "rollups",
+   "name": "rollups_maintenance_count_not_null",
+   "type": "n",
+   "definition": "NOT NULL maintenance_count"
+  },
+  {
+   "table": "rollups",
+   "name": "rollups_operational_count_not_null",
+   "type": "n",
+   "definition": "NOT NULL operational_count"
+  },
+  {
+   "table": "rollups",
+   "name": "rollups_overall_state_not_null",
+   "type": "n",
+   "definition": "NOT NULL overall_state"
+  },
+  {
+   "table": "rollups",
+   "name": "rollups_pkey",
+   "type": "p",
+   "definition": "PRIMARY KEY (id)"
+  },
+  {
+   "table": "rollups",
+   "name": "rollups_snapshot_not_null",
+   "type": "n",
+   "definition": "NOT NULL snapshot"
+  },
+  {
+   "table": "rollups",
+   "name": "rollups_state_check",
+   "type": "c",
+   "definition": "CHECK (((overall_state)::text = ANY ((ARRAY['operational'::character varying, 'degraded'::character varying, 'down'::character varying, 'maintenance'::character varying, 'unknown'::character varying])::text[])))"
+  },
+  {
+   "table": "rollups",
+   "name": "rollups_unknown_count_not_null",
+   "type": "n",
+   "definition": "NOT NULL unknown_count"
+  },
+  {
+   "table": "schema_migrations",
+   "name": "schema_migrations_applied_at_not_null",
+   "type": "n",
+   "definition": "NOT NULL applied_at"
+  },
+  {
+   "table": "schema_migrations",
+   "name": "schema_migrations_pkey",
+   "type": "p",
+   "definition": "PRIMARY KEY (version)"
+  },
+  {
+   "table": "schema_migrations",
+   "name": "schema_migrations_version_not_null",
+   "type": "n",
+   "definition": "NOT NULL version"
+  },
+  {
+   "table": "targets",
+   "name": "targets_first_seen_at_not_null",
+   "type": "n",
+   "definition": "NOT NULL first_seen_at"
+  },
+  {
+   "table": "targets",
+   "name": "targets_id_not_null",
+   "type": "n",
+   "definition": "NOT NULL id"
+  },
+  {
+   "table": "targets",
+   "name": "targets_last_seen_at_not_null",
+   "type": "n",
+   "definition": "NOT NULL last_seen_at"
+  },
+  {
+   "table": "targets",
+   "name": "targets_name_not_null",
+   "type": "n",
+   "definition": "NOT NULL name"
+  },
+  {
+   "table": "targets",
+   "name": "targets_pkey",
+   "type": "p",
+   "definition": "PRIMARY KEY (id)"
+  },
+  {
+   "table": "targets",
+   "name": "targets_target_kind_not_null",
+   "type": "n",
+   "definition": "NOT NULL target_kind"
+  }
+ ],
+ "indexes": [
+  {
+   "table": "alert_notifications",
+   "name": "alert_notifications_dedup_sent_at_idx",
+   "definition": "CREATE INDEX alert_notifications_dedup_sent_at_idx ON app.alert_notifications USING btree (dedup_key, sent_at)"
+  },
+  {
+   "table": "alert_notifications",
+   "name": "alert_notifications_pkey",
+   "definition": "CREATE UNIQUE INDEX alert_notifications_pkey ON app.alert_notifications USING btree (id)"
+  },
+  {
+   "table": "alert_notifications",
+   "name": "alert_notifications_sent_at_idx",
+   "definition": "CREATE INDEX alert_notifications_sent_at_idx ON app.alert_notifications USING btree (sent_at)"
+  },
+  {
+   "table": "check_runs",
+   "name": "check_runs_pkey",
+   "definition": "CREATE UNIQUE INDEX check_runs_pkey ON app.check_runs USING btree (id)"
+  },
+  {
+   "table": "check_runs",
+   "name": "check_runs_retention_idx",
+   "definition": "CREATE INDEX check_runs_retention_idx ON app.check_runs USING btree (checked_at)"
+  },
+  {
+   "table": "check_runs",
+   "name": "check_runs_target_checked_at_idx",
+   "definition": "CREATE INDEX check_runs_target_checked_at_idx ON app.check_runs USING btree (target_id, checked_at)"
+  },
+  {
+   "table": "deployment_events",
+   "name": "deployment_events_deployed_at_idx",
+   "definition": "CREATE INDEX deployment_events_deployed_at_idx ON app.deployment_events USING btree (deployed_at)"
+  },
+  {
+   "table": "deployment_events",
+   "name": "deployment_events_pkey",
+   "definition": "CREATE UNIQUE INDEX deployment_events_pkey ON app.deployment_events USING btree (id)"
+  },
+  {
+   "table": "incidents",
+   "name": "incidents_pkey",
+   "definition": "CREATE UNIQUE INDEX incidents_pkey ON app.incidents USING btree (id)"
+  },
+  {
+   "table": "incidents",
+   "name": "incidents_started_at_idx",
+   "definition": "CREATE INDEX incidents_started_at_idx ON app.incidents USING btree (started_at)"
+  },
+  {
+   "table": "maintenance_windows",
+   "name": "maintenance_windows_pkey",
+   "definition": "CREATE UNIQUE INDEX maintenance_windows_pkey ON app.maintenance_windows USING btree (id)"
+  },
+  {
+   "table": "maintenance_windows",
+   "name": "maintenance_windows_starts_at_idx",
+   "definition": "CREATE INDEX maintenance_windows_starts_at_idx ON app.maintenance_windows USING btree (starts_at)"
+  },
+  {
+   "table": "rollups",
+   "name": "rollups_checked_at_idx",
+   "definition": "CREATE INDEX rollups_checked_at_idx ON app.rollups USING btree (checked_at)"
+  },
+  {
+   "table": "rollups",
+   "name": "rollups_pkey",
+   "definition": "CREATE UNIQUE INDEX rollups_pkey ON app.rollups USING btree (id)"
+  },
+  {
+   "table": "schema_migrations",
+   "name": "schema_migrations_pkey",
+   "definition": "CREATE UNIQUE INDEX schema_migrations_pkey ON app.schema_migrations USING btree (version)"
+  },
+  {
+   "table": "targets",
+   "name": "targets_pkey",
+   "definition": "CREATE UNIQUE INDEX targets_pkey ON app.targets USING btree (id)"
+  }
+ ],
+ "sequences": [
+  {
+   "name": "alert_notifications_id_seq",
+   "type": "bigint",
+   "start": "1",
+   "increment": "1",
+   "min": "1",
+   "max": "9223372036854775807",
+   "cache": "1",
+   "cycle": false,
+   "owned_column": 1,
+   "owned_by": "alert_notifications"
+  },
+  {
+   "name": "check_runs_id_seq",
+   "type": "bigint",
+   "start": "1",
+   "increment": "1",
+   "min": "1",
+   "max": "9223372036854775807",
+   "cache": "1",
+   "cycle": false,
+   "owned_column": 1,
+   "owned_by": "check_runs"
+  },
+  {
+   "name": "deployment_events_id_seq",
+   "type": "bigint",
+   "start": "1",
+   "increment": "1",
+   "min": "1",
+   "max": "9223372036854775807",
+   "cache": "1",
+   "cycle": false,
+   "owned_column": 1,
+   "owned_by": "deployment_events"
+  },
+  {
+   "name": "incidents_id_seq",
+   "type": "bigint",
+   "start": "1",
+   "increment": "1",
+   "min": "1",
+   "max": "9223372036854775807",
+   "cache": "1",
+   "cycle": false,
+   "owned_column": 1,
+   "owned_by": "incidents"
+  },
+  {
+   "name": "maintenance_windows_id_seq",
+   "type": "bigint",
+   "start": "1",
+   "increment": "1",
+   "min": "1",
+   "max": "9223372036854775807",
+   "cache": "1",
+   "cycle": false,
+   "owned_column": 1,
+   "owned_by": "maintenance_windows"
+  },
+  {
+   "name": "rollups_id_seq",
+   "type": "bigint",
+   "start": "1",
+   "increment": "1",
+   "min": "1",
+   "max": "9223372036854775807",
+   "cache": "1",
+   "cycle": false,
+   "owned_column": 1,
+   "owned_by": "rollups"
+  }
+ ],
+ "triggers": [
+  {
+   "table": "incidents",
+   "name": "touch_updated_at",
+   "definition": "CREATE TRIGGER touch_updated_at BEFORE UPDATE ON app.incidents FOR EACH ROW EXECUTE FUNCTION app.touch_updated_at()"
+  },
+  {
+   "table": "maintenance_windows",
+   "name": "touch_updated_at",
+   "definition": "CREATE TRIGGER touch_updated_at BEFORE UPDATE ON app.maintenance_windows FOR EACH ROW EXECUTE FUNCTION app.touch_updated_at()"
+  }
+ ],
+ "functions": [
+  {
+   "name": "touch_updated_at",
+   "arguments": "",
+   "owner": "status_dunamismax_owner",
+   "definition": "CREATE OR REPLACE FUNCTION app.touch_updated_at()\n RETURNS trigger\n LANGUAGE plpgsql\nAS $function$ BEGIN NEW.updated_at = clock_timestamp(); RETURN NEW; END $function$\n",
+   "public_execute": false
+  }
+ ]
+}

@@ -1,9 +1,11 @@
 # Dunamis Status
 
 The final target is Astro + PostgreSQL + Drizzle. Astro/PostgreSQL/systemd are
-already implemented; [BUILD.md Phase 0](BUILD.md) plans Drizzle schema/query/migration
-adoption and its verification. This is documentation only; no runtime conversion
-has occurred. Python and Swift are conditional on actual project needs or a request.
+implemented. Drizzle schemas, queries, the reviewed baseline migration and the
+owner-only runner are in source and pass disposable PostgreSQL rehearsals; the
+production adoption and deployment gates in [BUILD.md Phase 0](BUILD.md) remain.
+Production still applies `database/schema.sql`. Python and Swift are conditional
+on actual project needs or a request.
 
 Public operational status for Stephen Sawyer's self-hosted ecosystem at
 <https://status.dunamismax.com>. Astro 7 renders semantic HTML and stable JSON
@@ -63,10 +65,10 @@ A collector advisory lock prevents overlapping notification runs.
 
 Keep the current Astro Node standalone server and host TypeScript collector.
 No web framework, database engine, deployment platform or collector language rewrite
-is needed. The pending work introduces typed Drizzle schemas and reviewed migrations
-over the same PostgreSQL history and access boundaries. See
-[target architecture](docs/architecture.md#planned-drizzle-adoption-phase-0) and
-[target operations](docs/production.md#planned-drizzle-operations-phase-0).
+is needed. Typed Drizzle schemas and reviewed migrations cover the same PostgreSQL
+history and access boundaries; production adoption is pending. See
+[architecture](docs/architecture.md#drizzle-adoption-phase-0) and
+[operations](docs/production.md#drizzle-operations-phase-0).
 
 React islands/Tailwind/shadcn/ui are optional for needed interactivity; Astro Actions
 and API endpoints serve future forms/clients when requested. Better Auth and AI SDK
@@ -77,13 +79,22 @@ existing TypeScript collection is retained and existing Python utilities remain.
 
 ## Development
 
-These are the current commands; Phase 0 must update them only where Drizzle needs it.
-
 On ubuntu-vm use `astro-runtime npm ci`, `astro-runtime npm run check`,
-`astro-runtime npm test`, `bash tests/postgres.sh`, and `astro-runtime npm run build`.
-The PostgreSQL test starts a disposable private Unix-socket cluster with no TCP.
-Use the same pinned runtime elsewhere; commit only `package-lock.json`.
-`make check` runs strict checks, tests and deployment syntax validation.
+`astro-runtime npm run db:check`, `astro-runtime npm test`, `bash tests/postgres.sh`,
+and `astro-runtime npm run build`. The PostgreSQL test starts a disposable private
+Unix-socket cluster with no TCP; it rehearses fresh Drizzle installation, legacy
+adoption, repeat no-op and actual grant denials. Use the same pinned runtime
+elsewhere; commit only `package-lock.json`. `make check` runs strict checks, the
+Drizzle drift check, tests and deployment syntax validation.
+
+Drizzle ORM 0.45.4 wraps the existing pg pool; Drizzle Kit 0.31.11 is a dev-only
+generator. `src/db/schema.ts` mirrors schema `app`; reviewed SQL and Kit metadata
+live in `drizzle/`. After a schema edit run `npm run db:generate`, hand-review the
+SQL (grants, triggers and bookkeeping are not Kit-generated) and, if the baseline
+structure itself changes, refresh `drizzle/baseline-catalog.json` with
+`STATUS_UPDATE_CATALOG=1 bash tests/postgres.sh`. `npm run db:check` fails when the
+TypeScript schema has unreviewed changes. Never use `drizzle-kit push`; migrations
+run only through the owner-only runner (`npm run db:migrate`, see production docs).
 
 `deploy/run-command.sh collect --dry-run` probes without writes or alerts;
 `collect --no-notify` records/prunes without notifications. Production operator

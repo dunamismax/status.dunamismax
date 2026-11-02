@@ -1,41 +1,47 @@
 import type pg from 'pg';
+import { drizzle } from 'drizzle-orm/node-postgres';
+import { and, desc, eq, gte, lt, sql } from 'drizzle-orm';
 import type { Snapshot, Deployment } from '../lib/model.js';
 import type { Config } from '../lib/config.js';
+import { targets, checkRuns, rollups, alertNotifications, deploymentEvents } from '../db/schema.js';
 import { alerts, notify } from './alerts.js';
+// Bound to the caller's single client: transactions and the advisory session
+// lock can never move to a different pool connection.
+const orm=(db:pg.PoolClient)=>drizzle({client:db});
 export async function recordSnapshot(db:pg.PoolClient,s:Snapshot){
- await db.query('BEGIN');try{
-  for(const item of [...s.services.map(v=>({id:v.target.id,name:v.target.name,kind:v.check.check_kind==='http'?'public-http':'host',group:v.target.group,url:v.target.public_url,probe:v.target.probe_url,repo:null,at:v.check.checked_at,check:v.check.check_kind,state:v.check.state,latency:v.check.latency_ms,reason:v.check.reason,version:v.check.probe_version,payload:v})),...s.projects.map(v=>({id:v.target.id,name:v.target.name,kind:'project',group:null,url:v.target.public_url,probe:null,repo:v.target.repo_name,at:v.checked_at,check:'git',state:v.state,latency:null,reason:v.reason,version:v.probe_version,payload:{git:v.git,build:v.build}}))]){
-   await db.query('INSERT INTO app.targets(id,name,target_kind,group_name,public_url,probe_url,repo_name,first_seen_at,last_seen_at) VALUES($1,$2,$3,$4,$5,$6,$7,$8,$8) ON CONFLICT(id) DO UPDATE SET name=excluded.name,target_kind=excluded.target_kind,group_name=excluded.group_name,public_url=excluded.public_url,probe_url=excluded.probe_url,repo_name=excluded.repo_name,last_seen_at=excluded.last_seen_at',[item.id,item.name,item.kind,item.group,item.url,item.probe,item.repo,item.at]);
-   await db.query('INSERT INTO app.check_runs(target_id,check_kind,state,checked_at,latency_ms,reason,probe_version,public_payload) VALUES($1,$2,$3,$4,$5,$6,$7,$8)',[item.id,item.check,item.state,item.at,item.latency,item.reason,item.version,JSON.stringify(item.payload)]);
+ await orm(db).transaction(async tx=>{
+  for(const item of [...s.services.map(v=>({id:v.target.id,name:v.target.name,kind:v.check.check_kind==='http'?'public-http':'host',group:v.target.group,url:v.target.public_url,probe:v.target.probe_url,repo:null,at:v.check.checked_at,check:v.check.check_kind,state:v.check.state,latency:v.check.latency_ms,reason:v.check.reason,version:v.check.probe_version,payload:v as unknown})),...s.projects.map(v=>({id:v.target.id,name:v.target.name,kind:'project',group:null,url:v.target.public_url,probe:null,repo:v.target.repo_name,at:v.checked_at,check:'git',state:v.state,latency:null,reason:v.reason,version:v.probe_version,payload:{git:v.git,build:v.build} as unknown}))]){
+   await tx.insert(targets).values({id:item.id,name:item.name,target_kind:item.kind,group_name:item.group,public_url:item.url,probe_url:item.probe,repo_name:item.repo,first_seen_at:item.at,last_seen_at:item.at})
+    .onConflictDoUpdate({target:targets.id,set:{name:sql`excluded.name`,target_kind:sql`excluded.target_kind`,group_name:sql`excluded.group_name`,public_url:sql`excluded.public_url`,probe_url:sql`excluded.probe_url`,repo_name:sql`excluded.repo_name`,last_seen_at:sql`excluded.last_seen_at`}});
+   await tx.insert(checkRuns).values({target_id:item.id,check_kind:item.check,state:item.state,checked_at:item.at,latency_ms:item.latency,reason:item.reason,probe_version:item.version,public_payload:item.payload});
   }
-  await db.query('INSERT INTO app.rollups(overall_state,checked_at,operational_count,degraded_count,down_count,maintenance_count,unknown_count,snapshot) VALUES($1,$2,$3,$4,$5,$6,$7,$8)',[s.overall_state,s.checked_at,s.summary.operational,s.summary.degraded,s.summary.down,s.summary.maintenance,s.summary.unknown,JSON.stringify(s)]);
-  await db.query('COMMIT');
- }catch(e){await db.query('ROLLBACK');throw e;}
+  await tx.insert(rollups).values({overall_state:s.overall_state,checked_at:s.checked_at,operational_count:s.summary.operational,degraded_count:s.summary.degraded,down_count:s.summary.down,maintenance_count:s.summary.maintenance,unknown_count:s.summary.unknown,snapshot:s});
+ });
 }
 /** Caller holds the collector's advisory session lock across selection, delivery and recording. */
 export async function sendAlerts(db:pg.PoolClient,s:Snapshot,c:Config,send=notify):Promise<number>{
- if(!c.webhook)return 0;let sent=0;
+ if(!c.webhook)return 0;let sent=0;const q=orm(db),a_=alertNotifications;
  const candidates=alerts(s);
  // Recovery is sent only for a target with an actually delivered failure.
  for(const v of [...s.services.map(v=>({id:v.target.id,name:v.target.name,state:v.check.state,at:v.check.checked_at})),...s.projects.map(v=>({id:v.target.id,name:v.target.name,state:v.state,at:v.checked_at}))]){
   if(v.state!=='operational')continue;
-  const {rows}=await db.query<{observed_state:string}>('SELECT observed_state FROM app.alert_notifications WHERE target_id=$1 ORDER BY id DESC LIMIT 1',[v.id]);
+  const rows=await q.select({observed_state:a_.observed_state}).from(a_).where(eq(a_.target_id,v.id)).orderBy(desc(a_.id)).limit(1);
   if(rows[0]&&rows[0].observed_state!=='operational')candidates.push({dedup_key:`recovery:${v.id}:operational`,target_id:v.id,target_name:v.name,severity:'warning',state:'operational',observed_at:v.at,title:`${v.name} recovered`,public_summary:`${v.name} recovered: checks are operational`});
  }
  for(const a of candidates){
   if(sent>=c.maxAlerts)break;
   // Require consecutive observations in a recent window; old failures cannot
   // confirm a new incident after downtime. Selection happens under advisory lock.
-  const {rows:checks}=await db.query<{state:string}>("SELECT state FROM app.check_runs WHERE target_id=$1 AND checked_at >= now()-interval '20 minutes' ORDER BY checked_at DESC,id DESC LIMIT $2",[a.target_id,c.confirmations]);
+  const checks=await q.select({state:checkRuns.state}).from(checkRuns).where(and(eq(checkRuns.target_id,a.target_id),gte(checkRuns.checked_at,sql`now()-interval '20 minutes'`))).orderBy(desc(checkRuns.checked_at),desc(checkRuns.id)).limit(c.confirmations);
   if(checks.length<c.confirmations||checks.some(v=>v.state!==a.state))continue;
-  const {rows:latest}=await db.query<{observed_state:string;recent:boolean}>("SELECT observed_state,sent_at >= now()-$2*interval '1 minute' AS recent FROM app.alert_notifications WHERE target_id=$1 ORDER BY id DESC LIMIT 1",[a.target_id,c.repeat]);
+  const latest=await q.select({observed_state:a_.observed_state,recent:sql<boolean>`${a_.sent_at} >= now()-${c.repeat}*interval '1 minute'`}).from(a_).where(eq(a_.target_id,a.target_id)).orderBy(desc(a_.id)).limit(1);
   // A new failure after recovery is a new event, even inside the repeat window.
   if(latest[0]?.observed_state===a.state&&(a.state==='operational'||latest[0].recent))continue;
   await send(c.webhook,a);
-  await db.query('INSERT INTO app.alert_notifications(dedup_key,target_id,severity,observed_state,title,public_summary,observed_at,notification_target,public_payload) VALUES($1,$2,$3,$4,$5,$6,$7,$8,$9)',[a.dedup_key,a.target_id,a.severity,a.state,a.title,a.public_summary,a.observed_at,'webhook',JSON.stringify(a)]);sent++;
+  await q.insert(a_).values({dedup_key:a.dedup_key,target_id:a.target_id,severity:a.severity,observed_state:a.state,title:a.title,public_summary:a.public_summary,observed_at:a.observed_at,notification_target:'webhook',public_payload:a});sent++;
  }
 
  return sent;
 }
-export async function prune(db:pg.PoolClient,days:number){return (await db.query("DELETE FROM app.check_runs WHERE checked_at < now()-$1*interval '1 day'",[days])).rowCount;}
-export async function recordDeployment(db:pg.PoolClient,d:Deployment){await db.query('INSERT INTO app.deployment_events(service_id,repo_name,commit_sha,environment,deployed_at,public_summary) VALUES($1,$2,$3,$4,$5,$6)',[d.service_id,d.repo_name,d.commit_sha,d.environment,d.deployed_at,d.public_summary]);}
+export async function prune(db:pg.PoolClient,days:number){return (await orm(db).delete(checkRuns).where(lt(checkRuns.checked_at,sql`now()-${days}*interval '1 day'`))).rowCount;}
+export async function recordDeployment(db:pg.PoolClient,d:Deployment){await orm(db).insert(deploymentEvents).values({service_id:d.service_id,repo_name:d.repo_name,commit_sha:d.commit_sha,environment:d.environment,deployed_at:d.deployed_at,public_summary:d.public_summary});}

@@ -16,6 +16,7 @@
   "include": [
     "src/collector/**/*.ts",
     "src/lib/**/*.ts",
+    "src/db/**/*.ts",
     "scripts/**/*.ts",
     "tests/**/*.ts"
   ],

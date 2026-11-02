@@ -2,13 +2,18 @@ import test from 'node:test';
 import assert from 'node:assert/strict';
 import pg from 'pg';
 import { readFile, mkdtemp, writeFile, rm } from 'node:fs/promises';
-import { tables, importHistory } from '../scripts/history.js';
+import { tables, importHistory, fingerprint } from '../scripts/history.js';
 import { database } from '../src/lib/db.js';
 import { config } from '../src/lib/config.js';
 import { snapshot } from '../src/lib/model.js';
 import { recordSnapshot,recordDeployment,sendAlerts,prune } from '../src/collector/writer.js';
 import { PostgresSource } from '../src/lib/source.js';
 import { service as fixtureService } from './fixtures.js';
+import { drizzle } from 'drizzle-orm/node-postgres';
+import { desc } from 'drizzle-orm';
+import { migrate } from '../src/db/migrate.js';
+import { catalog, accessViolations } from '../src/db/catalog.js';
+import { checkRuns } from '../src/db/schema.js';
 const service=(...args:Parameters<typeof fixtureService>)=>{const item=fixtureService(...args);item.check.checked_at=new Date().toISOString();return item;};
 test('isolated PostgreSQL: schema, privileges, transactions, history, alert suppression and retention',{skip:!process.env.STATUS_TEST_PG},async()=>{
  assert.match(process.env.PGHOST??'',/status-pg-test\./);
@@ -40,4 +45,81 @@ test('isolated PostgreSQL: schema, privileges, transactions, history, alert supp
   } finally{await rm(directory,{recursive:true,force:true});}
   await migration.query(await readFile('database/schema.sql','utf8')); // idempotent migration
  }finally{db.release();await writer.end();await web.end();await migration.end();await admin.end();}
+});
+
+test('isolated PostgreSQL: Drizzle fresh install, lossless legacy adoption, repeat no-op and actual grants',{skip:!process.env.STATUS_TEST_PG},async()=>{
+ assert.match(process.env.PGHOST??'',/status-pg-test\./);
+ const connect=(database:string,user:string)=>({host:process.env.PGHOST,port:Number(process.env.PGPORT),database,user});
+ const admin=new pg.Pool(connect('postgres',process.env.USER??''));
+ await admin.query(`DO $$ BEGIN
+  IF to_regrole('status_dunamismax_owner') IS NULL THEN CREATE ROLE status_dunamismax_owner NOLOGIN; END IF;
+  IF to_regrole('status_dunamismax_migration') IS NULL THEN CREATE ROLE status_dunamismax_migration LOGIN NOINHERIT; GRANT status_dunamismax_owner TO status_dunamismax_migration; END IF;
+  IF to_regrole('status_dunamismax_web') IS NULL THEN CREATE ROLE status_dunamismax_web LOGIN; ALTER ROLE status_dunamismax_web SET default_transaction_read_only=on; END IF;
+  IF to_regrole('status_dunamismax_collector') IS NULL THEN CREATE ROLE status_dunamismax_collector LOGIN; END IF; END $$`);
+ const pools:pg.Pool[]=[admin],clients:pg.Client[]=[];
+ // Mirrors host provisioning: owner schema, usage grants and collector defaults.
+ const provision=async(name:string)=>{await admin.query(`CREATE DATABASE ${name}`);const p=new pg.Pool(connect(name,process.env.USER??''));pools.push(p);
+  await p.query("CREATE SCHEMA app AUTHORIZATION status_dunamismax_owner; GRANT USAGE ON SCHEMA app TO status_dunamismax_web,status_dunamismax_collector; ALTER DEFAULT PRIVILEGES FOR ROLE status_dunamismax_owner IN SCHEMA app GRANT SELECT,INSERT,UPDATE,DELETE ON TABLES TO status_dunamismax_collector; ALTER DEFAULT PRIVILEGES FOR ROLE status_dunamismax_owner IN SCHEMA app GRANT USAGE ON SEQUENCES TO status_dunamismax_collector;");
+  const m=new pg.Client(connect(name,'status_dunamismax_migration'));await m.connect();clients.push(m);return {superuser:p,migration:m};};
+ const denied=async(database:string,user:string,sql:string)=>{const c=new pg.Client(connect(database,user));await c.connect();try{await c.query('SET default_transaction_read_only=off');await assert.rejects(c.query(sql),(e:{code?:string})=>e.code==='42501');}finally{await c.end();}};
+ const fingerprints=async(p:pg.Pool)=>{const c=await p.connect();try{await c.query('BEGIN ISOLATION LEVEL REPEATABLE READ');const out:Record<string,unknown>={};for(const t of tables)out[t]=await fingerprint(c,t);
+  out.sequences=(await c.query("SELECT c.relname,pg_sequence_last_value(c.oid)::text AS last_value FROM pg_class c JOIN pg_namespace n ON n.oid=c.relnamespace WHERE n.nspname='app' AND c.relkind='S' AND c.relname<>'drizzle_migrations_id_seq' ORDER BY 1")).rows;await c.query('ROLLBACK');return out;}finally{c.release();}};
+ try{
+  const fresh=await provision('status_fresh');
+  assert.deepEqual(await migrate(fresh.migration),{applied:['0000_baseline'],adopted:null});
+  assert.deepEqual(await migrate(fresh.migration),{applied:[],adopted:null}); // repeat is a no-op
+  await assert.rejects(migrate(fresh.migration,{adopt:true}),/already recorded/);
+  const freshCatalog=await catalog(fresh.migration);
+  if(process.env.STATUS_UPDATE_CATALOG)await writeFile('drizzle/baseline-catalog.json',JSON.stringify(freshCatalog,null,1)+'\n');
+  assert.deepEqual(freshCatalog,JSON.parse(await readFile('drizzle/baseline-catalog.json','utf8')));
+  assert.deepEqual(await accessViolations(fresh.migration),[]);
+
+  const legacy=await provision('status_legacy');
+  await legacy.migration.query(await readFile('database/schema.sql','utf8'));
+  await assert.rejects(migrate(legacy.migration),/--adopt-baseline/);
+  assert.equal((await legacy.superuser.query("SELECT to_regclass('app.drizzle_migrations') AS t")).rows[0].t,null);
+  // Synthetic nonempty history: IDs beyond 2^53, Unicode, microseconds, JSON types/order.
+  await legacy.superuser.query(`
+   INSERT INTO app.targets VALUES ('t-é','Target é ✓','host',NULL,'https://example.test/é',NULL,NULL,'2026-01-01T00:00:00.123456Z','2026-01-02T00:00:00.000001Z');
+   INSERT INTO app.check_runs(id,target_id,check_kind,state,checked_at,latency_ms,reason,probe_version,public_payload) VALUES (9007199254740993,'t-é','http','down','2026-01-01T00:00:00.999999Z',NULL,'naïve ✓','v1','{"b":1,"a":[3,1,{"z":null,"y":1.50}],"s":"é"}');
+   SELECT setval('app.check_runs_id_seq',9007199254740993);
+   INSERT INTO app.rollups(id,overall_state,checked_at,operational_count,degraded_count,down_count,maintenance_count,unknown_count,snapshot) VALUES (9007199254740995,'down','2026-01-01T00:00:00.999999Z',0,0,1,0,0,'{"z":[],"a":{"x":true}}');
+   SELECT setval('app.rollups_id_seq',9007199254740995);
+   INSERT INTO app.incidents(title,affected_targets,state,started_at,resolved_at,public_notes) VALUES ('Incident é','["t-é"]','resolved','2026-01-01T00:00:00.123456Z','2026-01-01T01:00:00.654321Z','line 1'||chr(10)||'line 2');
+   INSERT INTO app.maintenance_windows(title,state,starts_at,ends_at) VALUES ('Current','scheduled',now(),now()+interval '1 day'),('Old','complete',now()-interval '50 days',now()-interval '40 days');
+   INSERT INTO app.deployment_events(service_id,repo_name,commit_sha,deployed_at,public_summary,metadata) VALUES ('svc','repo','abcdef0','2026-01-01T00:00:00.000001Z','Unicode é','{"k":[1,"2",null]}');
+   INSERT INTO app.alert_notifications(dedup_key,target_id,severity,observed_state,title,public_summary,observed_at,notification_target,public_payload) VALUES ('service:t-é:down','t-é','critical','down','Target é down','summary','2026-01-01T00:00:00.999999Z','webhook','{"n":1}');
+   UPDATE app.incidents SET public_notes=public_notes;`);
+  const before=await fingerprints(legacy.superuser);
+  assert.deepEqual(await migrate(legacy.migration,{adopt:true}),{applied:[],adopted:'0000_baseline'});
+  assert.deepEqual(await fingerprints(legacy.superuser),before); // no table recreated, truncated or reimported
+  assert.deepEqual(await migrate(legacy.migration),{applied:[],adopted:null});
+  assert.deepEqual(await catalog(legacy.migration),freshCatalog);
+  assert.deepEqual(await accessViolations(legacy.migration),[]);
+  assert.equal((await legacy.superuser.query('SELECT count(*) FROM app.schema_migrations')).rows[0].count,'1');
+
+  // Runtime paths on the adopted database: lossless IDs/times through Drizzle.
+  const writer=database({...process.env,PGDATABASE:'status_legacy',PGUSER:'status_dunamismax_collector'}),web=database({...process.env,PGDATABASE:'status_legacy',PGUSER:'status_dunamismax_web'});pools.push(writer,web);
+  const w=await writer.connect();try{const s=snapshot([service('operational','t-é')]);await recordSnapshot(w,s);const read=new PostgresSource(web);assert.deepEqual(await read.latest(),s);
+   assert.deepEqual((await drizzle({client:w}).select({id:checkRuns.id}).from(checkRuns).orderBy(desc(checkRuns.id)).limit(1))[0],{id:9007199254740994n});
+   assert.deepEqual((await read.incidents())[0],{title:'Incident é',affected_targets:['t-é'],state:'resolved',started_at:'2026-01-01T00:00:00.123456Z',resolved_at:'2026-01-01T01:00:00.654321Z',public_notes:'line 1\nline 2'});
+   assert.deepEqual((await read.maintenance()).map(m=>m.title),['Current']);
+   assert.equal((await read.deployments())[0]?.deployed_at,'2026-01-01T00:00:00.000001Z');
+  }finally{w.release();}
+
+  // Actual denials, not ORM conventions; future owner tables stay private to web.
+  await legacy.migration.query('BEGIN; SET LOCAL ROLE status_dunamismax_owner; CREATE TABLE app.future_probe(id int); COMMIT;');
+  for(const sql of ['SELECT 1 FROM app.future_probe','SELECT 1 FROM app.drizzle_migrations','SELECT 1 FROM app.schema_migrations','SELECT 1 FROM app.check_runs','INSERT INTO app.rollups(overall_state) VALUES (\'down\')',"SELECT nextval('app.drizzle_migrations_id_seq')",'SET ROLE status_dunamismax_owner'])await denied('status_legacy','status_dunamismax_web',sql);
+  for(const sql of ['SELECT 1 FROM app.drizzle_migrations','DELETE FROM app.drizzle_migrations','SELECT 1 FROM app.schema_migrations','ALTER TABLE app.rollups ADD COLUMN nope int','SET ROLE status_dunamismax_owner'])await denied('status_legacy','status_dunamismax_collector',sql);
+  await legacy.superuser.query('GRANT SELECT ON app.future_probe TO status_dunamismax_web');
+  assert.deepEqual(await accessViolations(legacy.migration),['web may read future_probe']);
+  await legacy.superuser.query('DROP TABLE app.future_probe');
+
+  // A divergent existing schema is refused atomically.
+  const drift=await provision('status_drift');
+  await drift.migration.query(await readFile('database/schema.sql','utf8'));
+  await drift.superuser.query('DROP INDEX app.check_runs_retention_idx');
+  await assert.rejects(migrate(drift.migration,{adopt:true}),/missing indexes .*check_runs_retention_idx/);
+  assert.equal((await drift.superuser.query("SELECT to_regclass('app.drizzle_migrations') AS t")).rows[0].t,null);
+ }finally{for(const c of clients)await c.end();for(const p of pools.reverse())await p.end();}
 });

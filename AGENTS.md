@@ -18,7 +18,7 @@ Use Node 24.22.1/npm 11.19.1 at /opt/astro-runtime through astro-runtime. Exact
 versions, package-lock.json and npm ci; strict TypeScript with noUncheckedIndexedAccess
 and exactOptionalPropertyTypes. Astro standalone SSR, semantic HTML, existing
 vanilla CSS, no browser JavaScript, inline style, fonts or analytics for current
-pages. Drizzle with the existing pg driver is the planned ORM. React islands,
+pages. Drizzle ORM 0.45.4 (Kit 0.31.11, dev-only) wraps the existing pg driver. React islands,
 Tailwind and shadcn/ui are available only for an actual interactive UI need;
 Astro Actions/API endpoints only for needed forms/server or client APIs. Preserve
 current no-script behavior until a concrete feature justifies changing it.
@@ -57,20 +57,23 @@ tips. Never add assistant/co-author attribution. Never commit env files, dumps,
 private snapshots, generated output or node_modules. Keep docs current in the same
 change. Do not create extra instruction/continuity files.
 
-Verification: npm ci, npm run check, npm test, bash tests/postgres.sh, npm run build,
+Verification: npm ci, npm run check, npm run db:check, npm test, bash tests/postgres.sh, npm run build,
 bash -n deploy/*.sh, Python compile and git diff --check. PostgreSQL integration runs
 only in its disposable private cluster. For production verify failures, role grants,
 process env/file separation, timers, fresh snapshots, static bytes, headers, API
 compatibility, rollback/data reconciliation and encrypted backup restore.
 
-## Final stack and layout (Phase 0 pending)
+## Final stack and layout (Phase 0 in progress)
 
 - Web: Astro `src/pages/`, server-only `src/lib/`, semantic HTML/current CSS.
   Keep `@astrojs/node` standalone server output for this database-backed observer.
   Static output is appropriate for other content-only projects, not live status.
 - Database: native PostgreSQL 18, `status_dunamismax`, schema `app`, separate
-  owner/migration/web/collector roles. Add typed schema in `src/db/`, reviewed
-  migrations in `drizzle/`, `drizzle.config.ts` and an owner-only migration runner.
+  owner/migration/web/collector roles. Typed schema `src/db/schema.ts`, reviewed
+  migrations in `drizzle/` (baseline catalog `drizzle/baseline-catalog.json`),
+  `drizzle.config.ts` and owner-only runner `src/db/migrate.ts` (`npm run db:migrate`,
+  `--adopt-baseline` for an existing matching schema). Journal `app.drizzle_migrations`
+  is private to the owner. Never `drizzle-kit push`. Production adoption pending.
   Preserve exactly four web-readable models and no future-table default grants.
 - Hosting: existing systemd units, `/srv/www/status.dunamismax.com/releases/<commit>`,
   atomic `current`, web 127.0.0.1:4313 and candidate 127.0.0.1:14313. No required

@@ -1,9 +1,10 @@
 # Production operations
 
 The active service remains Astro Node standalone with native PostgreSQL and
-systemd. [BUILD.md Phase 0](../BUILD.md) plans Drizzle adoption, not a new web
-framework/database engine/deployment platform. The target migration commands below
-must be implemented and tested before they replace current schema application.
+systemd. [BUILD.md Phase 0](../BUILD.md) adopts Drizzle, not a new web
+framework/database engine/deployment platform. The Drizzle runner below is
+implemented and rehearsed only in disposable clusters; deployment still applies
+`database/schema.sql` until the production adoption gates pass.
 
 Read `/home/sawyer/github/ubuntu-vm-backup/docs/astro-migration.md` first.
 Every shared mutation, schema migration, release switch and rollback must run
@@ -176,7 +177,7 @@ and made directly on `main`; no workflow deploys an update. Apply the host resou
 backup and maintenance procedures from ubuntu-vm-backup before production changes.
 
 
-## Planned Drizzle operations (Phase 0)
+## Drizzle operations (Phase 0)
 
 Retain the runtime, accounts, root-only env files, release/current paths, systemd
 units, five-minute collector and backup timers, CLI interfaces and loopback ports
@@ -184,9 +185,27 @@ units, five-minute collector and backup timers, CLI interfaces and loopback port
 project database, schema and separate roles. No Compose conversion, SQLite file,
 Litestream replication or Python/Swift application is required by this project.
 
-Add reviewed Drizzle migrations and a migration runner that explicitly SET ROLEs
-the existing owner. Replace active `database/schema.sql` application in deployment
-only after the new fresh-install, existing-baseline and repeated no-op paths pass.
+Current state: releases built from this source read and write through Drizzle
+but need no Drizzle bookkeeping, so the existing deploy helper (idempotent
+`schema.sql` under migration credentials) remains valid; that DDL leaves the
+baseline catalog unchanged. The reviewed runner is `build/src/db/migrate.js`
+(`npm run db:migrate`). It refuses the web/collector logins, requires a
+provisioned schema `app`, and needs only the root-only migration role settings:
+
+```sh
+# Inside the deploy transaction only (inherited FD9), writers drained, safety dump taken.
+set -a; source /etc/astro-apps/status_dunamismax/migration.env; set +a
+/opt/astro-runtime/bin/node "$release/build/src/db/migrate.js" --adopt-baseline  # once, existing schema
+/opt/astro-runtime/bin/node "$release/build/src/db/migrate.js"                   # later releases; no-op when current
+```
+
+`--adopt-baseline` executes no DDL: it records `0000_baseline` only if the live
+structural catalog equals `drizzle/baseline-catalog.json`, otherwise it prints the
+private differences to the root console and rolls back. It is refused once a
+journal exists. Do not run it in production until the restore introspection and
+every-row digest gates below have passed. Replace active `database/schema.sql`
+application in deployment only after the production fresh-install, existing-baseline
+and repeated no-op paths pass.
 Retain historical schema/transfer tooling needed by backups and old releases.
 Introspection/baseline operations may write bookkeeping: rehearse on a disposable
 restore first; production writes occur only under the inherited-FD9 deploy lock.
@@ -220,5 +239,5 @@ belongs only to Caddy and any binary/module adjustment to the shared host runboo
 
 At completion replace current schema-operation instructions with the tested Drizzle
 commands and record new acceptance evidence. Earlier PostgreSQL migration results
-are historical and cannot prove the new adoption passed. This planning change
-changes no application, database, credentials, timer or live service.
+are historical and cannot prove the new adoption passed. The November 2, 2026
+source change touched no live database, credentials, timer or service.

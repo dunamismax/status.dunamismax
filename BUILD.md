@@ -1,10 +1,12 @@
 # Build plan
 
 The final stack is Astro + PostgreSQL + Drizzle. Phase 0 is the first unfinished
-work; completed implementation history follows it. This November 2, 2026 change
-updates documentation only. No framework/database/language/deployment conversion
-has run. Python and Swift are used only for an actual project need or explicit
-request. Keep the working TypeScript collector and existing Python utilities.
+work; completed implementation history follows it. As of November 2, 2026 the
+Drizzle schema, queries, reviewed baseline and owner-only runner are in source and
+pass disposable-cluster rehearsals. No production database, deployment, timer or
+service has changed; production still applies `database/schema.sql`. Python and
+Swift are used only for an actual project need or explicit request. Keep the
+working TypeScript collector and existing Python utilities.
 
 ### Phase 0 — Align Astro/PostgreSQL with Drizzle (do first)
 
@@ -18,9 +20,20 @@ replaces the previous web rewrite plan. Work on main only; no branches/worktrees
   VM-owned `/home/sawyer/github/ubuntu-vm-backup/docs/astro-migration.md` plus its
   restore/final integration references. Check local/host commits, current release,
   units, roles, schema, timers, backups and port reservations; do not assume parity.
+  - Progress (2026-11-02, read-only as sawyer): docs read. VM checkout clean at
+    `1149ae6`, behind local `c5d1175` by documentation-only commits; active release
+    `1149ae6` (final-integration.md's `51cb1c1` is now a retained older release).
+    Web, collector timer, backup timer and postgresql@18-main active; collector ran
+    on schedule; readiness `ready`/`postgresql-ready,collector-snapshot-fresh`;
+    loopback 4311–4315 and 5432 listening, 14313 free. **Open:** roles, grants,
+    actual `app` catalog and backup contents need root/postgres (no non-interactive
+    sudo), so they were not inspected.
 - [ ] Run current pinned-runtime checks before implementation. Capture sanitized
   fixtures and private baseline digests/catalog evidence. Keep private snapshots,
   role credentials, env files and raw probe outputs out of source control.
+  - Progress: pinned-runtime baseline passed on the VM in a scratch archive of
+    `1149ae6` (npm ci, check 0 errors, 16/16 tests with PG 18 integration, build,
+    shell/Python syntax). **Open:** private production digests/catalog capture needs root.
 
 | Current source | Work / retained contract |
 | --- | --- |
@@ -49,57 +62,81 @@ and fixed UTC-05:00 EST display. Never invent uptime or conceal unknown evidence
 
 #### 0.2 Adopt Drizzle without rebuilding PostgreSQL history
 
-- [ ] Refresh official docs for compatible Drizzle ORM/Kit and pg APIs. Pin exact
+- [x] Refresh official docs for compatible Drizzle ORM/Kit and pg APIs. Pin exact
   versions with npm lock/ci; retain shared Node/npm unless a demonstrated need
   requires an isolated, documented change. Keep strict/noUncheckedIndexedAccess/
   exactOptionalPropertyTypes in both web and collector configurations.
-- [ ] Add TypeScript `src/db/` schema, `drizzle.config.ts`, reviewed SQL and metadata
+  - Done: drizzle-orm 0.45.4 and drizzle-kit 0.31.11 (latest stable; 1.0 is RC), exact
+    pins in package-lock; Kit's deprecated `@esbuild-kit` esbuild is overridden to the
+    tree's 0.25.12 so `npm audit --audit-level=moderate` stays clean. Shared Node/npm kept.
+- [x] Add TypeScript `src/db/` schema, `drizzle.config.ts`, reviewed SQL and metadata
   under `drizzle/`, generation/check/migration scripts and an explicit owner-only
   runner. No production schema push and no migration on web/collector startup.
+  - Done: `src/db/schema.ts`, `drizzle.config.ts`, `drizzle/0000_baseline.sql` + Kit
+    metadata, `drizzle/baseline-catalog.json`, `src/db/{migrate,catalog}.ts`; scripts
+    `db:generate`, `db:check` (Kit check + drift gate, in Makefile/CI), `db:migrate`.
 - [ ] Introspect a private disposable restore of schema `app`; compare with actual
   catalogs and `database/schema.sql`. Preserve targets, check_runs, rollups,
   incidents, maintenance_windows, deployment_events and alert_notifications.
   Keep `app.schema_migrations` distinct from Drizzle journal/version metadata.
-- [ ] Rehearse a fresh empty install and adoption of an existing verified matching
+  - Progress: the comparison tool exists (`--adopt-baseline` diffs the structural
+    catalog against `drizzle/baseline-catalog.json`); journal is `app.drizzle_migrations`.
+    **Open:** run it against a private disposable restore of production (needs root).
+- [x] Rehearse a fresh empty install and adoption of an existing verified matching
   schema without recreating/truncating/reimporting tables. Confirm pinned Kit's
   baseline mechanism (documented pull --init can write bookkeeping). Apply only
   verified baseline entries under migration credentials; repeat migrate as a no-op.
-- [ ] Preserve bigint identity IDs/next sequence values, timestamptz(6)/microseconds,
+  - Done in disposable PG 18: fresh install, refusal without `--adopt-baseline`,
+    catalog-gated adoption of a nonempty legacy `schema.sql` database with unchanged
+    every-row digests/sequences, repeat no-op, refused re-adoption, refused drifted
+    schema. Pinned Kit 0.31.11 has no `pull --init` (1.0-beta only); the runner records
+    the baseline itself in Drizzle's hash/timestamp format.
+- [x] Preserve bigint identity IDs/next sequence values, timestamptz(6)/microseconds,
   JSONB types/order semantics, Unicode/nulls, constraints, FKs/cascade, indexes,
   defaults and updated-at triggers. Use lossless driver/Drizzle mappings: no unsafe
   JS Number IDs or Date truncation. Keep hand-reviewed SQL for unsupported DDL.
-- [ ] Adapt PostgresSource to Drizzle over the existing pg pool while retaining
+  - Done: string-mode timestamptz(6), `BigInt` IDs (tested past 2^53 through the
+    sequence), JSONB `$type`s; grants/triggers/bookkeeping hand-reviewed SQL.
+- [x] Adapt PostgresSource to Drizzle over the existing pg pool while retaining
   Source behavior, max-3 pool and bounded connection/query timeouts. Port collector
   persistence/transactions with Drizzle or parameterized SQL for cursor/advisory
   operations; retain atomic snapshot/check writes, dedup and lock scope. Ensure
   transaction callbacks use one connection, never a different pool query.
-- [ ] Preserve NOLOGIN owner plus independent migration/web/collector logins.
+  - Done: source/writer on the query builder; writes use `transaction()` on the
+    caller's single client; advisory lock and history cursors stay parameterized SQL.
+- [x] Preserve NOLOGIN owner plus independent migration/web/collector logins.
   Runner explicitly SET ROLEs owner. Web SELECT remains exactly four permitted
   models; no sequences/private tables/journals/writes/DDL or owner/writer membership.
   Future tables get no default web access; collector cannot alter/read migration
   bookkeeping. Verify actual grants with read-only default disabled.
+  - Done in disposable PG 18: runner `SET LOCAL ROLE`s owner and fails closed on
+    access violations; tests prove actual 42501 denials (future table, both journals,
+    private tables, writes, sequences, SET ROLE) with read-only default off.
+    Production grant acceptance remains part of 0.4/0.5.
 - [ ] Drain owning writers and compare every-column ordered counts/digests for all
   seven history tables before/after adoption; verify catalog triggers/constraints,
   sequences and migration journals separately. Include synthetic nonempty incidents,
   maintenance and alerts, big IDs, JSON types, Unicode and microseconds. Keep all
   reconciliation files private. No MySQL or SQLite conversion is part of this phase.
+  - Progress: synthetic digest/sequence/catalog comparison passes in the disposable
+    suite. **Open:** production drain + every-row comparison needs root under the lock.
 
 #### 0.3 Keep only needed stack components
 
-- [ ] Keep Astro output server with @astrojs/node standalone, src/pages endpoints
+- [x] Keep Astro output server with @astrojs/node standalone, src/pages endpoints
   and server-only src/lib. This live DB-backed observer is not a static export.
   Retain vanilla CSS/no-script semantics. React islands/Tailwind/shadcn are optional
   for a concrete interactive need, not dependencies to install for uniformity.
-- [ ] Keep bearer-only operator access and read-only web. Better Auth with PG is
+- [x] Keep bearer-only operator access and read-only web. Better Auth with PG is
   conditional on requested user accounts; AI SDK inside Astro endpoints on needed
   LLM features. Astro Actions are for future forms/server mutations only when
   requested; never add a public restart/deploy/shell surface. Future clients use
   HTTPS APIs, never direct server database access.
-- [ ] Keep the host TypeScript collector and useful existing Python recovery/probe
+- [x] Keep the host TypeScript collector and useful existing Python recovery/probe
   scripts. Do not port working code to Python merely because it has no UI. If
   Python work is actually needed/requested, use uv/locked dependencies and ruff,
   adding Typer/httpx/Pydantic only where useful and systemd timers for schedules.
-- [ ] No native app exists or is needed now. If Apple native work is requested,
+- [x] No native app exists or is needed now. If Apple native work is requested,
   use Swift/SwiftUI, record Swift/minimum OS pins and working xcodebuild/tests,
   prefer @Observable where supported and choose SwiftData/GRDB only as needed.
   No mandatory Python/Swift project or language template files in this repo.

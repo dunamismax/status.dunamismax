@@ -1,7 +1,8 @@
 # Architecture
 
 This describes the implemented Astro/PostgreSQL baseline. The final stack retains
-both, adding Drizzle as planned below and in [BUILD.md Phase 0](../BUILD.md).
+both and adds Drizzle, implemented in source as described below; its production
+adoption remains in [BUILD.md Phase 0](../BUILD.md).
 
 Astro's Node standalone adapter serves the exact routes through a TypeScript
 endpoint. `src/lib/web.ts` renders escaped semantic HTML and JSON with no-store,
@@ -48,23 +49,46 @@ of every column in every row, then advances all identity sequences inside the
 same transaction. JSON object key order is normalized; array order, types,
 Unicode, microseconds, nulls, metadata and suppression evidence are preserved.
 
-## Planned Drizzle adoption (Phase 0)
+## Drizzle adoption (Phase 0)
 
 Keep Caddy → loopback Astro Node standalone → PostgreSQL and the separate host
 systemd TypeScript collector. This database-backed live observer requires SSR;
 static output remains a choice for content-only sites. No container migration,
 React rewrite, native target or Python collector rewrite is needed.
 
-Add `src/db/` TypeScript definitions for schema `app`, `drizzle.config.ts`, reviewed
-SQL/metadata under `drizzle/`, and an owner-only migration runner. Use Drizzle with
-the existing pg driver, preserving pool/time bounds and lossless bigint/timestamp
-parsers. Adapt `PostgresSource` and collector persistence without mixing their
-import graphs. Parameterized SQL remains appropriate for advisory locks, cursors,
-triggers and explicit grants when the ORM does not represent them faithfully.
+Implemented: `src/db/schema.ts` declares all seven history tables plus legacy
+`app.schema_migrations`, with the reviewed constraint, index and FK names. Drizzle ORM
+0.45.4 wraps the existing pg pool (max 3, bounded connect/statement timeouts).
+`PostgresSource` selects only the four public models through the query builder;
+collector snapshot writes run in one `transaction()` on the caller's single
+client, so the advisory session lock and the transaction share one connection.
+Advisory locks and history cursors remain parameterized SQL. Column keys keep their
+database names so read models and JSON stay byte-compatible. Timestamps use
+Drizzle's string mode (PostgreSQL text, normalized by `timestamp()`), bigint IDs
+use `BigInt`; neither passes through JS Date or Number. The public import-graph test
+covers `src/db/schema.ts` and rejects any web import of the runner or catalog code.
+
+`drizzle/0000_baseline.sql` is Kit-generated DDL hand-reviewed into the exact legacy
+structure, plus what Kit cannot express: the legacy bookkeeping row, updated-at
+trigger function/triggers and explicit grants. Pinned Kit 0.31.11 has no `pull --init`
+(that is 1.0-beta only), so `src/db/migrate.ts` owns baselining. It uses Drizzle's
+journal/hash format in a private `app.drizzle_migrations` table (REVOKEd from
+PUBLIC/web/collector at creation), one connection and one transaction with
+`SET LOCAL ROLE status_dunamismax_owner` and advisory lock (193701, 2). It requires
+recorded entries to be an exact hash/timestamp prefix of the reviewed journal. A
+schema without a journal is refused unless `--adopt-baseline` is given, and adoption
+records the baseline without executing it only when `src/db/catalog.ts` finds the
+structural catalog (owners, columns, identity/sequence options, constraints,
+indexes, triggers, function definitions; deparsed under a fixed search_path)
+identical to `drizzle/baseline-catalog.json`. Every run then fails closed on actual
+access violations: web SELECT on anything but the four models, any web write or
+sequence use, collector/PUBLIC access to bookkeeping, CREATE on `app`, owner/writer
+membership, or owner default ACLs granting web.
 
 Adopt all seven historical tables without relocating, truncating or reimporting
-history. Keep current `app.schema_migrations` separate from Drizzle bookkeeping;
-rehearse both an existing verified baseline and a complete fresh installation.
+history. Keep current `app.schema_migrations` separate from Drizzle bookkeeping.
+Fresh installation and adoption of a nonempty legacy `schema.sql` database are
+rehearsed in the disposable cluster; production-restore introspection is pending.
 Preserve identities/next sequence values, timestamptz(6), JSONB, nulls, constraints,
 indexes and updated-at triggers. Do not use JS Date or Number conversions that
 lose microseconds or bigint IDs. Compare every-row digests and catalog semantics.

@@ -4,7 +4,8 @@
     ".astro/types.d.ts",
     "src/**/*",
     "tests/**/*",
-    "scripts/**/*"
+    "scripts/**/*",
+    "drizzle.config.ts"
   ],
   "exclude": [
     "dist",
