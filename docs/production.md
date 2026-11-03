@@ -235,9 +235,11 @@ PostgreSQL monitoring/readiness with engine labels for a database not actually u
 
 Caddy remains host-owned at `/etc/caddy/Caddyfile`, status fragment
 `/etc/caddy/sites/status.dunamismax.com.caddy`, custom binary
-`/usr/local/lib/caddy/caddy`. Preserve its modules, admin socket, TLS and headers;
-Full (strict) applies when Cloudflare proxies DNS. Any scoped DNS-challenge token
-belongs only to Caddy and any binary/module adjustment to the shared host runbook.
+`/usr/local/lib/caddy/caddy`. Preserve its modules, admin socket, TLS and headers.
+DNS is owner-managed, DNS-only Cloudflare records pointing at the server's public
+IP; Caddy obtains its own Let's Encrypt certificates. There is no Cloudflare DNS
+challenge, plugin or token; any binary/module adjustment belongs to the shared
+host runbook.
 
 Deployment now uses these Drizzle commands; acceptance evidence for the November 2,
 2026 adoption (production restore rehearsal, adoption, no-op redeploy, live

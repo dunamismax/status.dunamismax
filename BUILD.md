@@ -197,9 +197,10 @@ and fixed UTC-05:00 EST display. Never invent uptime or conceal unknown evidence
     `postgres-verify` restored all 7 databases with owners/ACL replay;
     `applications-verify` reinstalled `50da380` with locked dependencies and served
     HTTP 200 from restored PG. No shared backup/Toolworks interface change was needed.
-- [x] Keep host Caddy paths/custom modules/TLS, Cloudflare Full (strict) when proxied,
-  and existing route headers. Any DNS challenge/plugin/token work stays in the
-  host-owned transaction with scoped Caddy-only credentials. No unrelated site edit
+- [x] Keep host Caddy paths/custom modules/TLS and existing route headers. DNS is
+  owner-managed DNS-only Cloudflare records pointing at the server; Caddy obtains
+  its own Let's Encrypt certificates (no Cloudflare DNS challenge, plugin or
+  token is part of the stack). No unrelated site edit
   or shared service restart; no R2/Litestream requirement for this PostgreSQL plan.
   - Verified: the unchanged status fragment validated with the custom binary and
     reloaded; Caddy MainPID unchanged; static cache headers pass without duplicates.

@@ -82,8 +82,11 @@ compatibility, rollback/data reconciliation and encrypted backup restore.
   and app settings in `/etc/status-dunamismax/astro-{web,collector}.env`.
 - Caddy: `/etc/caddy/Caddyfile`, owning fragment
   `/etc/caddy/sites/status.dunamismax.com.caddy`, binary `/usr/local/lib/caddy/caddy`.
-  Preserve current modules/TLS; Full (strict) when Cloudflare proxies DNS. Any
-  DNS-challenge plugin/token work belongs to shared host integration, Caddy only.
+  Preserve current modules/TLS. DNS is owner-managed, DNS-only (not proxied)
+  Cloudflare records pointing at the server's public IP; Caddy is the reverse
+  proxy and obtains its own Let's Encrypt certificates. There is no Cloudflare
+  DNS challenge, Caddy DNS plugin, token or proxy/SSL-mode work; do not plan or
+  add any, and never change Cloudflare settings.
 - Backups: nightly pg_dump with roles/ACLs/settings, encrypted off-host copies and
   isolated restores. Keep PostgreSQL; SQLite/Litestream are not target requirements.
 - Conditional product additions: Better Auth with PostgreSQL for requested accounts,
