@@ -11,7 +11,7 @@ on actual project needs or a request.
 Public operational status for Stephen Sawyer's self-hosted ecosystem at
 <https://status.dunamismax.com>. Astro 7 renders semantic HTML and stable JSON
 from PostgreSQL 18. Strict TypeScript runs both the public application and the
-bounded background collector on the shared Node 24.22.1/npm 11.19.1 runtime.
+bounded background collector on the shared Node 24.22.3/npm 11.19.1 runtime.
 The browser receives no JavaScript; the existing responsive stylesheet follows
 `prefers-color-scheme`.
 

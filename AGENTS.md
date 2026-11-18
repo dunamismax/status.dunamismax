@@ -14,7 +14,7 @@ remote shell or command-output feed. No private paths, arguments, env values,
 credentials, topology, database names, logs or stack traces on public routes.
 Only bearer-authenticated /operator may show its deliberate private metadata.
 
-Use Node 24.22.1/npm 11.19.1 at /opt/astro-runtime through astro-runtime. Exact
+Use Node 24.22.3/npm 11.19.1 at /opt/astro-runtime through astro-runtime. Exact
 versions, package-lock.json and npm ci; strict TypeScript with noUncheckedIndexedAccess
 and exactOptionalPropertyTypes. Astro standalone SSR, semantic HTML, existing
 vanilla CSS, no browser JavaScript, inline style, fonts or analytics for current

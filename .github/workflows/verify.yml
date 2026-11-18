@@ -21,7 +21,7 @@ jobs:
         with:
           node-version-file: .node-version
           cache: npm
-      - run: test "$(node --version)" = v24.22.1 && test "$(npm --version)" = 11.19.1
+      - run: test "$(node --version)" = v24.22.3 && test "$(npm --version)" = 11.19.1
       - run: npm ci
       - run: npm run check
       - run: npm run db:check

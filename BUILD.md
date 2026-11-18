@@ -39,7 +39,7 @@ replaces the previous web rewrite plan. Work on main only; no branches/worktrees
 
 | Current source | Work / retained contract |
 | --- | --- |
-| `package.json`, `package-lock.json`, `astro.config.mjs`, `tsconfig*.json`, `.node-version` | Astro 7.4.2, Node adapter 11.1.9, pg 8.16.3, strict TS 6.0.3, Node 24.22.1/npm 11.19.1. Retain supported pins; add compatible exact Drizzle pins/lock. |
+| `package.json`, `package-lock.json`, `astro.config.mjs`, `tsconfig*.json`, `.node-version` | Astro 7.4.2, Node adapter 11.1.9, pg 8.16.3, strict TS 6.0.3, Node 24.22.3/npm 11.19.1. Retain supported pins; add compatible exact Drizzle pins/lock. |
 | `src/pages/[...path].ts`, `src/lib/web.ts` | Retain SSR renderer/dispatch, semantic responsive HTML, no browser JS, current CSS/CSP and no-store responses. No React rewrite required. |
 | `src/lib/{db,source,model,config}.ts` | Wrap existing pg pool with Drizzle, retain Source interface, lossless parsers, settings, freshness/state semantics. |
 | `database/schema.sql` | Seven historical tables plus schema bookkeeping, explicit grants, triggers, identities/checks/indexes; adopt as reviewed Drizzle migration baseline. |
