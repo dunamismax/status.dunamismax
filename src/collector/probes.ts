@@ -2,9 +2,9 @@ import { createConnection } from 'node:net';
 import { connect as tlsConnect } from 'node:tls';
 import { readFile, stat } from 'node:fs/promises';
 import { command, type CommandResult } from './command.js';
-import { snapshot, type State, type Service, type Project, type GitStatus, type BuildProgress } from '../lib/model.js';
+import { snapshot, type Service, type Project, type GitStatus, type BuildProgress } from '../lib/model.js';
 import { httpTargets, units, projects, type HttpTarget, type UnitTarget, type ProjectTarget } from './inventory.js';
-export type Evaluation = [State,string];
+import type { Evaluation } from './http-evidence.js';
 const result=(id:string,name:string,group:string,kind:string,e:Evaluation,at:string,ms:number|null,version:string):Service=>({target:{id,name,group,public_url:'',probe_url:'',expected_status:0},check:{target_id:id,check_kind:kind,state:e[0],checked_at:at,latency_ms:ms,reason:e[1],probe_version:version}});
 export function failureReason(error:unknown):string {
  const msg=(error instanceof Error ? error.message+' '+String(error.cause):String(error)).toLowerCase();
@@ -15,22 +15,48 @@ export function evaluateHttp(t:HttpTarget,status:number,body:string|null):Evalua
  if(t.bodyToken && !(body??'').includes(t.bodyToken))return ['degraded','expected response token was missing'];
  return ['operational',`HTTP ${status}`];
 }
+
+async function readProbeBody(stream: ReadableStream<Uint8Array>, limit: number): Promise<Buffer | null> {
+ const reader = stream.getReader();
+ const chunks: Uint8Array[] = [];
+ let size = 0;
+ try {
+  for (;;) {
+   const { done, value } = await reader.read();
+   if (done) return Buffer.concat(chunks, size);
+   size += value.length;
+   if (size > limit) return null;
+   chunks.push(value);
+  }
+ } finally {
+  await reader.cancel();
+ }
+}
+
 export async function httpProbe(t:HttpTarget,timeoutMs=5000):Promise<Service> {
  const at=new Date().toISOString(),start=performance.now();let e:Evaluation;
  try{
   let url=t.probeUrl;const signal=AbortSignal.timeout(timeoutMs);
+  const headers = new Headers({'User-Agent':'status.dunamismax/2 public-http-probe',Accept:'*/*','Cache-Control':'no-cache'});
+  if (t.range) headers.set('Range', t.range);
   for(let hop=0;;hop++){
-   const response=await fetch(url,{redirect:'manual',signal,headers:{'User-Agent':'status.dunamismax/2 public-http-probe','Accept':'*/*'}});
+   const response=await fetch(url,{redirect:'manual',signal,headers});
    if([301,302,303,307,308].includes(response.status)&&response.headers.get('location')){
     await response.body?.cancel();if(hop>=4)throw new Error('redirect limit');const next=new URL(response.headers.get('location')!,url);if(!['http:','https:'].includes(next.protocol))throw new Error('redirect protocol');url=next.href;continue;
    }
-   let body:string|null=null;
-   if(t.bodyToken && response.status===t.expectedStatus && response.body){const reader=response.body.getReader();const chunks:Buffer[]=[];let size=0;try{while(size<262144){const v=await reader.read();if(v.done)break;const chunk=Buffer.from(v.value).subarray(0,262144-size);size+=chunk.length;chunks.push(chunk);}}finally{await reader.cancel();}body=Buffer.concat(chunks).toString('utf8');}
-   else await response.body?.cancel();
-   e=evaluateHttp(t,response.status,body);break;
+   if (response.status === t.expectedStatus && (t.bodyToken || t.evidence)) {
+    const body = response.body ? await readProbeBody(response.body, t.range ? 2 : 262144) : Buffer.alloc(0);
+    e = body === null ? ['degraded', 'response exceeded the probe size limit']
+     : t.evidence ? t.evidence(body, response.headers, Date.now())
+     : evaluateHttp(t, response.status, body.toString('utf8'));
+   } else {
+    await response.body?.cancel();
+    e = evaluateHttp(t, response.status, null);
+   }
+   break;
   }
  }catch(error){e=['down',failureReason(error)];}
- const s=result(t.id,t.name,'Public websites','http',e,at,e[1]==='request timed out'?null:Math.round(performance.now()-start),'public-http-v2');
+ const s=result(t.id,t.name,'Public websites','http',e,at,e[1]==='request timed out'?null:Math.round(performance.now()-start),t.evidence||t.bodyToken?'public-http-v3':'public-http-v2');
  s.target.public_url=t.publicUrl;s.target.probe_url=t.probeUrl;s.target.expected_status=t.expectedStatus;return s;
 }
 export type Facts=Record<string,string>;
@@ -43,7 +69,7 @@ export function evaluateUnit(t:UnitTarget,f:Facts,now=Date.now()):Evaluation {
  if(!t.oneShot){if(active==='active')return res==='success'&&Number(f.NRestarts||0)<5?['operational','unit is active']:['degraded','unit is active but restart or result evidence needs attention'];if(['reloading','activating','deactivating'].includes(active??''))return ['degraded','unit is transitioning'];return active==='failed'?['down','unit failed']:active==='inactive'?['down','unit is inactive']:['unknown','unit state is unknown'];}
  if(['active','activating'].includes(active??''))return ['operational','one-shot is running'];
  if(res==='success'&&code===0){
-  if(t.maxAgeMinutes){const last=systemTime(f.ExecMainExitTimestamp);if(last===null)return ['unknown','successful completion time is unavailable'];if(now-last>t.maxAgeMinutes*60000)return ['degraded','successful completion is overdue'];}
+  if(t.maxAgeMinutes){const last=systemTime(f.ExecMainExitTimestamp);if(last===null||last>now)return ['unknown','successful completion time is unavailable or invalid'];if(now-last>t.maxAgeMinutes*60000)return ['degraded','successful completion is overdue'];}
   return ['operational','latest one-shot run succeeded'];
  }
  return active==='failed'||code>0||['exit-code','signal','timeout'].includes(res)?['down','latest one-shot run failed']:['unknown','latest one-shot result is unknown'];
@@ -88,9 +114,18 @@ export async function collect(repoRoot:string,home:string) {
  at=new Date().toISOString();const [ddns,d]=await show('astro-cloudflare-ddns.service',['LoadState','ActiveState','Result','ExecMainStatus','ExecMainExitTimestamp'],home);services.push(result('cloudflare-ddns-update','Cloudflare DDNS','Host infrastructure','cloudflare-ddns',ddns?evaluateDdns(await completedFacts('astro-cloudflare-ddns.service',ddns)):['unknown','Cloudflare DDNS status unavailable'],at,d.durationMs,'cloudflare-ddns-v2'));
  at=new Date().toISOString();const disk=await command('/usr/bin/df',['--output=pcent,avail','/'],{home});services.push(result('root-disk','Root filesystem','Host capacity','disk',disk.exitCode===0?evaluateDisk(disk.stdout):['unknown','root filesystem usage unavailable'],at,disk.durationMs,'disk-v1'));
  services.push(await memoryProbe());
- for(const t of httpTargets)services.push(await certificateProbe(new URL(t.publicUrl).hostname));
- let growth:Evaluation;try{const kib=Number((await readFile('/var/lib/ops-success/backup-git-kib','utf8')).trim());const m=await stat('/var/lib/ops-success/backup-git-kib');growth=Number.isFinite(kib)&&kib>0&&Date.now()-m.mtimeMs<26*3600000?[kib>=10*1024*1024?'down':kib>=5*1024*1024?'degraded':'operational',`backup Git storage is ${Math.round(kib/1024)} MiB`]:['unknown','backup storage measurement is stale or invalid'];}catch{growth=['unknown','backup storage measurement unavailable'];}services.push(result('backup-repository-growth','Backup repository size','Host capacity','capacity',growth,new Date().toISOString(),null,'growth-v1'));
+ const hosts = new Set(httpTargets.flatMap(t => [new URL(t.publicUrl).hostname, new URL(t.probeUrl).hostname]));
+ for (const host of hosts) services.push(await certificateProbe(host));
+ const size = await command('/usr/bin/du', ['-skx', '--', '/home/sawyer/github/ubuntu-vm-backup/.git'], {home});
+ services.push(result('backup-repository-growth','Backup repository size','Host capacity','capacity',evaluateBackupSize(size),new Date().toISOString(),null,'growth-v2'));
  const projectResults:Project[]=[];for(const t of projects(repoRoot))projectResults.push(await gitProbe(t,home));return snapshot(services,projectResults);
+}
+
+export function evaluateBackupSize(size: CommandResult): Evaluation {
+ if (size.exitCode !== 0) return ['unknown', 'current backup storage measurement is unavailable'];
+ const kib = Number(size.stdout.trimEnd().match(/^(\d+)\t[^\r\n]+$/)?.[1]);
+ if (!Number.isSafeInteger(kib) || kib <= 0) return ['unknown', 'current backup storage measurement is invalid'];
+ return [kib >= 10*1024*1024 ? 'down' : kib >= 5*1024*1024 ? 'degraded' : 'operational', `backup Git storage is ${Math.round(kib/1024)} MiB`];
 }
 
 export function evaluateMemory(meminfo:string,pressure:string):Evaluation {

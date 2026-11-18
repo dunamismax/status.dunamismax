@@ -4,12 +4,25 @@ set -euo pipefail
 [[ $EUID == 0 ]] || { echo 'root required' >&2; exit 1; }
 if [[ ! -e /proc/$$/fd/9 ]]; then exec /usr/local/sbin/with-deploy-lock "$0" "$@"; fi
 flock -n 9
-[[ ${1:-} == collect || ${1:-} == record-deployment ]] || { echo 'Expected collect or record-deployment' >&2; exit 64; }
+case ${1:-} in
+ collect|record-deployment)
+   settings=(--property=EnvironmentFile=/etc/astro-apps/status_dunamismax/collector.env
+             --property=EnvironmentFile=/etc/status-dunamismax/astro-collector.env)
+   ;;
+ test-delivery)
+   [[ $# == 2 && ( $2 == alert || $2 == heartbeat ) ]] || { echo 'Expected test-delivery alert or heartbeat' >&2; exit 64; }
+   test_settings=/etc/status-dunamismax/astro-delivery-test.env
+   [[ -f $test_settings && ! -L $test_settings && $(stat -c '%u:%a' "$test_settings") == 0:600 ]] || {
+     echo 'Install the root-owned, mode 0600 delivery test settings for approved test destinations' >&2; exit 1;
+   }
+   settings=(--property="EnvironmentFile=$test_settings")
+   ;;
+ *) echo 'Expected collect, record-deployment, or test-delivery' >&2; exit 64 ;;
+esac
 release=$(cd "$(dirname "$0")/.." && pwd -P)
 exec systemd-run --quiet --wait --pipe --collect --unit="astro-status-command-$$" \
  --property=User=status-dunamismax --property=Group=status-dunamismax \
- --property=EnvironmentFile=/etc/astro-apps/status_dunamismax/collector.env \
- --property=EnvironmentFile=/etc/status-dunamismax/astro-collector.env \
+ "${settings[@]}" \
  --property=StateDirectory=astro-status-dunamismax-collector --property=StateDirectoryMode=0700 \
  --property=RuntimeMaxSec=4min --property=UMask=0077 --property=NoNewPrivileges=true --property=ProtectSystem=strict \
  --property=ProtectHome=read-only --property=PrivateTmp=true --property=PrivateDevices=true \

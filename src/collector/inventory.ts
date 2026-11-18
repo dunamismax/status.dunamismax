@@ -1,9 +1,19 @@
-export interface HttpTarget { id:string; name:string; publicUrl:string; probeUrl:string; expectedStatus:number; bodyToken?:string }
+import { azerothStatus, installerRange, lorehallowHealth, type HttpEvidence } from './http-evidence.js';
+
+export interface HttpTarget { id:string; name:string; publicUrl:string; probeUrl:string; expectedStatus:number; bodyToken?:string; evidence?:HttpEvidence; range?:string }
 export interface UnitTarget {id:string; unit:string; group:string; oneShot?:boolean; maxAgeMinutes?:number}
 export interface ProjectTarget {id:string; repo:string; url:string|null; path:string}
-export const httpTargets:HttpTarget[] = [
+const existingSites = [
  ['dunamismax-com','dunamismax.com','/healthz'],['graceandfootnotes-com','graceandfootnotes.com','/'],['status-dunamismax-com','status.dunamismax.com','/healthz'],['xrayservice-net','xrayservice.net','/'],['imagingservices-demo','demo.xrayservice.net','/']
 ].map(([id,name,path])=>({id:id!,name:name!,publicUrl:'https://'+name,probeUrl:'https://'+name+path,expectedStatus:200}));
+export const httpTargets:HttpTarget[] = [
+ ...existingSites,
+ {id:'azerothtrail-com',name:'Azeroth Trail',publicUrl:'https://azerothtrail.com/',probeUrl:'https://azerothtrail.com/',expectedStatus:200,bodyToken:'<title>Azeroth Trail</title>'},
+ {id:'azerothtrail-status-api',name:'Azeroth Trail tracker',publicUrl:'https://azerothtrail.com/status/',probeUrl:'https://azerothtrail.com/api/status',expectedStatus:200,evidence:azerothStatus},
+ {id:'lorehallow-com',name:'Lorehallow',publicUrl:'https://lorehallow.com/',probeUrl:'https://lorehallow.com/',expectedStatus:200,bodyToken:'<link rel="canonical" href="https://lorehallow.com/">'},
+ {id:'lorehallow-game',name:'Lorehallow game server',publicUrl:'https://lorehallow.com/play/',probeUrl:'https://play.lorehallow.com/healthz',expectedStatus:200,evidence:lorehallowHealth},
+ {id:'xrayservice-installer',name:'XrayService Windows installer',publicUrl:'https://xrayservice.net/download',probeUrl:'https://xrayservice.net/download',expectedStatus:206,evidence:installerRange,range:'bytes=0-1'}
+];
 export const units:UnitTarget[] = [
  {id:'mtg-card-bot',unit:'mtg-card-bot.service',group:'Application services'},
  {id:'status-dunamismax-collector',unit:'astro-status-dunamismax-collector.timer',group:'Application services'},

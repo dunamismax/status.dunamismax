@@ -6,6 +6,7 @@ import { config } from '../lib/config.js';
 import { timestamp, type Deployment } from '../lib/model.js';
 import { collect } from './probes.js';
 import { recordSnapshot, recordDeployment, sendAlerts, prune } from './writer.js';
+import { heartbeat, testAlert } from './alerts.js';
 export function deployment(args:string[],env:NodeJS.ProcessEnv=process.env):Deployment {
  const options:Record<string,string>={};const keys=['service-id','repo-name','commit-sha','environment','deployed-at','summary'];
  for(let i=0;i<args.length;i++){const arg=args[i]!;const m=arg.match(/^--([a-z-]+)(?:=(.*))?$/);if(!m||!keys.includes(m[1]!))throw new Error('Invalid deployment option');const value=m[2]??args[++i];if(value===undefined||value.startsWith('--'))throw new Error('Missing deployment option value');options[m[1]!]=value;}
@@ -19,9 +20,17 @@ export function deployment(args:string[],env:NodeJS.ProcessEnv=process.env):Depl
 }
 export async function main(args:string[]) {
  if(process.env.STATUS_ENV_FILE)process.loadEnvFile(process.env.STATUS_ENV_FILE);
- const mode=args[0];if(args.includes('--help')){console.log('Usage: status collect [--dry-run|--no-notify] | record-deployment [--service-id ID --repo-name NAME --commit-sha SHA --environment NAME --deployed-at RFC3339 --summary TEXT]');return;}
- if(mode!=='collect'&&mode!=='record-deployment')throw new Error('Invalid command');
+ const mode=args[0];if(args.includes('--help')){console.log('Usage: status collect [--dry-run|--no-notify] | record-deployment [--service-id ID --repo-name NAME --commit-sha SHA --environment NAME --deployed-at RFC3339 --summary TEXT] | test-delivery alert|heartbeat');return;}
  const c=config();
+ if (mode === 'test-delivery') {
+  if (args.length !== 2) throw new Error('Expected one delivery test');
+  if (args[1] === 'alert' && c.webhook) await testAlert(c.webhook);
+  else if (args[1] === 'heartbeat' && c.heartbeat) await heartbeat(c.heartbeat);
+  else throw new Error('Test destination is unavailable');
+  console.log(`${args[1]} test endpoint accepted the request`);
+  return;
+ }
+ if(mode!=='collect'&&mode!=='record-deployment')throw new Error('Invalid command');
  if(mode==='collect'&&args.slice(1).some(v=>!['--dry-run','--no-notify'].includes(v)))throw new Error('Invalid collect option');
  if(mode==='collect'&&args.includes('--dry-run')){console.log(JSON.stringify(await collect(c.repoRoot,await childHome())));return;}
  if(!process.env.PGDATABASE||!process.env.PGUSER)throw new Error('Database is required');
@@ -29,7 +38,24 @@ export async function main(args:string[]) {
  try{
   if(mode==='record-deployment'){await recordDeployment(db,deployment(args.slice(1)));console.log('recorded deployment');return;}
   const {rows}=await db.query<{locked:boolean}>('SELECT pg_try_advisory_lock(193701,1) AS locked');if(!rows[0]?.locked)throw new Error('Collector already running');
-  try{const s=await collect(c.repoRoot,await childHome());await recordSnapshot(db,s);const sent=args.includes('--no-notify')?0:await sendAlerts(db,s,c);const pruned=await prune(db,c.retention);console.log(`stored snapshot: overall=${s.overall_state} services=${s.services.length} projects=${s.projects.length} alerts_sent=${sent} pruned_check_runs=${pruned}`);}
+  try {
+   const s = await collect(c.repoRoot, await childHome());
+   await recordSnapshot(db,s);
+   const pruned = await prune(db,c.retention);
+   const quiet = args.includes('--no-notify');
+   let heartbeatStatus = quiet ? 'skipped' : 'not-configured';
+   if (!quiet && c.heartbeat) {
+    try {
+     await heartbeat(c.heartbeat);
+     heartbeatStatus = 'sent';
+    } catch {
+     console.error('Collector heartbeat delivery failed');
+     heartbeatStatus = 'failed';
+    }
+   }
+   const sent = quiet ? 0 : await sendAlerts(db,s,c);
+   console.log(`stored snapshot: overall=${s.overall_state} services=${s.services.length} projects=${s.projects.length} alerts_sent=${sent} heartbeat=${heartbeatStatus} pruned_check_runs=${pruned}`);
+  }
   finally{await db.query('SELECT pg_advisory_unlock(193701,1)');}
  }finally{db.release();await pool.end();}
 }

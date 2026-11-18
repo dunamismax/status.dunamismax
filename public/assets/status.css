@@ -390,34 +390,33 @@ h2 {
   padding: 1.1rem 1.25rem;
 }
 
-.summary {
+.health-summary {
+  align-content: center;
   display: grid;
   gap: .6rem;
-  grid-template-columns: repeat(auto-fit, minmax(8rem, 1fr));
   margin: 0;
 }
 
-.summary div {
+.health-summary div {
+  align-items: center;
   background: var(--panel-soft);
   border: 1px solid var(--line);
   border-radius: 8px;
+  display: flex;
+  flex-wrap: wrap;
+  gap: .4rem .75rem;
+  justify-content: space-between;
   padding: .75rem .85rem;
 }
 
-.summary dt {
-  color: var(--muted);
-  font-size: .72rem;
+.health-summary dt {
+  color: var(--text-strong);
+  font-size: .9rem;
   font-weight: 600;
-  letter-spacing: 0.03em;
-  text-transform: uppercase;
 }
 
-.summary dd {
-  color: var(--text-strong);
-  font-size: 1.6rem;
-  font-weight: 600;
-  line-height: 1.1;
-  margin: .25rem 0 0;
+.health-summary dd {
+  margin: 0;
 }
 
 .attention-list,
@@ -849,10 +848,6 @@ h2 {
     flex-direction: column;
   }
 
-  .summary {
-    grid-template-columns: repeat(2, minmax(7rem, 1fr));
-  }
-
   .attention-list li {
     grid-template-columns: 1fr;
   }
@@ -874,9 +869,5 @@ h2 {
   .overview-panel,
   .project-card {
     padding: 1rem;
-  }
-
-  .summary {
-    grid-template-columns: 1fr;
   }
 }

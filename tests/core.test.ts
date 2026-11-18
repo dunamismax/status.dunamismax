@@ -6,8 +6,9 @@ import { config } from '../src/lib/config.js';
 import { handle, readiness } from '../src/lib/web.js';
 import type { Source } from '../src/lib/source.js';
 import { command } from '../src/collector/command.js';
-import { evaluateMemory,evaluateCertificate,evaluateHttp,evaluateUnit,evaluateCaddy,evaluateDdns,evaluateDisk,evaluateGit,buildProgress,httpProbe,parseFacts } from '../src/collector/probes.js';
-import { alerts, notify } from '../src/collector/alerts.js';
+import { evaluateMemory,evaluateCertificate,evaluateHttp,evaluateUnit,evaluateCaddy,evaluateDdns,evaluateDisk,evaluateGit,buildProgress,httpProbe,parseFacts,evaluateBackupSize } from '../src/collector/probes.js';
+import { httpTargets } from '../src/collector/inventory.js';
+import { alerts, notify, heartbeat, testAlert } from '../src/collector/alerts.js';
 import { deployment } from '../src/collector/cli.js';
 import { canonical,normalize } from '../scripts/history.js';
 import { createServer } from 'node:http';
@@ -44,4 +45,113 @@ test('successful completion freshness survives an enabled timer; memory uses ava
  assert.equal(evaluateMemory('MemTotal: 10000 kB\nMemAvailable: 400 kB','full avg10=0.00 avg60=0.00')[0],'down');
  assert.equal(evaluateMemory('MemTotal: 10000 kB\nMemAvailable: 8000 kB','full avg10=0.00 avg60=3.00')[0],'degraded');
  assert.equal(evaluateCertificate(new Date(now+20*86400000).toISOString(),now)[0],'degraded');assert.equal(evaluateCertificate(new Date(now+6*86400000).toISOString(),now)[0],'down');
+});
+
+test('simulated backup failure leaves public availability operational and keeps the legacy API rollup', async () => {
+ const site = service('operational', 'public-site');
+ site.target.group = 'Public websites';
+ const backup = service('down', 'ubuntu-vm-backup');
+ backup.target.group = 'Maintenance';
+ backup.check.reason = 'latest one-shot run failed';
+ const measured = service('operational', 'backup-repository-growth');
+ measured.target.group = 'Host capacity';
+ const evidence = snapshot([site, backup, measured]);
+ const provider = {...source, latest: async () => evidence};
+ const html = await (await handle(request('/'), provider, c, now)).text();
+ assert.match(html, /<h1>All monitored public endpoints are operational<\/h1>/);
+ assert.match(html, /Backups and maintenance<\/dt><dd><span class="state state-down">down/);
+ assert.match(html, /ubuntu-vm-backup<\/strong><span>latest one-shot run failed/);
+ assert.deepEqual(await (await handle(request('/api/status.json'), provider, c, now)).json(), evidence);
+ assert.equal(evidence.overall_state, 'down');
+ assert.equal(alerts(evidence)[0]?.dedup_key, 'service:ubuntu-vm-backup:down');
+
+ const stale = await (await handle(request('/'), provider, c, now + 900000)).text();
+ assert.match(stale, /<h1>Public availability is unknown<\/h1>/);
+ assert.match(stale, /Backups and maintenance<\/dt><dd><span class="state state-unknown">unknown/);
+ const absent = await (await handle(request('/'), {...source, latest: async () => null}, c, now)).text();
+ assert.match(absent, /No status data yet/);
+ assert.match(absent, /<h1>Public availability is unknown<\/h1>/);
+
+ site.check.state = 'down';
+ const outage = await (await handle(request('/'), {...source, latest: async () => snapshot([site, backup])}, c, now)).text();
+ assert.match(outage, /<h1>One or more public endpoints are down<\/h1>/);
+});
+
+test('backup size is a current bounded measurement, with invalid and unavailable evidence', () => {
+ const output = {exitCode:0, stdout:'938056\t/private/path\n', stderr:'', durationMs:1, timedOut:false, truncated:false};
+ assert.deepEqual(evaluateBackupSize(output), ['operational', 'backup Git storage is 916 MiB']);
+ assert.equal(evaluateBackupSize({...output, stdout:`${5*1024*1024}\t/private/path\n`})[0], 'degraded');
+ assert.equal(evaluateBackupSize({...output, stdout:`${10*1024*1024}\t/private/path\n`})[0], 'down');
+ assert.deepEqual(evaluateBackupSize({...output, exitCode:1}), ['unknown', 'current backup storage measurement is unavailable']);
+ assert.deepEqual(evaluateBackupSize({...output, stdout:'bad'}), ['unknown', 'current backup storage measurement is invalid']);
+});
+
+test('public probes check tracker freshness, game health and the two-byte installer download', async () => {
+ const regions = ['us','eu','kr','tw'];
+ const server = createServer((req, res) => {
+  if (req.url?.startsWith('/tracker')) {
+   const time = new Date().toISOString();
+   const old = new Date(Date.now() - 6*60000).toISOString();
+   res.end(JSON.stringify({version:1, generatedAt:req.url === '/tracker-old' ? old : time,
+    regions:regions.map(key => ({key, checkedAt:req.url === '/tracker-missing' ? null : req.url === '/tracker-stale' ? old : time, rulesets:[{online:false}]}))}));
+  } else if (req.url === '/game') res.end('ok\n');
+  else if (req.url === '/game-fallback') res.end('<html>ok</html>');
+  else if (req.headers.range === 'bytes=0-1') {
+   res.writeHead(206, {'Content-Range':'bytes 0-1/123456', 'Content-Disposition':'attachment; filename="setup.exe"'});
+   res.end(req.url === '/bad-installer' ? 'XX' : req.url === '/large-installer' ? 'MZextra' : 'MZ');
+  } else res.end('unexpected request');
+ });
+ await new Promise<void>(resolve => server.listen(0, '127.0.0.1', resolve));
+ const address = server.address();
+ assert.ok(address && typeof address !== 'string');
+ const probe = async (id:string, path:string) => {
+  const target = httpTargets.find(t => t.id === id);
+  assert.ok(target);
+  return (await httpProbe({...target, probeUrl:`http://127.0.0.1:${address.port}${path}`})).check;
+ };
+ try {
+  assert.equal((await probe('azerothtrail-status-api', '/tracker')).state, 'operational');
+  assert.match((await probe('azerothtrail-status-api', '/tracker-old')).reason, /snapshot is more than five minutes old/);
+  assert.match((await probe('azerothtrail-status-api', '/tracker-stale')).reason, /region readings are more than five minutes old/);
+  assert.match((await probe('azerothtrail-status-api', '/tracker-missing')).reason, /missing usable readings/);
+  assert.equal((await probe('lorehallow-game', '/game')).state, 'operational');
+  assert.equal((await probe('lorehallow-game', '/game-fallback')).state, 'degraded');
+  assert.equal((await probe('xrayservice-installer', '/installer')).state, 'operational');
+  assert.equal((await probe('xrayservice-installer', '/bad-installer')).state, 'degraded');
+  assert.match((await probe('xrayservice-installer', '/large-installer')).reason, /size limit/);
+ } finally {
+  server.closeAllConnections();
+  await new Promise<void>(resolve => server.close(() => resolve()));
+ }
+});
+
+test('alerts and heartbeat use separate requests, with test labeling and redacted redirect failures', async () => {
+ const seen: [string|undefined, string|undefined, string][] = [];
+ const server = createServer(async (req, res) => {
+  const chunks:Buffer[] = [];
+  for await (const chunk of req) chunks.push(chunk);
+  seen.push([req.method, req.url, Buffer.concat(chunks).toString('utf8')]);
+  if (req.url === '/redirect-secret') res.writeHead(302, {Location:'/unexpected'});
+  else res.writeHead(204);
+  res.end();
+ });
+ await new Promise<void>(resolve => server.listen(0, '127.0.0.1', resolve));
+ const address = server.address();
+ assert.ok(address && typeof address !== 'string');
+ const url = `http://127.0.0.1:${address.port}`;
+ try {
+  assert.equal(config({}).heartbeat, null);
+  assert.throws(() => config({STATUS_HEARTBEAT_URL:'http://example.test/secret'}), {message:'Invalid STATUS_HEARTBEAT_URL'});
+  await testAlert(url+'/alerts');
+  await heartbeat(url+'/ping');
+  await assert.rejects(heartbeat(url+'/redirect-secret'), {message:'Collector heartbeat delivery failed'});
+  await assert.rejects(testAlert(url+'/redirect-secret'), {message:'Alert webhook delivery failed'});
+  assert.deepEqual(seen.map(([method, path]) => [method, path]), [['POST','/alerts'], ['GET','/ping'], ['GET','/redirect-secret'], ['POST','/redirect-secret']]);
+  assert.equal(JSON.parse(seen[0]![2]).target_id, 'status-delivery-test');
+  assert.match(JSON.parse(seen[0]![2]).title, /^TEST:/);
+  assert.equal(seen[1]![2], '');
+ } finally {
+  server.closeAllConnections();
+  await new Promise<void>(resolve => server.close(() => resolve()));
+ }
 });

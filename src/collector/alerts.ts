@@ -9,3 +9,25 @@ export async function notify(url:string,a:Alert,timeoutMs=5000):Promise<void>{
  try{const r=await fetch(url,{method:'POST',redirect:'manual',signal:AbortSignal.timeout(timeoutMs),headers:{'Content-Type':'application/json','User-Agent':'status.dunamismax/2 alert-webhook'},body:JSON.stringify(webhookPayload(a))});await r.body?.cancel();if(r.status<200||r.status>299)throw new Error('status');}
  catch{throw new Error('Alert webhook delivery failed');} // URL may contain a secret
 }
+
+export async function heartbeat(url: string, timeoutMs = 5000): Promise<void> {
+ try {
+  const response = await fetch(url, {
+   redirect: 'manual',
+   signal: AbortSignal.timeout(timeoutMs),
+   headers: {'User-Agent': 'status.dunamismax/2 collector-heartbeat'},
+  });
+  await response.body?.cancel();
+  if (!response.ok) throw new Error('status');
+ } catch {
+  throw new Error('Collector heartbeat delivery failed');
+ }
+}
+
+export async function testAlert(url: string): Promise<void> {
+ await notify(url, {
+  dedup_key: 'test:status-delivery', target_id: 'status-delivery-test', target_name: 'Dunamis Status delivery test',
+  severity: 'warning', state: 'degraded', observed_at: new Date().toISOString(),
+  title: 'TEST: Dunamis Status alert delivery', public_summary: 'Delivery test only. No outage was detected.',
+ });
+}

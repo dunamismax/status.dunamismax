@@ -31,10 +31,13 @@ group kill on timeout. Truncated output is treated as unavailable evidence.
 Caddy's private adapted configuration is discarded.
 
 HTTP GETs use verified TLS, a five-second overall deadline, a five-hop redirect
-bound and at most 256 KiB of body. TCP checks connect and close without sending
+bound and a 256 KiB body limit. The installer probe requests a two-byte range.
+TCP checks connect and close without sending
 bytes. Systemd handles one-shots and restart loops; DDNS uses latest successful
 run recency. All public reasons are fixed phrases or counts. Webhook POSTs have
-five-second timeouts, no redirects and redacted failure messages.
+five-second timeouts, no redirects and redacted failure messages. The optional
+offsite heartbeat uses a separate bounded GET after the snapshot and retention
+writes succeed.
 
 The collector holds a PostgreSQL advisory lock across collection, storage,
 alert dedup selection/delivery/recording and retention. A failed send is retried

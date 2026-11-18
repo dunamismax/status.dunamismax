@@ -23,7 +23,7 @@ The separate web and collector users never receive each other's credentials.
 
 | Route | Contract |
 | --- | --- |
-| `/` | Service rollup, attention, groups and categorized service cards |
+| `/` | Public HTTP availability, backup and maintenance health, infrastructure, and check details |
 | `/services` | Every service check and its evidence timestamp |
 | `/projects` | Branch, upstream, ahead/behind, dirty state, commit age and BUILD progress |
 | `/incidents` | Incidents and recent/upcoming maintenance |
@@ -31,9 +31,9 @@ The separate web and collector users never receive each other's credentials.
 | `/operator` | 404 while token unset; otherwise constant-time bearer authorization, 401 on failure and noindex |
 | `/healthz` | `ok`, no database query |
 | `/readyz` | Existing status/dependencies/database shape; database dependency names now `postgresql-*` |
-| `/api/status.json` | Existing overall_state/checked_at/summary/services/projects shape |
+| `/api/status.json` | Existing overall_state/checked_at/summary/services/projects shape. `overall_state` still rolls up all services and projects. |
 | `/api/incidents.json` | Existing incidents/maintenance shape, latest 25 each; maintenance ends within 30 days |
-| `/assets/status.css`, `/icon.svg`, `/robots.txt` | Preserved static bytes |
+| `/assets/status.css`, `/icon.svg`, `/robots.txt` | Static assets with their existing cache policies |
 
 Known dynamic routes accept GET/HEAD only; other methods return 405 with Allow.
 Unknown/private paths return 404. Database failures return redacted 503s;
@@ -43,8 +43,9 @@ Timestamps retain the established fixed UTC-05:00 EST display and UTC API format
 
 ## Collection and history
 
-`src/collector/inventory.ts` is the reviewed probe inventory: all five active
-public HTTPS targets, systemd services/timers, RustDesk TCP 21115–21117, Caddy
+`src/collector/inventory.ts` is the reviewed probe inventory. It covers public HTTPS
+targets including the Azeroth Trail tracker, Lorehallow game health, and the
+XrayService Windows installer, plus systemd services/timers, RustDesk TCP 21115–21117, Caddy
 parse/reload evidence, Cloudflare DDNS recency, root disk capacity, memory PSI/available RAM, certificate expiry, backup
 Git size, and the six active application repository targets. It additionally monitors the new status Node
 service and PostgreSQL. Retired PHP/MySQL targets remain only in historical snapshots.
@@ -58,9 +59,11 @@ degraded/unknown alerts are warnings; maintenance/operational states are silent.
 Failure and recovery deliveries require two matching observations within 20 minutes.
 Existing failure dedup keys, repeat window (60 minutes) and per-run limit (5)
 remain. A delivered failure receives one confirmed recovery; a subsequent failure
-is a new event even inside the repeat window. Delivery remains unconfigured at
-the owner’s request; loopback and disposable-database tests cover this behavior. Webhook delivery failure fails the run and never records a sent alert.
-A collector advisory lock prevents overlapping notification runs.
+is a new event even inside the repeat window. Webhook delivery failure fails the
+run and leaves the alert unsent for retry. The optional offsite heartbeat follows
+a successful snapshot write and retention pass. See the [production delivery
+setup and tests](docs/production.md#offsite-alerts-and-heartbeat). A collector
+advisory lock prevents overlapping notification runs.
 
 ## Stack direction
 

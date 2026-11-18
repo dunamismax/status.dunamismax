@@ -21,7 +21,7 @@ reuse inherited descriptor 9; never nest separate acquisitions.
 - PostgreSQL: `status_dunamismax`, owner schema `app`. Role files remain root-only
   under `/etc/astro-apps/status_dunamismax/`; each unit loads only its own role.
 - Application settings: `/etc/status-dunamismax/astro-web.env` (operator token,
-  freshness and repo-root metadata) and `astro-collector.env` (webhook, repeat,
+  freshness and repo-root metadata) and `astro-collector.env` (webhook, heartbeat, repeat,
   maximum notifications, retention and repo root), root 0600. Changes need an
   owning Node service restart or take effect on the next collector run.
 - Private collector HOME/state: `/var/lib/astro-status-dunamismax-collector`, 0700.
@@ -69,8 +69,8 @@ systemctl status astro-status-dunamismax.service astro-status-dunamismax-collect
 journalctl -u astro-status-dunamismax-collector.service -n 10 --no-pager
 ```
 
-`collect` without either safety flag performs the configured real alert behavior.
-Do not use it for failure injection. The deployment wrapper holds the shared lock
+`collect` without either safety flag performs configured webhook and heartbeat delivery.
+Use the isolated tests for failure injection. The deployment wrapper holds the shared lock
 also for manual commands, preventing a manual deployment record racing history
 transfer. Toolworks uses these owning wrappers instead of legacy Rust/PHP commands.
 
@@ -137,9 +137,21 @@ The host recovery runbook owns the preserved final full MySQL archive.
 
 ## Monitoring policy
 
-The collector includes every retained website, four Astro services, the Python
-bot, PostgreSQL, Docker, Caddy, access services, DDNS and its timer, RustDesk's
-three TCP listeners, cleanup, installer builder and every backup job/timer.
+The overview's public availability headline follows the public HTTP probes.
+Backup and maintenance checks and infrastructure each have their own health
+summary. Stale or missing snapshots make all three current summaries unknown.
+The existing JSON `overall_state` still combines all service and project states,
+and `summary` still counts all service checks.
+
+The collector includes public websites, Astro services, the Python bot,
+PostgreSQL, Docker, Caddy, access services, DDNS and its timer, RustDesk's
+three TCP listeners, cleanup, installer builder and backup jobs and timers.
+Azeroth Trail checks its homepage and `/api/status`, with usable readings for all
+four regions and a snapshot and readings no older than five minutes. This measures
+tracker health even when the game servers it tracks are offline. Lorehallow checks
+its homepage and verifies the game server's `ok` response on `/healthz`. The
+XrayService `/download` check requires HTTP 206, attachment and valid range headers,
+and the two-byte Windows executable signature. It requests only the first two bytes.
 Successful completion must be within 26 hours for daily jobs, eight days for the
 weekly builder, 30 minutes for DDNS and 15 minutes for the collector. Enabled
 or active timers alone never prove backup freshness. Root-owned completion
@@ -151,17 +163,63 @@ is the single backup-failure alert path; no duplicate OnFailure notifier exists.
 Root disk warns at 80% and fails at 90%; available RAM warns below 10% and fails
 below 5%, or memory full-stall PSI avg60 reaches 2%/10%. Cached RAM alone is not
 pressure. Certificates warn with less than 21 days remaining and fail below seven.
-Backup Git storage warns at 5 GiB and fails at 10 GiB; stale observations are unknown.
+Backup Git storage warns at 5 GiB and fails at 10 GiB. The collector runs a bounded
+read-only `du -skx` of the fixed backup `.git` directory using its existing access.
+Failed, partial, timed-out or invalid measurements are unknown. The former size
+marker is tied to job completion and is no longer read. The backup job check still
+uses its existing systemd result and success marker to report backup delivery health.
 Service restart evidence is visible, with five restarts indicating degradation.
+
+## Offsite alerts and heartbeat
 
 `STATUS_ALERT_CONFIRMATIONS` defaults to two recent matching observations for
 failure and recovery. The global five-per-run cap and 60-minute repeat window
 bound delivery. Delivery failures remain unsent and retry later; URL-bearing
-exceptions are redacted. Schema changes add operational recovery evidence to
-existing alert history without changing the public API or web grants. Configure
-a verified endpoint only in the root-only collector environment; it never enters
-GitHub Actions or the public web process. The owner elected to skip real webhook
-delivery; no notification destination or credential was created.
+exceptions are redacted. The collector sends a JSON `POST` with `source`,
+`severity`, `state`, `target_id`, `target_name`, `title`, `public_summary`, and
+`observed_at`. Its receiver must route the payload to the approved recipient.
+
+The heartbeat is a `GET` to an independent dead-man receiver after the collector
+stores a snapshot and completes retention. A backup failure can still produce a
+heartbeat. A heartbeat request failure is logged separately and does not block
+alert processing. Both requests use a five-second timeout, no redirects and a
+2xx acknowledgment. `--dry-run` and `--no-notify` suppress both.
+
+The integration requires owner-approved destinations. For verification, create
+an isolated alert recipient and heartbeat monitor at the offsite receiver. Set
+the heartbeat to expect a ping every five minutes with ten minutes of grace and
+route missed-ping and recovery notifications to the approved test recipient.
+As root, create or edit `/etc/status-dunamismax/astro-delivery-test.env` as root
+owned and mode `0600`. Set these variables to the approved **test** URLs (each
+HTTPS URL can include its secret in the path or query):
+
+```dotenv
+STATUS_ALERT_WEBHOOK_URL=https://approved-test-receiver.example/alert-token
+STATUS_HEARTBEAT_URL=https://approved-test-receiver.example/ping-token
+```
+
+Run the corresponding commands only for destinations the owner supplied and
+approved for testing:
+
+```sh
+sudo /srv/www/status.dunamismax.com/current/deploy/run-command.sh test-delivery alert
+sudo /srv/www/status.dunamismax.com/current/deploy/run-command.sh test-delivery heartbeat
+```
+
+Confirm the marked `TEST: Dunamis Status alert delivery` message at the approved
+recipient and confirm that the receiver recorded the test heartbeat timestamp.
+Let the test monitor miss its next deadline, verify its missed-heartbeat message,
+then send a fresh test ping and verify recovery. A local 2xx only confirms the
+receiver accepted a request. The test command loads the dedicated test settings
+and does not write production notification or snapshot history.
+
+Install only approved production URL(s) under the same variable names in
+`/etc/status-dunamismax/astro-collector.env`, owned by root with mode `0600`.
+The next normal timer run picks them up. Confirm `heartbeat=sent` in the collector
+journal and a recent ping at the receiver. Leave either variable unset until its
+destination is approved. Keep both files out of Git, public web settings and
+command arguments. Never inject a failure into live backup, DDNS or Caddy to
+test alert delivery.
 
 `.github/workflows/external-probe.yml` probes public HTML, the demo's noindex and
 collector age from a GitHub-hosted Linux runner, independently of this VM and
