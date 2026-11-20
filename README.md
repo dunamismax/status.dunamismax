@@ -87,9 +87,9 @@ existing Python utilities remain.
 
 ## Development
 
-On ubuntu-vm use `astro-runtime npm ci`, `astro-runtime npm run check`,
-`astro-runtime npm run db:check`, `astro-runtime npm test`, `bash tests/postgres.sh`,
-and `astro-runtime npm run build` (`astro-runtime` is the host's shared Node
+On ubuntu-vm use `node-runtime npm ci`, `node-runtime npm run check`,
+`node-runtime npm run db:check`, `node-runtime npm test`, `bash tests/postgres.sh`,
+and `node-runtime npm run build` (`node-runtime` is the host's shared Node
 wrapper). `npm run dev` serves the app on 127.0.0.1:8096 (it still needs PostgreSQL
 settings for data pages). `npm test` builds first and then drives the built
 SvelteKit server in-process with injected test data. The PostgreSQL test starts a disposable private

@@ -34,8 +34,8 @@ jobs:
           echo "deb [signed-by=/usr/share/postgresql-common/pgdg/apt.postgresql.org.asc] https://apt.postgresql.org/pub/repos/apt $(. /etc/os-release; echo "$VERSION_CODENAME")-pgdg main" | sudo tee /etc/apt/sources.list.d/pgdg.list
           sudo apt-get update -qq
           sudo apt-get install -y postgresql-18
-          sudo ln -s "$(dirname "$(dirname "$(command -v node)")")" /opt/astro-runtime
-          printf '#!/bin/sh\nexec env PATH=/opt/astro-runtime/bin:$PATH "$@"\n' | sudo tee /usr/local/bin/astro-runtime >/dev/null
-          sudo chmod 755 /usr/local/bin/astro-runtime
-      - run: astro-runtime bash tests/postgres.sh
+          sudo ln -s "$(dirname "$(dirname "$(command -v node)")")" /opt/node-runtime
+          printf '#!/bin/sh\nexec env PATH=/opt/node-runtime/bin:$PATH "$@"\n' | sudo tee /usr/local/bin/node-runtime >/dev/null
+          sudo chmod 755 /usr/local/bin/node-runtime
+      - run: node-runtime bash tests/postgres.sh
       - run: npm audit --audit-level=moderate

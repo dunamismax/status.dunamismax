@@ -16,11 +16,11 @@ export const httpTargets:HttpTarget[] = [
 ];
 export const units:UnitTarget[] = [
  {id:'mtg-card-bot',unit:'mtg-card-bot.service',group:'Application services'},
- {id:'status-dunamismax-collector',unit:'astro-status-dunamismax-collector.timer',group:'Application services'},
- {id:'status-dunamismax-web',unit:'astro-status-dunamismax.service',group:'Application services'},
- ...['dunamismax','graceandfootnotes','imagingservices'].map(id=>({id:'astro-'+id,unit:'astro-'+id+'.service',group:'Application services'})),
- {id:'collector-run',unit:'astro-status-dunamismax-collector.service',group:'Application services',oneShot:true,maxAgeMinutes:15},
- {id:'ddns-timer',unit:'astro-cloudflare-ddns.timer',group:'Network & access'},
+ {id:'status-dunamismax-collector',unit:'status-dunamismax-collector.timer',group:'Application services'},
+ {id:'status-dunamismax-web',unit:'status-dunamismax.service',group:'Application services'},
+ ...['dunamismax','graceandfootnotes','imagingservices','xrayservice-web','vincentsawyer-web','azerothtrail','cfromthegroundup','rivermind-poker'].map(id=>({id,unit:id+'.service',group:'Application services'})),
+ {id:'collector-run',unit:'status-dunamismax-collector.service',group:'Application services',oneShot:true,maxAgeMinutes:15},
+ {id:'ddns-timer',unit:'cloudflare-ddns.timer',group:'Network & access'},
  {id:'postgresql',unit:'postgresql@18-main.service',group:'Databases'},
  ...['caddy','docker','containerd'].map(id=>({id,unit:id+'.service',group:'Host infrastructure'})),
  {id:'ssh',unit:'ssh.socket',group:'Network & access'},

@@ -8,7 +8,7 @@ candidate=$(realpath "$1")
 base=/srv/www/status.dunamismax.com
 previous=$(readlink -f "$base/current")
 [[ $previous == "$2" ]] || { echo 'Current release changed; recheck before deploying' >&2; exit 1; }
-[[ $candidate == /home/sawyer/astro-work/status-release-* && -f $candidate/RELEASE ]] || exit 1
+[[ $candidate == /home/sawyer/web-work/status-release-* && -f $candidate/RELEASE ]] || exit 1
 commit=$(cat "$candidate/RELEASE")
 [[ $commit =~ ^[0-9a-f]{40}$ && $candidate == *"$commit" && -s $candidate/dist/index.js && -s $candidate/build/src/collector/cli.js ]] || exit 1
 release="$base/releases/$commit"
@@ -16,12 +16,12 @@ if [[ -d $release ]]; then
  ( cd "$release" && sha256sum --quiet --check MANIFEST.sha256 )
  if [[ $previous == "$release" ]]; then "$release/deploy/smoke.sh" https://status.dunamismax.com; exit 0; fi
 fi
-backup="/root/status-astro-rollback-$(date -u +%Y%m%dT%H%M%SZ)"
+backup="/root/status-rollback-$(date -u +%Y%m%dT%H%M%SZ)"
 mkdir -m 0700 "$backup"
 printf '%s\n' "$previous" > "$backup/previous"
 cp -a /etc/caddy/sites/status.dunamismax.com.caddy "$backup/site.caddy"
 cp -a /etc/systemd/system/status-dunamismax-* "$backup/"
-cp -a /etc/systemd/system/astro-status-dunamismax* "$backup/" 2>/dev/null || true
+cp -a /etc/systemd/system/status-dunamismax.service "$backup/"
 cp -a /usr/local/sbin/status-dunamismax-backup "$backup/backup.sh"
 cp -a /etc/status-dunamismax "$backup/settings"
 ( cd "$candidate" && sha256sum --quiet --check MANIFEST.sha256 )
@@ -34,14 +34,14 @@ fi
 failed() { code=$?; trap - ERR; echo 'Cutover failed; restoring previous release' >&2; "$release/deploy/rollback.sh" "$backup" || echo 'Rollback failed; inspect root-only diagnostics' >&2; exit "$code"; }
 trap failed ERR
 # Ordinary SvelteKit deployment: PostgreSQL is authoritative; no legacy writer/import.
-systemctl stop astro-status-dunamismax-collector.timer 2>/dev/null || true
-while [[ $(systemctl show astro-status-dunamismax-collector.service -p ActiveState --value) =~ ^(active|activating|deactivating|reloading)$ ]]; do sleep 1; done
+systemctl stop status-dunamismax-collector.timer 2>/dev/null || true
+while [[ $(systemctl show status-dunamismax-collector.service -p ActiveState --value) =~ ^(active|activating|deactivating|reloading)$ ]]; do sleep 1; done
 runuser -u postgres -- pg_dump -Fc --create status_dunamismax > "$backup/pre-postgresql.dump"
-set -a; source /etc/astro-apps/status_dunamismax/migration.env; set +a
+set -a; source /etc/web-apps/status_dunamismax/migration.env; set +a
 # Reviewed Drizzle migrations through the owner-only runner (never schema push).
 # An existing schema without a journal is adopted only on an exact catalog match;
 # every-row digests prove adoption/no-op runs leave history untouched.
-node=/opt/astro-runtime/bin/node
+node=/opt/node-runtime/bin/node
 "$node" "$release/build/scripts/history.js" digest > "$backup/pre-digest.json"
 # The NOINHERIT migration login has no USAGE on app; probe the catalog instead.
 # A failed probe must abort (ERR trap), never fall through to adoption.
@@ -59,41 +59,41 @@ import os,shlex
 from pathlib import Path
 base=Path('/etc/status-dunamismax')
 for role,keys in [('web',['STATUS_OPERATOR_TOKEN','STATUS_STALE_AFTER_MINUTES','STATUS_REPO_ROOT']),('collector',['STATUS_ALERT_WEBHOOK_URL','STATUS_RETENTION_DAYS','STATUS_ALERT_REPEAT_AFTER_MINUTES','STATUS_ALERT_MAX_NOTIFICATIONS_PER_RUN','STATUS_REPO_ROOT'])]:
- target=base/('astro-'+role+'.env')
+ target=base/(role+'.env')
  if target.exists():continue
  raise SystemExit('Restore the separate web/collector role settings before deployment')
 CONFIG
 # Reuse the already separate nologin accounts and existing read-only collector ACLs.
 [[ $(id -nG status-dunamismax) != *docker* ]]
-for unit in astro-status-dunamismax.service astro-status-dunamismax-collector.service astro-status-dunamismax-collector.timer status-dunamismax-backup.service; do install -m 0644 "$release/deploy/$unit" "/etc/systemd/system/$unit"; done
+for unit in status-dunamismax.service status-dunamismax-collector.service status-dunamismax-collector.timer status-dunamismax-backup.service; do install -m 0644 "$release/deploy/$unit" "/etc/systemd/system/$unit"; done
 install -m 0755 "$release/deploy/backup.sh" /usr/local/sbin/status-dunamismax-backup
-systemd-analyze verify /etc/systemd/system/astro-status-dunamismax{,-collector}.service /etc/systemd/system/astro-status-dunamismax-collector.timer
+systemd-analyze verify /etc/systemd/system/status-dunamismax{,-collector}.service /etc/systemd/system/status-dunamismax-collector.timer
 systemctl daemon-reload
 # Candidate is exercised behind a distinct temporary loopback port before activation.
-sed -e "s|/srv/www/status.dunamismax.com/current|$release|g" -e 's/PORT=4313/PORT=14313/' "$release/deploy/astro-status-dunamismax.service" > /run/systemd/system/astro-status-candidate.service
+sed -e "s|/srv/www/status.dunamismax.com/current|$release|g" -e 's/PORT=4313/PORT=14313/' "$release/deploy/status-dunamismax.service" > /run/systemd/system/status-candidate.service
 systemctl daemon-reload
-systemctl start astro-status-candidate.service
+systemctl start status-candidate.service
 "$release/deploy/smoke.sh" http://127.0.0.1:14313
-systemctl stop astro-status-candidate.service
-rm /run/systemd/system/astro-status-candidate.service
+systemctl stop status-candidate.service
+rm /run/systemd/system/status-candidate.service
 systemctl daemon-reload
 ln -s "$release" "$base/current.next"
 mv -Tf "$base/current.next" "$base/current"
-systemctl enable --now astro-status-dunamismax.service
-systemctl restart astro-status-dunamismax.service
+systemctl enable --now status-dunamismax.service
+systemctl restart status-dunamismax.service
 install -m 0644 "$release/deploy/Caddyfile" /etc/caddy/sites/status.dunamismax.com.caddy
 runuser -u caddy -- /usr/local/lib/caddy/caddy validate --config /etc/caddy/Caddyfile > "$backup/caddy-validation.log" 2>&1
 systemctl reload caddy
 # Any timer-triggered verification run is also notification-free.
-install -d /run/systemd/system/astro-status-dunamismax-collector.service.d
-printf '[Service]\nExecStart=\nExecStart=/opt/astro-runtime/bin/node %s/build/src/collector/cli.js collect --no-notify\n' "$release" > /run/systemd/system/astro-status-dunamismax-collector.service.d/migration.conf
+install -d /run/systemd/system/status-dunamismax-collector.service.d
+printf '[Service]\nExecStart=\nExecStart=/opt/node-runtime/bin/node %s/build/src/collector/cli.js collect --no-notify\n' "$release" > /run/systemd/system/status-dunamismax-collector.service.d/migration.conf
 systemctl daemon-reload
-systemctl enable --now astro-status-dunamismax-collector.timer
-systemctl start astro-status-dunamismax-collector.service
+systemctl enable --now status-dunamismax-collector.timer
+systemctl start status-dunamismax-collector.service
 "$release/deploy/smoke.sh" https://status.dunamismax.com
 "$release/deploy/run-command.sh" record-deployment --service-id status-dunamismax --repo-name status.dunamismax --commit-sha "$commit"
-rm /run/systemd/system/astro-status-dunamismax-collector.service.d/migration.conf
+rm /run/systemd/system/status-dunamismax-collector.service.d/migration.conf
 systemctl daemon-reload
 trap - ERR
-printf '%s\n' "$backup" > /root/status-astro-latest-rollback
+printf '%s\n' "$backup" > /root/status-latest-rollback
 printf 'Deployed %s; rollback: %s/deploy/rollback.sh %s\n' "$commit" "$release" "$backup"

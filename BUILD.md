@@ -20,7 +20,7 @@ replaces the previous web rewrite plan. Work on main only; no branches/worktrees
 #### 0.1 Review reality and preserve contracts
 
 - [x] Read AGENTS, README, architecture/production/migration docs and the current
-  VM-owned `/home/sawyer/github/ubuntu-vm-backup/docs/astro-migration.md` plus its
+  VM-owned `/home/sawyer/github/ubuntu-vm-backup/docs/web-platform.md` plus its
   restore/final integration references. Check local/host commits, current release,
   units, roles, schema, timers, backups and port reservations; do not assume parity.
   - Progress (2026-11-02, read-only as sawyer): docs read. VM checkout clean at
@@ -40,7 +40,7 @@ replaces the previous web rewrite plan. Work on main only; no branches/worktrees
   - Progress: pinned-runtime baseline passed on the VM in a scratch archive of
     `1149ae6` (npm ci, check 0 errors, 16/16 tests with PG 18 integration, build,
     shell/Python syntax). Private every-row digests, catalog diffs and safety dumps are
-    in root-only `/root/status-astro-rollback-*` and `/root/status-phase0-evidence/`.
+    in root-only `/root/status-rollback-*` and `/root/status-phase0-evidence/`.
 
 | Current source | Work / retained contract |
 | --- | --- |

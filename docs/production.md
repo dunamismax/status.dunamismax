@@ -8,7 +8,7 @@ database, roles, collector or timers. Rollback to the last Astro release
 migrations through the owner-only runner; `database/schema.sql` is retained for
 older releases and history tooling only.
 
-Read `/home/sawyer/github/ubuntu-vm-backup/docs/astro-migration.md` (host runbook) first.
+Read `/home/sawyer/github/ubuntu-vm-backup/docs/web-platform.md` (host runbook) first.
 Every shared mutation, schema migration, release switch and rollback must run
 on the VM under `/usr/local/sbin/with-deploy-lock`. The wrappers acquire it or
 reuse inherited descriptor 9; never nest separate acquisitions.
@@ -17,20 +17,20 @@ reuse inherited descriptor 9; never nest separate acquisitions.
 
 - Releases: `/srv/www/status.dunamismax.com/releases/<commit>`, root-owned and
   immutable, with atomic `current`. Build outside the lock as sawyer.
-- Web: `astro-status-dunamismax.service` (retained unit name), `status-dunamismax-web`,
+- Web: `status-dunamismax.service` (retained unit name), `status-dunamismax-web`,
   loopback 4313. SvelteKit releases run `dist/index.js` under `node --permission`
   with `HOST`, `PORT` and `ORIGIN=https://status.dunamismax.com`; Astro releases ran
   `dist/server/entry.mjs`. Each release's unit file is installed with it and backed
   up for rollback, so a rollback restores the matching entry point.
-- Collector: `astro-status-dunamismax-collector.timer` → `.service`, existing
+- Collector: `status-dunamismax-collector.timer` → `.service`, existing
   `status-dunamismax` account, every five minutes plus up to 30s jitter, 4min cap.
 - PostgreSQL: `status_dunamismax`, owner schema `app`. Role files remain root-only
-  under `/etc/astro-apps/status_dunamismax/`; each unit loads only its own role.
-- Application settings: `/etc/status-dunamismax/astro-web.env` (operator token,
-  freshness and repo-root metadata) and `astro-collector.env` (webhook, heartbeat, repeat,
+  under `/etc/web-apps/status_dunamismax/`; each unit loads only its own role.
+- Application settings: `/etc/status-dunamismax/web.env` (operator token,
+  freshness and repo-root metadata) and `collector.env` (webhook, heartbeat, repeat,
   maximum notifications, retention and repo root), root 0600. Changes need an
   owning Node service restart or take effect on the next collector run.
-- Private collector HOME/state: `/var/lib/astro-status-dunamismax-collector`, 0700.
+- Private collector HOME/state: `/var/lib/status-dunamismax-collector`, 0700.
 - Retired PHP/MySQL data, credentials and old releases are archival recovery
   material under the host runbook. Never reactivate their services/collector for
   ordinary rollback; keep the current PostgreSQL backup timer.
@@ -75,8 +75,8 @@ sudo /srv/www/status.dunamismax.com/current/deploy/run-command.sh collect --dry-
 sudo /srv/www/status.dunamismax.com/current/deploy/run-command.sh collect --no-notify
 sudo /srv/www/status.dunamismax.com/current/deploy/run-command.sh record-deployment \
   --service-id example --repo-name example --commit-sha abcdef0 --summary 'example deployed to production'
-systemctl status astro-status-dunamismax.service astro-status-dunamismax-collector.timer
-journalctl -u astro-status-dunamismax-collector.service -n 10 --no-pager
+systemctl status status-dunamismax.service status-dunamismax-collector.timer
+journalctl -u status-dunamismax-collector.service -n 10 --no-pager
 ```
 
 `collect` without either safety flag performs configured webhook and heartbeat delivery.
@@ -98,7 +98,7 @@ directory; never commit or publish them. A populated destination requires explic
 `history import DIRECTORY --replace`, valid only with both writers stopped and a
 verified safety archive. Import failure rolls back the entire destination change.
 
-The latest rollback directory is recorded in `/root/status-astro-latest-rollback`.
+The latest rollback directory is recorded in `/root/status-latest-rollback`.
 Run the **new release's** `deploy/rollback.sh DIRECTORY` as root. The wrapper takes
 the shared lock and stops the owning Node collector first. For a PHP rollback it
 writes a fresh PG safety dump, streams all current PG history back to the retained
@@ -200,7 +200,7 @@ The integration requires owner-approved destinations. For verification, create
 an isolated alert recipient and heartbeat monitor at the offsite receiver. Set
 the heartbeat to expect a ping every five minutes with ten minutes of grace and
 route missed-ping and recovery notifications to the approved test recipient.
-As root, create or edit `/etc/status-dunamismax/astro-delivery-test.env` as root
+As root, create or edit `/etc/status-dunamismax/delivery-test.env` as root
 owned and mode `0600`. Set these variables to the approved **test** URLs (each
 HTTPS URL can include its secret in the path or query):
 
@@ -225,7 +225,7 @@ receiver accepted a request. The test command loads the dedicated test settings
 and does not write production notification or snapshot history.
 
 Install only approved production URL(s) under the same variable names in
-`/etc/status-dunamismax/astro-collector.env`, owned by root with mode `0600`.
+`/etc/status-dunamismax/collector.env`, owned by root with mode `0600`.
 The next normal timer run picks them up. Confirm `heartbeat=sent` in the collector
 journal and a recent ping at the receiver. Leave either variable unset until its
 destination is approved. Keep both files out of Git, public web settings and
@@ -269,9 +269,9 @@ directory; when no migration was applied they must be byte-identical.
 
 ```sh
 # Manual use only inside a deploy-lock transaction with writers drained:
-set -a; source /etc/astro-apps/status_dunamismax/migration.env; set +a
-/opt/astro-runtime/bin/node "$release/build/scripts/history.js" digest > "$backup/pre-digest.json"
-/opt/astro-runtime/bin/node "$release/build/src/db/migrate.js"   # --adopt-baseline only without a journal
+set -a; source /etc/web-apps/status_dunamismax/migration.env; set +a
+/opt/node-runtime/bin/node "$release/build/scripts/history.js" digest > "$backup/pre-digest.json"
+/opt/node-runtime/bin/node "$release/build/src/db/migrate.js"   # --adopt-baseline only without a journal
 ```
 
 Compatible retained releases (including pre-Drizzle `1149ae6`) run unchanged on an

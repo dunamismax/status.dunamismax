@@ -1,7 +1,7 @@
 # Operating guidance
 
 Read README.md, BUILD.md, docs/architecture.md, docs/production.md and the current
-`/home/sawyer/github/ubuntu-vm-backup/docs/astro-migration.md` (the host runbook;
+`/home/sawyer/github/ubuntu-vm-backup/docs/web-platform.md` (the host runbook;
 its name predates this stack) before changing the live service. The final stack is
 SvelteKit 3 · Svelte 5 · TypeScript · Tailwind CSS 4 · PostgreSQL 18 + Drizzle ORM ·
 Node (adapter-node) · Caddy. BUILD.md Phase 0 adopted Drizzle; Phase 1 moves the web
@@ -16,7 +16,7 @@ remote shell or command-output feed. No private paths, arguments, env values,
 credentials, topology, database names, logs or stack traces on public routes.
 Only bearer-authenticated /operator may show its deliberate private metadata.
 
-Use Node 24.22.3/npm 11.19.1 at /opt/astro-runtime through astro-runtime (shared
+Use Node 24.22.3/npm 11.19.1 at /opt/node-runtime through node-runtime (shared
 host runtime names, not a framework choice). Exact versions, package-lock.json and
 npm ci; strict TypeScript with noUncheckedIndexedAccess and exactOptionalPropertyTypes.
 SvelteKit 3.2.0 with adapter-node 6.0.2 (Vite 8.3.7) server-renders every page with
@@ -89,8 +89,8 @@ compatibility, rollback/data reconciliation and encrypted backup restore.
 - Hosting: existing systemd units (their `astro-` names are retained host names),
   `/srv/www/status.dunamismax.com/releases/<commit>`, atomic `current`, web
   127.0.0.1:4313 and candidate 127.0.0.1:14313. No required
-  Compose conversion. Root-only role settings stay in `/etc/astro-apps/status_dunamismax/`
-  and app settings in `/etc/status-dunamismax/astro-{web,collector}.env`.
+  Compose conversion. Root-only role settings stay in `/etc/web-apps/status_dunamismax/`
+  and app settings in `/etc/status-dunamismax/{web,collector}.env`.
 - Caddy: `/etc/caddy/Caddyfile`, owning fragment
   `/etc/caddy/sites/status.dunamismax.com.caddy`, binary `/usr/local/lib/caddy/caddy`.
   Preserve current modules/TLS. DNS is owner-managed, DNS-only (not proxied)

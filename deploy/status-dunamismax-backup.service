@@ -10,4 +10,4 @@ PrivateTmp=true
 NoNewPrivileges=true
 ProtectSystem=strict
 ProtectHome=read-only
-ReadWritePaths=/var/backups/status-dunamismax /run/astro-deploy /var/tmp /root
+ReadWritePaths=/var/backups/status-dunamismax /run/web-deploy /var/tmp /root
