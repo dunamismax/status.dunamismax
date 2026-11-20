@@ -5,8 +5,8 @@ Drizzle ORM · Node (adapter-node) · Caddy. Drizzle schemas, queries, the revie
 baseline migration and the owner-only runner are live: production adopted the
 baseline on November 2, 2026 ([BUILD.md Phase 0](BUILD.md),
 [migration evidence](docs/migration.md)). The web layer moved from Astro 7 to
-SvelteKit in source ([BUILD.md Phase 1](BUILD.md)); production keeps serving an
-Astro release until the Phase 1 cutover runs on the VM. Python and Swift are
+SvelteKit ([BUILD.md Phase 1](BUILD.md)); production has served the SvelteKit
+release since November 20, 2026. Python and Swift are
 conditional on actual project needs or a request.
 
 Public operational status for Stephen Sawyer's self-hosted ecosystem at

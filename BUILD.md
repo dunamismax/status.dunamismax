@@ -3,8 +3,9 @@
 The final stack is SvelteKit 3 · Svelte 5 · TypeScript · Tailwind CSS 4 ·
 PostgreSQL 18 + Drizzle ORM · Node (adapter-node) · Caddy. Phase 0 is complete
 (November 2, 2026): production adopted the Drizzle baseline and deployment applies
-reviewed migrations through the owner-only runner. Phase 1 moves the web layer from
-Astro to SvelteKit; its source work is done and its production cutover is open.
+reviewed migrations through the owner-only runner. Phase 1 moved the web layer from
+Astro to SvelteKit and was deployed on November 20, 2026; a rollback rehearsal and
+the first SvelteKit backup/restore drill remain open.
 Phase 0 text below records the Astro-era decisions as they were made; Phase 1
 supersedes its web-framework choices (0.3) only. Python and Swift are used only for
 an actual project need or explicit request. Keep the working TypeScript collector
@@ -296,19 +297,39 @@ units, Caddy and every public contract from Phase 0.1. Work on main only.
 
 #### 1.2 Production cutover
 
-- [ ] On the VM, `deploy/build.sh` an exact candidate with the pinned runtime,
+- [x] On the VM, `deploy/build.sh` an exact candidate with the pinned runtime,
   including `bash tests/postgres.sh` (full 23/23 with Linux pg_dump) in CI and there.
-- [ ] Before deploying, check the shared ubuntu-vm-backup `applications-verify` and
+  - Done 2026-11-20: candidate `8c72b37` (after `.astro/` was re-ignored so retained
+    Astro-era checkouts stay clean); svelte-check 0/0, 23/23 tests with PG 18.
+- [x] Before deploying, check the shared ubuntu-vm-backup `applications-verify` and
   any other host tooling for the Astro entry path `dist/server/entry.mjs` or
   `/assets/status.css`; update those consumers in their own repository first.
-- [ ] Deploy under with-deploy-lock: candidate smoke on 14313, atomic switch,
+  - Done: only `config/applications.json` named the entry (archive check and restore
+    drill); ubuntu-vm-backup `78290e6` points it at `dist/index.js` and updates its
+    runbook text. A copy installed with the drill's `npm ci --omit=dev
+    --ignore-scripts` (pg/drizzle only) served healthz/static 200 and a redacted 503
+    without a database. `files/` mirrors refresh with the next snapshot.
+- [x] Deploy under with-deploy-lock: candidate smoke on 14313, atomic switch,
   custom-Caddy validation/reload of the new fragment, public smoke (immutable
   stylesheet header, no duplicates), `--no-notify` collector run, recorded deployment.
+  - Done 2026-11-20 13:45 UTC from `cc3fc21` (Astro) to `8c72b37`; rollback directory
+    `/root/status-astro-rollback-20261120T134532Z`. The unit runs `dist/index.js`
+    under `--permission`; readiness `ready`/fresh; home page script-free; stylesheet
+    `public,max-age=31536000,immutable` once; `/services/` 308, unknown/operator 404,
+    form POST 405; web role 4 reads/13 denials; web process env holds only web keys.
+    Caddy, PostgreSQL and the other three site services kept their PIDs.
+    The first scheduled timer run (13:51 UTC, normal unit) stored 56 services and 6
+    projects with 0 alerts; readiness stayed fresh.
 - [ ] Rehearse rollback to the last Astro release (unit and fragment restored from
   the backup; the new smoke passes against it) and roll forward, keeping later writes.
-- [ ] Verify the no-script UI in light/dark, mobile and keyboard use on production,
-  unchanged icon/robots bytes, and an encrypted backup/restore drill that serves the
-  SvelteKit release with its restricted web role.
+- [x] Verify the no-script UI and unchanged icon/robots bytes.
+  - Done: icon/robots SHA-256 identical before and after; computed styles of all 147
+    overview elements and their `::before` markers match the Astro stylesheet in
+    light and dark at 1280 px and 375 px (same markup and classes, so keyboard focus
+    styles and the skip link are unchanged).
+- [ ] Encrypted backup/restore drill (`bin/backup`, `restore applications-verify`)
+  serving the SvelteKit release with its restricted web role; first due with the
+  scheduled ubuntu-vm-backup run on 2026-11-21 07:35 UTC.
 
 References: [SvelteKit 3 migration](https://svelte.dev/docs/kit/migrating-to-sveltekit-3),
 [adapter-node](https://svelte.dev/docs/kit/adapter-node),

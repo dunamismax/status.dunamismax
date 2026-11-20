@@ -1,10 +1,10 @@
 # Production operations
 
-Source targets SvelteKit 3 (adapter-node) with native PostgreSQL 18, Drizzle,
-systemd and Caddy. Production keeps serving an Astro release until the
-[BUILD.md Phase 1](../BUILD.md) cutover is deployed with the release procedure
-below; that cutover changes the web entry point and stylesheet path only, not the
-database, roles, collector or timers. Deployment applies reviewed Drizzle
+The active service is SvelteKit 3 (adapter-node) with native PostgreSQL 18,
+Drizzle, systemd and Caddy, deployed November 20, 2026 ([BUILD.md Phase 1](../BUILD.md)).
+That cutover changed the web entry point and stylesheet path only, not the
+database, roles, collector or timers. Rollback to the last Astro release
+(`cc3fc21`) uses `deploy/rollback.sh /root/status-astro-rollback-20261120T134532Z`. Deployment applies reviewed Drizzle
 migrations through the owner-only runner; `database/schema.sql` is retained for
 older releases and history tooling only.
 

@@ -5,7 +5,7 @@ Read README.md, BUILD.md, docs/architecture.md, docs/production.md and the curre
 its name predates this stack) before changing the live service. The final stack is
 SvelteKit 3 · Svelte 5 · TypeScript · Tailwind CSS 4 · PostgreSQL 18 + Drizzle ORM ·
 Node (adapter-node) · Caddy. BUILD.md Phase 0 adopted Drizzle; Phase 1 moves the web
-layer from Astro to SvelteKit (source done, production cutover open). Keep
+layer from Astro to SvelteKit (deployed 2026-11-20). Keep
 adapter-node SSR, the host TypeScript collector and systemd deployment. Python and
 Swift are used only when actually needed or explicitly requested.
 Preserve private source visibility and the owner's content/access boundaries.
@@ -70,7 +70,7 @@ only in its disposable private cluster. For production verify failures, role gra
 process env/file separation, timers, fresh snapshots, static bytes, headers, API
 compatibility, rollback/data reconciliation and encrypted backup restore.
 
-## Final stack and layout (Phase 0 complete; Phase 1 source complete)
+## Final stack and layout (Phase 0 complete; Phase 1 deployed)
 
 - Web: SvelteKit `src/routes/` (+page.server.ts loads, +server.ts endpoints),
   `src/hooks.server.ts` (method gate, operator bearer check, headers), Svelte 5
