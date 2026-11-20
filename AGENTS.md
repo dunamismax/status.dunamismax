@@ -1,11 +1,13 @@
 # Operating guidance
 
 Read README.md, BUILD.md, docs/architecture.md, docs/production.md and the current
-`/home/sawyer/github/ubuntu-vm-backup/docs/astro-migration.md` before changing the
-live service. The final stack is Astro + PostgreSQL + Drizzle. BUILD.md Phase 0
-adopted Drizzle into the existing application; retain Astro Node standalone SSR,
-the host TypeScript collector and systemd deployment. Python and Swift are used
-only when actually needed or explicitly requested, not as mandatory conversions.
+`/home/sawyer/github/ubuntu-vm-backup/docs/astro-migration.md` (the host runbook;
+its name predates this stack) before changing the live service. The final stack is
+SvelteKit 3 · Svelte 5 · TypeScript · Tailwind CSS 4 · PostgreSQL 18 + Drizzle ORM ·
+Node (adapter-node) · Caddy. BUILD.md Phase 0 adopted Drizzle; Phase 1 moves the web
+layer from Astro to SvelteKit (source done, production cutover open). Keep
+adapter-node SSR, the host TypeScript collector and systemd deployment. Python and
+Swift are used only when actually needed or explicitly requested.
 Preserve private source visibility and the owner's content/access boundaries.
 
 Reality first: do not invent uptime, hide unknown/stale evidence or claim checks
@@ -14,17 +16,21 @@ remote shell or command-output feed. No private paths, arguments, env values,
 credentials, topology, database names, logs or stack traces on public routes.
 Only bearer-authenticated /operator may show its deliberate private metadata.
 
-Use Node 24.22.3/npm 11.19.1 at /opt/astro-runtime through astro-runtime. Exact
-versions, package-lock.json and npm ci; strict TypeScript with noUncheckedIndexedAccess
-and exactOptionalPropertyTypes. Astro standalone SSR, semantic HTML, existing
-vanilla CSS, no browser JavaScript, inline style, fonts or analytics for current
-pages. Drizzle ORM 0.45.4 (Kit 0.31.11, dev-only) wraps the existing pg driver. React islands,
-Tailwind and shadcn/ui are available only for an actual interactive UI need;
-Astro Actions/API endpoints only for needed forms/server or client APIs. Preserve
-current no-script behavior until a concrete feature justifies changing it.
-No unnecessary framework, hosted monitoring or container migration.
+Use Node 24.22.3/npm 11.19.1 at /opt/astro-runtime through astro-runtime (shared
+host runtime names, not a framework choice). Exact versions, package-lock.json and
+npm ci; strict TypeScript with noUncheckedIndexedAccess and exactOptionalPropertyTypes.
+SvelteKit 3.2.0 with adapter-node 6.0.2 (Vite 8.3.7) server-renders every page with
+`csr = false`: Svelte 5.57.3 runes components emit semantic HTML and no browser
+JavaScript, inline style, fonts or analytics. Tailwind CSS 4.3.5 (@tailwindcss/vite)
+builds `src/app.css`: palette tokens in `@theme`, the existing component rules in
+the components layer, preflight omitted. Config lives in the sveltekit() plugin in
+vite.config.ts (no svelte.config.js); use `#lib/...` imports. Drizzle ORM 0.45.4
+(Kit 0.31.11, dev-only) wraps the existing pg driver. Hydration/CSR, form actions,
+remote functions or shadcn-svelte need an actual interactive feature plus a CSP and
+smoke review; preserve the no-script behavior until then. No unnecessary framework,
+hosted monitoring or container migration.
 
-Web code under src/lib and src/pages only reads four permitted PostgreSQL models.
+Web code (src/hooks.server.ts, src/routes, src/lib) only reads four permitted PostgreSQL models.
 It never imports collector code, runs commands, probes URLs or reads repositories.
 Keep OS identities, root-only role env files, Node permission restrictions, read-only
 filesystem, PostgreSQL grants and no owner/writer membership as independent controls.
@@ -57,17 +63,21 @@ tips. Never add assistant/co-author attribution. Never commit env files, dumps,
 private snapshots, generated output or node_modules. Keep docs current in the same
 change. Do not create extra instruction/continuity files.
 
-Verification: npm ci, npm run check, npm run db:check, npm test, bash tests/postgres.sh, npm run build,
+Verification: npm ci, npm run check (svelte-kit sync, svelte-check, CLI tsc), npm run db:check,
+npm test (builds the app, then drives dist/server in-process), bash tests/postgres.sh, npm run build,
 bash -n deploy/*.sh, Python compile and git diff --check. PostgreSQL integration runs
 only in its disposable private cluster. For production verify failures, role grants,
 process env/file separation, timers, fresh snapshots, static bytes, headers, API
 compatibility, rollback/data reconciliation and encrypted backup restore.
 
-## Final stack and layout (Phase 0 complete)
+## Final stack and layout (Phase 0 complete; Phase 1 source complete)
 
-- Web: Astro `src/pages/`, server-only `src/lib/`, semantic HTML/current CSS.
-  Keep `@astrojs/node` standalone server output for this database-backed observer.
-  Static output is appropriate for other content-only projects, not live status.
+- Web: SvelteKit `src/routes/` (+page.server.ts loads, +server.ts endpoints),
+  `src/hooks.server.ts` (method gate, operator bearer check, headers), Svelte 5
+  components in `src/lib/components/`, pure view helpers `src/lib/view.ts` and
+  server-only policy/data modules in `src/lib/`. Keep adapter-node output (`dist/`,
+  entry `dist/index.js`; the collector's tsc output owns `build/`). Prerendering or
+  adapter-static is for content-only projects, not live status.
 - Database: native PostgreSQL 18, `status_dunamismax`, schema `app`, separate
   owner/migration/web/collector roles. Typed schema `src/db/schema.ts`, reviewed
   migrations in `drizzle/` (baseline catalog `drizzle/baseline-catalog.json`),
@@ -76,8 +86,9 @@ compatibility, rollback/data reconciliation and encrypted backup restore.
   is private to the owner. Never `drizzle-kit push`. Production adopted 2026-11-02;
   `deploy/deploy.sh` runs the runner with before/after every-row digests.
   Preserve exactly four web-readable models and no future-table default grants.
-- Hosting: existing systemd units, `/srv/www/status.dunamismax.com/releases/<commit>`,
-  atomic `current`, web 127.0.0.1:4313 and candidate 127.0.0.1:14313. No required
+- Hosting: existing systemd units (their `astro-` names are retained host names),
+  `/srv/www/status.dunamismax.com/releases/<commit>`, atomic `current`, web
+  127.0.0.1:4313 and candidate 127.0.0.1:14313. No required
   Compose conversion. Root-only role settings stay in `/etc/astro-apps/status_dunamismax/`
   and app settings in `/etc/status-dunamismax/astro-{web,collector}.env`.
 - Caddy: `/etc/caddy/Caddyfile`, owning fragment
@@ -90,12 +101,12 @@ compatibility, rollback/data reconciliation and encrypted backup restore.
 - Backups: nightly pg_dump with roles/ACLs/settings, encrypted off-host copies and
   isolated restores. Keep PostgreSQL; SQLite/Litestream are not target requirements.
 - Conditional product additions: Better Auth with PostgreSQL for requested accounts,
-  Vercel AI SDK inside Astro endpoints for needed LLM features. Neither is needed
+  Vercel AI SDK inside SvelteKit server endpoints for needed LLM features. Neither is needed
   by this observer; preserve bearer-only `/operator` and read-only web access.
 - Conditional native work: Swift/SwiftUI on Apple platforms only when needed or
   requested. Record Swift/minimum OS versions and a working xcodebuild/test command;
   prefer @Observable where supported, SwiftData or GRDB as appropriate. Clients
-  call Astro HTTPS APIs, never the server database. No native target is planned here.
+  call the SvelteKit HTTPS APIs, never the server database. No native target is planned here.
 - Conditional Python work: use uv, locked dependencies and ruff; choose Typer/httpx/
   Pydantic only as needed, systemd timers for recurring jobs. Keep the working
   TypeScript collector and existing Python recovery/probe utilities; no language

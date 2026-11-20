@@ -10,7 +10,7 @@ previous=$(readlink -f "$base/current")
 [[ $previous == "$2" ]] || { echo 'Current release changed; recheck before deploying' >&2; exit 1; }
 [[ $candidate == /home/sawyer/astro-work/status-release-* && -f $candidate/RELEASE ]] || exit 1
 commit=$(cat "$candidate/RELEASE")
-[[ $commit =~ ^[0-9a-f]{40}$ && $candidate == *"$commit" && -s $candidate/dist/server/entry.mjs && -s $candidate/build/src/collector/cli.js ]] || exit 1
+[[ $commit =~ ^[0-9a-f]{40}$ && $candidate == *"$commit" && -s $candidate/dist/index.js && -s $candidate/build/src/collector/cli.js ]] || exit 1
 release="$base/releases/$commit"
 if [[ -d $release ]]; then
  ( cd "$release" && sha256sum --quiet --check MANIFEST.sha256 )
@@ -33,7 +33,7 @@ if [[ ! -d $release ]]; then
 fi
 failed() { code=$?; trap - ERR; echo 'Cutover failed; restoring previous release' >&2; "$release/deploy/rollback.sh" "$backup" || echo 'Rollback failed; inspect root-only diagnostics' >&2; exit "$code"; }
 trap failed ERR
-# Ordinary Astro deployment: PostgreSQL is authoritative; no legacy writer/import.
+# Ordinary SvelteKit deployment: PostgreSQL is authoritative; no legacy writer/import.
 systemctl stop astro-status-dunamismax-collector.timer 2>/dev/null || true
 while [[ $(systemctl show astro-status-dunamismax-collector.service -p ActiveState --value) =~ ^(active|activating|deactivating|reloading)$ ]]; do sleep 1; done
 runuser -u postgres -- pg_dump -Fc --create status_dunamismax > "$backup/pre-postgresql.dump"
@@ -61,7 +61,7 @@ base=Path('/etc/status-dunamismax')
 for role,keys in [('web',['STATUS_OPERATOR_TOKEN','STATUS_STALE_AFTER_MINUTES','STATUS_REPO_ROOT']),('collector',['STATUS_ALERT_WEBHOOK_URL','STATUS_RETENTION_DAYS','STATUS_ALERT_REPEAT_AFTER_MINUTES','STATUS_ALERT_MAX_NOTIFICATIONS_PER_RUN','STATUS_REPO_ROOT'])]:
  target=base/('astro-'+role+'.env')
  if target.exists():continue
- raise SystemExit('Restore the separate Astro role settings before deployment')
+ raise SystemExit('Restore the separate web/collector role settings before deployment')
 CONFIG
 # Reuse the already separate nologin accounts and existing read-only collector ACLs.
 [[ $(id -nG status-dunamismax) != *docker* ]]

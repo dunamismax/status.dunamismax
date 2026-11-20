@@ -1,9 +1,10 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
-import { readFile,mkdtemp,symlink,rm } from 'node:fs/promises';
+import { readFile,readdir,mkdtemp,symlink,rm } from 'node:fs/promises';
 import { snapshot, freshness, timestamp, worst, type Snapshot } from '../src/lib/model.js';
 import { config } from '../src/lib/config.js';
-import { handle, readiness } from '../src/lib/web.js';
+import { readiness } from '../src/lib/web.js';
+import { handle } from './web.js';
 import type { Source } from '../src/lib/source.js';
 import { command } from '../src/collector/command.js';
 import { evaluateMemory,evaluateCertificate,evaluateHttp,evaluateUnit,evaluateCaddy,evaluateDdns,evaluateDisk,evaluateGit,buildProgress,httpProbe,parseFacts,evaluateBackupSize } from '../src/collector/probes.js';
@@ -22,7 +23,7 @@ test('legacy Rust snapshot canonical public shape',async()=>{const fixture=JSON.
 test('rollup severity, services-only counts and freshness boundary',()=>{assert.equal(worst([]),'unknown');assert.equal(worst(['maintenance','unknown','degraded','down']),'down');assert.equal(freshness(stored,15,now+899999).stale,false);assert.equal(freshness(stored,15,now+900000).stale,true);assert.equal(freshness(null,15,now).dependency,'collector-snapshot-missing');assert.equal(timestamp('2026-10-22 10:00:00.123456+00'),'2026-10-22T10:00:00.123456Z');assert.throws(()=>timestamp('tomorrow'));});
 test('all routes, methods, HEAD, missing and stale snapshots',async()=>{for(const path of ['/','/services','/projects','/incidents','/deployments','/healthz','/readyz','/api/status.json','/api/incidents.json']){assert.equal((await handle(request(path),source,c,now)).status,200);const head=await handle(request(path,{method:'HEAD'}),source,c,now);assert.equal(await head.text(),'');assert.equal((await handle(request(path,{method:'POST'}),source,c,now)).status,405);}assert.equal((await handle(request('/secret'),source,c,now)).status,404);for(const path of ['/','/services','/projects'])assert.match(await (await handle(request(path),source,c,now+900000)).text(),/Stale data/);assert.equal((await readiness({...source,latest:async()=>null},c,now)).status,'degraded');});
 test('database failure is redacted, health does not query; operator denies before data access',async()=>{const bad:Source={...source,latest:async()=>{throw new Error('/private/path password=SECRET');},ping:async()=>{throw new Error('secret');}};assert.equal(await (await handle(request('/healthz'),bad,c,now)).text(),'ok\n');for(const path of ['/','/services','/api/status.json']){const r=await handle(request(path),bad,c,now);assert.equal(r.status,503);assert.doesNotMatch(await r.text(),/SECRET|private\/path|password/);}assert.equal((await readiness(bad,c,now)).database,'unavailable');assert.equal((await handle(request('/operator'),bad,c,now)).status,404);const enabled=config({STATUS_OPERATOR_TOKEN:'a'.repeat(32)});assert.equal((await handle(request('/operator'),bad,enabled,now)).status,401);assert.equal((await handle(request('/operator',{headers:{Authorization:'Bearer '+'a'.repeat(32)}}),source,enabled,now)).status,200);});
-test('XSS notes and names are escaped, no browser scripts',async()=>{const injected=snapshot([{...service(),target:{...service().target,name:'<script>alert(1)</script>',public_url:'javascript:alert(1)'}}]);const text=await (await handle(request('/'),{...source,latest:async()=>injected},c,now)).text();assert.doesNotMatch(text,/<script|javascript:/);assert.match(text,/&lt;script&gt;/);});
+test('XSS notes and names are escaped, no browser scripts',async()=>{const injected=snapshot([{...service(),target:{...service().target,name:'<script>alert(1)</script>',public_url:'javascript:alert(1)'}}]);const text=await (await handle(request('/'),{...source,latest:async()=>injected},c,now)).text();assert.doesNotMatch(text,/<script|javascript:/);assert.match(text,/&lt;script>alert\(1\)&lt;\/script>/);});
 test('shell-free runner bounds time/output and excludes inherited secrets',async()=>{process.env.STATUS_TEST_SECRET='MUST_NOT_ESCAPE';const secret=await command(process.execPath,['-e','process.stdout.write(process.env.STATUS_TEST_SECRET || "absent")']);assert.equal(secret.stdout,'absent');const literal=await command('/usr/bin/printf',['%s','$(touch /tmp/status-should-not-exist); `false`']);assert.equal(literal.stdout,'$(touch /tmp/status-should-not-exist); `false`');const timed=await command(process.execPath,['-e','setInterval(()=>{},1000)'],{timeoutMs:40});assert.equal(timed.timedOut,true);assert.ok(timed.durationMs<2000);const bounded=await command(process.execPath,['-e','process.stdout.write("a".repeat(30000))'],{maxBytes:100});assert.equal(bounded.stdout.length,100);assert.equal(bounded.truncated,true);assert.equal(bounded.exitCode,null);assert.equal((await command('/does/not/exist',[])).exitCode,null);});
 test('systemd one-shots, restart loops, permission errors, DDNS staleness and disk thresholds',()=>{const t={id:'test',unit:'test.service',group:'test'},f={LoadState:'loaded',ActiveState:'inactive',Result:'success',ExecMainStatus:'0'};assert.equal(evaluateUnit({...t,oneShot:true},f)[0],'operational');assert.equal(evaluateUnit(t,f)[0],'down');assert.equal(evaluateUnit(t,{...f,ActiveState:'active',NRestarts:'5'})[0],'degraded');assert.equal(evaluateCaddy({exitCode:1,stderr:'permission denied',stdout:'',durationMs:1,timedOut:false,truncated:false},null)[0],'unknown');assert.equal(evaluateDdns({...f,InactiveEnterTimestamp:'@'+((now-31*60000)/1000)},now)[0],'degraded');assert.equal(evaluateDisk('Use% Avail\n80% 1048576')[0],'degraded');assert.equal(evaluateDisk('Use% Avail\n90% 1048576')[0],'down');assert.equal(evaluateDisk('nonsense')[0],'unknown');assert.deepEqual(parseFacts('Result=success\nBad\nNRestarts=5'),{Result:'success',NRestarts:'5'});});
 test('git old commits remain healthy; BUILD progress survives',()=>{const b=buildProgress('### First\n- [x] yes\n### Second\n- [ ] no');assert.deepEqual(b,{checked:1,total:2,next_phase:'Second'});assert.equal(evaluateGit({branch:'main',upstream:'origin/main',ahead:0,behind:0,dirty:false,latest_commit_age_days:100,remote_reachable:null},b)[0],'operational');});
@@ -31,7 +32,9 @@ test('alert keys, critical ordering and maintenance silence',()=>{const a=alerts
 test('deployment CLI validates flags, timestamps, UTF8, legacy env fallback',()=>{assert.equal(deployment([],{STATUS_DEPLOYMENT_SERVICE_ID:'test'}).public_summary,'test deployed to production');assert.equal(deployment(['--summary','é'.repeat(500)]).public_summary.length,500);assert.throws(()=>deployment(['--summary','bad\nline']));assert.throws(()=>deployment(['--commit-sha','bad']));assert.throws(()=>deployment(['--unknown','x']));});
 test('history fingerprints preserve microseconds, IDs, JSON types and Unicode',()=>{assert.equal(canonical(normalize({id:10,checked_at:'2026-01-01 00:00:00.123456',snapshot:{b:'é',a:[true,null,1]}})),canonical(normalize({snapshot:{a:[true,null,1],b:'é'},checked_at:'2026-01-01T00:00:00.123456Z',id:'10'})));});
 
-test('public import graph has no probe, repository or subprocess access',async()=>{for(const path of ['src/lib/web.ts','src/lib/source.ts','src/lib/config.ts','src/lib/model.ts','src/lib/db.ts','src/db/schema.ts','src/pages/[...path].ts'])assert.doesNotMatch(await readFile(path,'utf8'),/node:child_process|from ['"]node:fs|collector\/|db\/(?:migrate|catalog)|fetch\s*\(/);});
+test('public import graph has no probe, repository or subprocess access',async()=>{const routes=(await readdir('src/routes',{recursive:true})).filter(f=>/\.(?:ts|svelte)$/.test(f)).map(f=>'src/routes/'+f);const components=(await readdir('src/lib/components')).map(f=>'src/lib/components/'+f);assert.ok(routes.length>=15);for(const path of ['src/hooks.server.ts','src/lib/web.ts','src/lib/view.ts','src/lib/source.ts','src/lib/config.ts','src/lib/model.ts','src/lib/db.ts','src/db/schema.ts',...routes,...components])assert.doesNotMatch(await readFile(path,'utf8'),/node:child_process|from ['"]node:fs|collector\/|db\/(?:migrate|catalog)|fetch\s*\(/);});
+
+test('pages ship no browser JavaScript, inline styles or hydration markers',async()=>{const client=await readdir('dist/client',{recursive:true});assert.deepEqual(client.filter(f=>/\.m?js$/.test(f)),[]);for(const path of ['/','/services','/projects','/incidents','/deployments','/nope']){const text=await (await handle(request(path),source,c,now)).text();assert.doesNotMatch(text,/<script|<style|style=|<!--|modulepreload/);assert.match(text,/<link href="\/_app\/immutable\/assets\/[^"]+\.css" rel="stylesheet">/);}const r=await handle(request('/services'),source,c,now);assert.equal(r.headers.get('content-type'),'text/html; charset=utf-8');assert.equal(r.headers.get('cache-control'),'no-store');assert.equal(r.headers.get('x-sveltekit-page'),null);assert.match(await r.text(),/<a class="nav-link active" href="\/services" aria-current="page">Services<\/a>/);});
 
 test('collector entry point executes through release symlinks',async()=>{const directory=await mkdtemp('/tmp/status-entry-test.');try{await symlink(process.cwd()+'/build/src/collector/cli.js',directory+'/cli.js');const result=await command(process.execPath,[directory+'/cli.js','--help']);assert.equal(result.exitCode,0);assert.match(result.stdout,/Usage: status collect/);}finally{await rm(directory,{recursive:true,force:true});}});
 
@@ -154,4 +157,25 @@ test('alerts and heartbeat use separate requests, with test labeling and redacte
   server.closeAllConnections();
   await new Promise<void>(resolve => server.close(() => resolve()));
  }
+});
+
+test('response policy headers: 405 Allow, 503 Retry-After, operator noindex and bearer challenge', async () => {
+ const post = await handle(request('/api/status.json', {method: 'POST', headers: {'Content-Type': 'application/json'}, body: '{}'}), source, c, now);
+ assert.equal(post.status, 405);
+ assert.equal(post.headers.get('allow'), 'GET, HEAD');
+ assert.equal(await post.text(), '');
+ const bad: Source = {...source, latest: async () => { throw new Error('down'); }};
+ for (const path of ['/', '/api/status.json']) assert.equal((await handle(request(path), bad, c, now)).headers.get('retry-after'), '60');
+ assert.match(await (await handle(request('/'), bad, c, now)).text(), /<h1>Status history is unavailable<\/h1>/);
+ const enabled = config({STATUS_OPERATOR_TOKEN: 'b'.repeat(32)});
+ const denied = await handle(request('/operator', {headers: {Authorization: 'Bearer ' + 'c'.repeat(32)}}), source, enabled, now);
+ assert.equal(denied.status, 401);
+ assert.equal(denied.headers.get('www-authenticate'), 'Bearer realm="status-operator"');
+ assert.equal(denied.headers.get('x-robots-tag'), 'noindex');
+ const granted = await handle(request('/operator', {headers: {Authorization: 'Bearer ' + 'b'.repeat(32)}}), source, enabled, now);
+ assert.equal(granted.headers.get('x-robots-tag'), 'noindex');
+ assert.match(await granted.text(), /<h1>Private status detail<\/h1>/);
+ const missing = await handle(request('/nope'), source, c, now);
+ assert.equal(missing.status, 404);
+ assert.match(await missing.text(), /<title>Not found · Dunamis Status<\/title>/);
 });

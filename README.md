@@ -1,21 +1,22 @@
 # Dunamis Status
 
-The final target is Astro + PostgreSQL + Drizzle. Astro/PostgreSQL/systemd are
-implemented. Drizzle schemas, queries, the reviewed baseline migration and the
-owner-only runner are live: production adopted the baseline on November 2, 2026
-after an exact catalog match and identical every-row digests, and deployment applies
-migrations through that runner. See [BUILD.md Phase 0](BUILD.md) and
-[migration evidence](docs/migration.md). Python and Swift are conditional
-on actual project needs or a request.
+The stack is SvelteKit 3 · Svelte 5 · TypeScript · Tailwind CSS 4 · PostgreSQL 18 +
+Drizzle ORM · Node (adapter-node) · Caddy. Drizzle schemas, queries, the reviewed
+baseline migration and the owner-only runner are live: production adopted the
+baseline on November 2, 2026 ([BUILD.md Phase 0](BUILD.md),
+[migration evidence](docs/migration.md)). The web layer moved from Astro 7 to
+SvelteKit in source ([BUILD.md Phase 1](BUILD.md)); production keeps serving an
+Astro release until the Phase 1 cutover runs on the VM. Python and Swift are
+conditional on actual project needs or a request.
 
 Public operational status for Stephen Sawyer's self-hosted ecosystem at
-<https://status.dunamismax.com>. Astro 7 renders semantic HTML and stable JSON
-from PostgreSQL 18. Strict TypeScript runs both the public application and the
-bounded background collector on the shared Node 24.22.3/npm 11.19.1 runtime.
-The browser receives no JavaScript; the existing responsive stylesheet follows
-`prefers-color-scheme`.
+<https://status.dunamismax.com>. SvelteKit server-renders Svelte 5 pages
+(`csr = false`) and stable JSON endpoints from PostgreSQL 18. Strict TypeScript runs
+both the public application and the bounded background collector on the shared
+Node 24.22.3/npm 11.19.1 runtime. The browser receives no JavaScript; the
+responsive stylesheet is built with Tailwind CSS 4 and follows `prefers-color-scheme`.
 
-Caddy → loopback Astro → four permitted PostgreSQL read models.
+Caddy → loopback SvelteKit (adapter-node) → four permitted PostgreSQL read models.
 The five-minute systemd collector → bounded probes → PostgreSQL history.
 The separate web and collector users never receive each other's credentials.
 
@@ -33,10 +34,12 @@ The separate web and collector users never receive each other's credentials.
 | `/readyz` | Existing status/dependencies/database shape; database dependency names now `postgresql-*` |
 | `/api/status.json` | Existing overall_state/checked_at/summary/services/projects shape. `overall_state` still rolls up all services and projects. |
 | `/api/incidents.json` | Existing incidents/maintenance shape, latest 25 each; maintenance ends within 30 days |
-| `/assets/status.css`, `/icon.svg`, `/robots.txt` | Static assets with their existing cache policies |
+| `/_app/immutable/assets/*.css` | Content-hashed Tailwind stylesheet, `public,max-age=31536000,immutable` from adapter-node |
+| `/icon.svg`, `/robots.txt` | Static assets (`static/`) with their existing Caddy cache policies |
 
 Known dynamic routes accept GET/HEAD only; other methods return 405 with Allow.
-Unknown/private paths return 404. Database failures return redacted 503s;
+Unknown/private paths return 404; a trailing slash on a page redirects (308) to
+the canonical path. Database failures return redacted 503s;
 readiness retains its degraded JSON/200 convention. Missing snapshots are
 unknown; snapshots at least 15 minutes old are labelled stale on snapshot pages.
 Timestamps retain the established fixed UTC-05:00 EST display and UTC API format.
@@ -67,25 +70,29 @@ advisory lock prevents overlapping notification runs.
 
 ## Stack direction
 
-Keep the current Astro Node standalone server and host TypeScript collector.
-No web framework, database engine, deployment platform or collector language rewrite
-is needed. Typed Drizzle schemas and reviewed migrations cover the same PostgreSQL
+SvelteKit with adapter-node serves the database-backed pages and endpoints; the
+host TypeScript collector, PostgreSQL engine and systemd/Caddy deployment are
+unchanged. Typed Drizzle schemas and reviewed migrations cover the same PostgreSQL
 history and access boundaries; production adopted them. See
-[architecture](docs/architecture.md#drizzle-adoption-phase-0) and
+[architecture](docs/architecture.md#sveltekit-web-layer-phase-1) and
 [operations](docs/production.md#drizzle-operations-phase-0).
 
-React islands/Tailwind/shadcn/ui are optional for needed interactivity; Astro Actions
-and API endpoints serve future forms/clients when requested. Better Auth and AI SDK
-are optional for actual account/LLM features. This observer currently needs none.
-Swift/SwiftUI is the choice for any future requested Apple client, communicating
-through Astro HTTPS APIs. Python/uv/ruff is available for appropriate future tools;
-existing TypeScript collection is retained and existing Python utilities remain.
+Client-side hydration, form actions, remote functions and shadcn-svelte stay off
+until a concrete interactive feature needs them (with a CSP and smoke review).
+Better Auth and AI SDK are optional for actual account/LLM features. This observer
+currently needs none. Swift/SwiftUI is the choice for any future requested Apple
+client, communicating through the SvelteKit HTTPS APIs. Python/uv/ruff is available
+for appropriate future tools; existing TypeScript collection is retained and
+existing Python utilities remain.
 
 ## Development
 
 On ubuntu-vm use `astro-runtime npm ci`, `astro-runtime npm run check`,
 `astro-runtime npm run db:check`, `astro-runtime npm test`, `bash tests/postgres.sh`,
-and `astro-runtime npm run build`. The PostgreSQL test starts a disposable private
+and `astro-runtime npm run build` (`astro-runtime` is the host's shared Node
+wrapper). `npm run dev` serves the app on 127.0.0.1:8096 (it still needs PostgreSQL
+settings for data pages). `npm test` builds first and then drives the built
+SvelteKit server in-process with injected test data. The PostgreSQL test starts a disposable private
 Unix-socket cluster with no TCP; it rehearses fresh Drizzle installation, legacy
 adoption, repeat no-op and actual grant denials. Use the same pinned runtime
 elsewhere; commit only `package-lock.json`. `make check` runs strict checks, the
@@ -108,4 +115,4 @@ the legacy `STATUS_DEPLOYMENT_*` environment names are preserved by the CLI.
 
 See [production operations](docs/production.md), [architecture](docs/architecture.md),
 and [migration evidence](docs/migration.md). The old PHP implementation is removed
-from this source tree. Legacy resources are protected recovery material; use PostgreSQL and Astro releases for active recovery.
+from this source tree. Legacy resources are protected recovery material; use PostgreSQL and retained SvelteKit or Astro releases for active recovery.

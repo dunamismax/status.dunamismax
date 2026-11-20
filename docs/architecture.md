@@ -1,12 +1,14 @@
 # Architecture
 
-This describes the implemented Astro/PostgreSQL baseline. The final stack retains
-both and adds Drizzle, adopted in production on November 2, 2026 as described
-below and in [BUILD.md Phase 0](../BUILD.md).
+The stack is SvelteKit 3 · Svelte 5 · TypeScript · Tailwind CSS 4 · PostgreSQL 18 +
+Drizzle ORM · Node (adapter-node) · Caddy. Drizzle was adopted in production on
+November 2, 2026 ([BUILD.md Phase 0](../BUILD.md)); the web layer moved from Astro
+to SvelteKit in [BUILD.md Phase 1](../BUILD.md), described below.
 
-Astro's Node standalone adapter serves the exact routes through a TypeScript
-endpoint. `src/lib/web.ts` renders escaped semantic HTML and JSON with no-store,
-CSP, nosniff, referrer and permissions headers. Static files retain their Caddy
+SvelteKit's adapter-node server serves the exact routes. Pages are Svelte 5
+components rendered on the server only; JSON, health and readiness are `+server.ts`
+endpoints. `src/hooks.server.ts` applies no-store, CSP, nosniff, referrer and
+permissions headers to every application response. Static files retain their Caddy
 cache policies. `/healthz` does not access the database. Error responses never
 include exception messages, database URLs, command output or private paths.
 Only authenticated `/operator` renders repository paths, without reading them.
@@ -52,12 +54,53 @@ of every column in every row, then advances all identity sequences inside the
 same transaction. JSON object key order is normalized; array order, types,
 Unicode, microseconds, nulls, metadata and suppression evidence are preserved.
 
+## SvelteKit web layer (Phase 1)
+
+Caddy → loopback SvelteKit adapter-node → PostgreSQL, beside the separate host
+systemd TypeScript collector. This database-backed live observer requires SSR;
+prerendering/adapter-static remain choices for content-only sites.
+
+- Configuration is the `sveltekit()` plugin in `vite.config.ts` (SvelteKit 3 reads
+  no `svelte.config.js`): adapter-node with `out: 'dist'` (the collector's tsc output
+  owns `build/`) and no precompression (Caddy encodes), absolute asset paths,
+  version polling off. `#lib/*` is a `package.json` subpath import for `src/lib/*`.
+- `src/routes/+layout.server.ts` sets `ssr = true`, `csr = false`, `prerender =
+  false` for every page, so no client JavaScript is linked or emitted; the build's
+  `dist/client` contains only the stylesheet, icon and robots file (tested).
+  `hooks.server.ts` strips Svelte's hydration comment markers from page HTML.
+- `hooks.server.ts` builds the request context (`StatusContext`: Drizzle
+  `PostgresSource`, validated config, clock) into `locals`, answers non-GET/HEAD on
+  known routes with 405 + `Allow` before routing, rejects a wrong operator bearer
+  token with 401 before any load reads storage, empties HEAD bodies and adds
+  `Retry-After: 60` to 503s and `X-Robots-Tag: noindex` to operator responses.
+  SvelteKit's form-origin CSRF check is compiled out (`csrf.trustedOrigins: ['*']`)
+  because no form, action or mutating handler exists and the hook 405s every
+  mutating method (CSP also sets `form-action 'none'`); that keeps the 405 contract.
+- Page `+page.server.ts` loads catch storage errors and raise a redacted 503 that
+  `+error.svelte` renders; unknown paths and a disabled operator page render 404.
+  `src/lib/web.ts` (route allowlist, headers, bearer check, readiness, snapshot
+  loading) is imported only by server modules. Components import only
+  `src/lib/model.ts` and `src/lib/view.ts`, which are pure.
+- Svelte escapes all text and attributes; `safeUrl` still allows only absolute
+  http(s) links. Markup and class names match the previous renderer: on the same
+  data, rendered pages differ from the Astro release only in the stylesheet URL,
+  inter-element whitespace and `>` left literal inside escaped text (`<` and `&` are
+  still escaped); JSON and readiness bodies are byte-identical.
+- Tailwind CSS 4 (`@tailwindcss/vite`) compiles `src/app.css`. The palette, shadow
+  and fonts are `@theme` tokens (`--color-*` reset first, so utilities use only this
+  palette, e.g. `bg-panel text-muted border-line`); light-mode overrides and the
+  hand-written component rules sit in the components layer in their original order.
+  Preflight is omitted to keep the established base rendering; utility source
+  detection is limited to `src/routes` and `src/lib/components`. Output is one
+  content-hashed file under `/_app/immutable/assets/`, cached immutably by adapter-node.
+- Tests drive the built server instance (`dist/server/server.js`) in-process and
+  inject test storage through `platform.status`, which adapter-node never sets.
+
 ## Drizzle adoption (Phase 0)
 
-Keep Caddy → loopback Astro Node standalone → PostgreSQL and the separate host
-systemd TypeScript collector. This database-backed live observer requires SSR;
-static output remains a choice for content-only sites. No container migration,
-React rewrite, native target or Python collector rewrite is needed.
+Phase 0 kept the then-current Astro Node standalone server; its Drizzle work is
+framework-independent and carried into Phase 1 unchanged. No container migration,
+native target or Python collector rewrite is needed.
 
 Implemented: `src/db/schema.ts` declares all seven history tables plus legacy
 `app.schema_migrations`, with the reviewed constraint, index and FK names. Drizzle ORM
@@ -105,9 +148,9 @@ collector-writable. Do not run migrations on runtime startup or allow web writes
 
 Keep current routes, JSON, unknown/stale evidence, no-store headers, CSP, script-free
 HTML and bearer operator boundary. Readiness keeps PostgreSQL dependency labels.
-React islands, compiled Tailwind and selected shadcn/ui components require a concrete
-interactive feature; no hydration/CSP changes are needed for this database adoption.
-Astro Actions/API endpoints are the path for future forms/native clients when needed.
+Client hydration, shadcn-svelte components, form actions and remote functions require
+a concrete interactive feature, plus a CSP, CSRF and smoke review when introduced.
+SvelteKit `+server.ts` endpoints are the path for future native-client APIs.
 
 Better Auth/PostgreSQL and Vercel AI SDK endpoints are conditional future features.
 No user-account or LLM requirement exists here. Swift/SwiftUI Apple clients and

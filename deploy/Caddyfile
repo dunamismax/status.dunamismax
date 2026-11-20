@@ -6,8 +6,8 @@ status.dunamismax.com {
   Permissions-Policy interest-cohort=()
   -Server
  }
- @short path /assets/status.css /robots.txt
- header @short >Cache-Control "public, max-age=300, must-revalidate"
+ header /robots.txt >Cache-Control "public, max-age=300, must-revalidate"
+ # /_app/immutable/* keeps adapter-node's own content-hashed immutable policy.
  header /icon.svg >Cache-Control "public, max-age=86400"
  reverse_proxy 127.0.0.1:4313
  log {

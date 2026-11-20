@@ -1,10 +1,14 @@
 # Build plan
 
-The final stack is Astro + PostgreSQL + Drizzle. Phase 0 is complete (November 2,
-2026): production adopted the Drizzle baseline and deployment applies reviewed
-migrations through the owner-only runner. Later work follows Astro/PostgreSQL/
-Drizzle and the conditional tools below; completed history follows Phase 0. Python and Swift are used only for an actual project need or
-explicit request. Keep the working TypeScript collector and existing Python utilities.
+The final stack is SvelteKit 3 · Svelte 5 · TypeScript · Tailwind CSS 4 ·
+PostgreSQL 18 + Drizzle ORM · Node (adapter-node) · Caddy. Phase 0 is complete
+(November 2, 2026): production adopted the Drizzle baseline and deployment applies
+reviewed migrations through the owner-only runner. Phase 1 moves the web layer from
+Astro to SvelteKit; its source work is done and its production cutover is open.
+Phase 0 text below records the Astro-era decisions as they were made; Phase 1
+supersedes its web-framework choices (0.3) only. Python and Swift are used only for
+an actual project need or explicit request. Keep the working TypeScript collector
+and existing Python utilities.
 
 ### Phase 0 — Align Astro/PostgreSQL with Drizzle (complete)
 
@@ -244,6 +248,71 @@ References (refresh for implementation pins):
 [Astro endpoints](https://docs.astro.build/en/guides/endpoints/),
 [Drizzle node-postgres](https://orm.drizzle.team/docs/get-started-postgresql),
 [Drizzle baseline/introspection](https://orm.drizzle.team/docs/drizzle-kit-pull).
+
+### Phase 1 — Move the web layer to SvelteKit 3 + Svelte 5 + Tailwind CSS 4
+
+Replace Astro 7 with SvelteKit (adapter-node) and the hand-written stylesheet
+pipeline with Tailwind CSS 4, keeping PostgreSQL/Drizzle, the collector, roles,
+units, Caddy and every public contract from Phase 0.1. Work on main only.
+
+#### 1.1 Source migration
+
+- [x] Pin the stack with exact versions at least ten days old (2026-11-20): @sveltejs/kit
+  3.2.0, @sveltejs/adapter-node 6.0.2, @sveltejs/vite-plugin-svelte 7.3.1, svelte
+  5.57.3, vite 8.3.7, tailwindcss + @tailwindcss/vite 4.3.5, svelte-check 4.7.8;
+  TypeScript 6.0.3, pg, Drizzle and Node 24.22.3/npm 11.19.1 unchanged. All
+  framework packages are devDependencies (adapter-node bundles them); runtime
+  `dependencies` stay pg and drizzle-orm. Follow the SvelteKit 3 migration guide:
+  config in the `sveltekit()` Vite plugin, `$app/tsconfig`, `#lib/*` subpath imports.
+- [x] Port the single Astro catch-all endpoint to routes: Svelte 5 pages with
+  `+page.server.ts` loads, `+server.ts` for health/readiness/JSON, `+error.svelte`
+  for 404/503, and `hooks.server.ts` for the 405 gate, operator 401 before data
+  access, empty HEAD, security headers, Retry-After and noindex. Every page sets
+  `csr = false`; `dist/client` holds no JavaScript.
+  - Done: on identical fixture data every HTML route matches the Astro renderer
+    except the stylesheet URL, whitespace and literal `>` in escaped text; API and
+    readiness bodies are byte-identical. Trailing-slash page URLs now 308 to the
+    canonical path (they were 404).
+- [x] Move `public/` to `static/`; rebuild `status.css` as `src/app.css` on Tailwind
+  CSS 4 (palette `@theme` tokens, original component rules in the components layer,
+  no preflight, explicit utility sources). The stylesheet is now a content-hashed
+  `/_app/immutable/assets/*.css`; Caddy keeps its icon/robots policies and leaves
+  adapter-node's immutable header alone.
+- [x] Keep `npm test` self-contained: it builds, then drives the built server
+  instance in-process with injected storage. Add tests for no client JS/inline
+  style/hydration markers, header policy, escaping and the import graph over all
+  routes/components.
+  - Done on macOS with the pinned runtime: `npm run check` 0 errors/warnings,
+    `npm run db:check` clean, `npm test` 21 passed + 2 PostgreSQL-only skipped,
+    `npm run build`, shell syntax and Python compile. A disposable Homebrew PG 18
+    (UTC) cluster ran the PostgreSQL suite 22/23; the remaining test calls the
+    Linux-only `/usr/lib/postgresql/18/bin/pg_dump`. The built server then ran under
+    `node --permission` as the restricted web role against that data and passed
+    `deploy/smoke.sh`.
+- [x] Adapt deploy files: unit entry `dist/index.js` plus `ORIGIN`, deploy's
+  candidate check, the Caddy fragment and a smoke test that recognises either
+  stylesheet so it can also validate an Astro rollback target. Unit, account, port,
+  env-file and host-runtime names stay as they are.
+
+#### 1.2 Production cutover
+
+- [ ] On the VM, `deploy/build.sh` an exact candidate with the pinned runtime,
+  including `bash tests/postgres.sh` (full 23/23 with Linux pg_dump) in CI and there.
+- [ ] Before deploying, check the shared ubuntu-vm-backup `applications-verify` and
+  any other host tooling for the Astro entry path `dist/server/entry.mjs` or
+  `/assets/status.css`; update those consumers in their own repository first.
+- [ ] Deploy under with-deploy-lock: candidate smoke on 14313, atomic switch,
+  custom-Caddy validation/reload of the new fragment, public smoke (immutable
+  stylesheet header, no duplicates), `--no-notify` collector run, recorded deployment.
+- [ ] Rehearse rollback to the last Astro release (unit and fragment restored from
+  the backup; the new smoke passes against it) and roll forward, keeping later writes.
+- [ ] Verify the no-script UI in light/dark, mobile and keyboard use on production,
+  unchanged icon/robots bytes, and an encrypted backup/restore drill that serves the
+  SvelteKit release with its restricted web role.
+
+References: [SvelteKit 3 migration](https://svelte.dev/docs/kit/migrating-to-sveltekit-3),
+[adapter-node](https://svelte.dev/docs/kit/adapter-node),
+[Tailwind CSS preflight](https://tailwindcss.com/docs/preflight).
 
 ### Previous implementation and verification — completed historical baseline
 

@@ -1,7 +1,15 @@
 #!/bin/bash
 set -euo pipefail
 base=${1:-https://status.dunamismax.com}
-for path in / /services /projects /incidents /deployments /healthz /readyz /api/status.json /api/incidents.json /assets/status.css /icon.svg /robots.txt; do
+home=$(curl -fsS --retry 15 --retry-connrefused --retry-delay 1 --max-time 10 "$base/")
+# Pages are server-rendered with no browser JavaScript.
+[[ $home != *'<script'* ]]
+# SvelteKit releases link a content-hashed /_app/immutable/ stylesheet; retained
+# Astro releases (rollback targets) link /assets/status.css.
+stylesheet=$(grep -Eo 'href="/(_app/immutable/assets/[A-Za-z0-9._-]+|assets/status)\.css"' <<<"$home" | head -n 1)
+stylesheet=${stylesheet#href=\"}; stylesheet=${stylesheet%\"}
+[[ -n $stylesheet ]]
+for path in / /services /projects /incidents /deployments /healthz /readyz /api/status.json /api/incidents.json "$stylesheet" /icon.svg /robots.txt; do
  curl -fsS --retry 15 --retry-connrefused --retry-delay 1 --max-time 10 "$base$path" >/dev/null
  curl -fsSI --max-time 10 "$base$path" >/dev/null
 done
@@ -13,9 +21,10 @@ operator=$(curl -sS -o /dev/null -w '%{http_code}' "$base/operator")
 printf 'Route smoke passed: %s\n' "$base"
 
 if [[ $base == https://* ]]; then
- python3 - "$base" <<'HEADERS'
+ python3 - "$base" "$stylesheet" <<'HEADERS'
 import urllib.request,sys
-for path,expected in [('/assets/status.css','public, max-age=300, must-revalidate'),('/robots.txt','public, max-age=300, must-revalidate'),('/icon.svg','public, max-age=86400')]:
+css='public,max-age=31536000,immutable' if sys.argv[2].startswith('/_app/immutable/') else 'public, max-age=300, must-revalidate'
+for path,expected in [(sys.argv[2],css),('/robots.txt','public, max-age=300, must-revalidate'),('/icon.svg','public, max-age=86400')]:
  req=urllib.request.Request(sys.argv[1]+path,method='HEAD')
  with urllib.request.urlopen(req,timeout=10) as response:
   assert response.headers.get_all('Cache-Control') == [expected], 'Static cache policy mismatch'

@@ -33,3 +33,4 @@ export function timestamp(raw: string): string {
   return iso+fraction+'Z';
 }
 export const displayTime = (s: string) => new Date(Date.parse(s)-5*3600000).toISOString().slice(0,19).replace('T',' ')+' EST';
+export type Freshness = ReturnType<typeof freshness>;

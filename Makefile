@@ -12,6 +12,6 @@ test:
 database-test:
 	bash tests/postgres.sh
 serve:
-	npm exec astro dev -- --host 127.0.0.1 --port 8096
+	npm run dev
 collect:
 	npm run collect -- --dry-run

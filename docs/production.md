@@ -1,12 +1,14 @@
 # Production operations
 
-The active service remains Astro Node standalone with native PostgreSQL and
-systemd. [BUILD.md Phase 0](../BUILD.md) adopts Drizzle, not a new web
-framework/database engine/deployment platform. Deployment applies reviewed Drizzle
+Source targets SvelteKit 3 (adapter-node) with native PostgreSQL 18, Drizzle,
+systemd and Caddy. Production keeps serving an Astro release until the
+[BUILD.md Phase 1](../BUILD.md) cutover is deployed with the release procedure
+below; that cutover changes the web entry point and stylesheet path only, not the
+database, roles, collector or timers. Deployment applies reviewed Drizzle
 migrations through the owner-only runner; `database/schema.sql` is retained for
 older releases and history tooling only.
 
-Read `/home/sawyer/github/ubuntu-vm-backup/docs/astro-migration.md` first.
+Read `/home/sawyer/github/ubuntu-vm-backup/docs/astro-migration.md` (host runbook) first.
 Every shared mutation, schema migration, release switch and rollback must run
 on the VM under `/usr/local/sbin/with-deploy-lock`. The wrappers acquire it or
 reuse inherited descriptor 9; never nest separate acquisitions.
@@ -15,7 +17,11 @@ reuse inherited descriptor 9; never nest separate acquisitions.
 
 - Releases: `/srv/www/status.dunamismax.com/releases/<commit>`, root-owned and
   immutable, with atomic `current`. Build outside the lock as sawyer.
-- Web: `astro-status-dunamismax.service`, `status-dunamismax-web`, loopback 4313.
+- Web: `astro-status-dunamismax.service` (retained unit name), `status-dunamismax-web`,
+  loopback 4313. SvelteKit releases run `dist/index.js` under `node --permission`
+  with `HOST`, `PORT` and `ORIGIN=https://status.dunamismax.com`; Astro releases ran
+  `dist/server/entry.mjs`. Each release's unit file is installed with it and backed
+  up for rollback, so a rollback restores the matching entry point.
 - Collector: `astro-status-dunamismax-collector.timer` → `.service`, existing
   `status-dunamismax` account, every five minutes plus up to 30s jitter, 4min cap.
 - PostgreSQL: `status_dunamismax`, owner schema `app`. Role files remain root-only
@@ -55,7 +61,11 @@ one deployment and enables the successor timer. Failure invokes rollback inside
 the same lock. Same-commit release retries validate the retained release digest.
 
 `/healthz`, `/readyz`, HTML, APIs, static bytes, HEAD/405, private paths and operator
-failure are checked by `deploy/smoke.sh`. An intentionally stale snapshot degrades
+failure are checked by `deploy/smoke.sh`. It also requires a script-free home page
+and finds the linked stylesheet: a SvelteKit `/_app/immutable/assets/*.css` (expected
+`public,max-age=31536000,immutable` from adapter-node, with no Caddy override) or a
+retained Astro release's `/assets/status.css` (Caddy's five-minute policy from that
+release's fragment), so the new smoke also validates a rollback target. An intentionally stale snapshot degrades
 readiness; never change its timestamp just to make a check green.
 
 ## Operating commands
@@ -94,7 +104,7 @@ the shared lock and stops the owning Node collector first. For a PHP rollback it
 writes a fresh PG safety dump, streams all current PG history back to the retained
 MySQL database transactionally, exports MySQL again and verifies every row against
 PostgreSQL. Only then does it restore the old release, Caddy fragment, backup helper
-and units and resume the legacy timer. A later Astro code rollback keeps PG as the
+and units and resume the legacy timer. A later code rollback (SvelteKit or Astro release) keeps PG as the
 source of truth and restarts only the owning Node service/timer. No shared database
 server is stopped. No old dump is restored over later writes.
 
@@ -132,7 +142,8 @@ Never use a live database as a restore-test destination.
 After the final host cleanup, ordinary deployments and backups need PostgreSQL
 only. PHP/MySQL target IDs remain in historical tables but are not probed. Legacy
 rollback records are archival: recover them only in an isolated legacy host.
-Use a compatible Astro release for code rollback and retain current PG data.
+Use a compatible retained release (SvelteKit, or Astro up to the Phase 1 cutover)
+for code rollback and retain current PG data.
 The host recovery runbook owns the preserved final full MySQL archive.
 
 ## Monitoring policy
@@ -279,7 +290,7 @@ current and validate/reload custom Caddy as needed. Resume exactly one collector
 verify fresh evidence and record deployment without notifications during acceptance.
 No shared PostgreSQL restart, other-site change or listener relocation is needed.
 
-Rollback keeps current PostgreSQL history using a compatible retained Astro release.
+Rollback keeps current PostgreSQL history using a compatible retained release.
 Verify later writes and alert state survive. If schema changes break compatibility,
 rehearse a lossless reverse adapter before activation; never restore an old dump
 over subsequent writes. Keep journals/roles private and retain recovery archives.
@@ -288,7 +299,7 @@ Nightly pg_dump, roles/ACLs/settings, encrypted off-host dual copies and isolate
 restore remain required. Update the shared ubuntu-vm-backup and Toolworks consumers
 only where Drizzle migration/release metadata changes their interface. Include
 locked source/dependencies, migration metadata and actual schema in the restore
-drill; verify the restored Astro app using its restricted web role. Do not replace
+drill; verify the restored web app using its restricted web role. Do not replace
 PostgreSQL monitoring/readiness with engine labels for a database not actually used.
 
 Caddy remains host-owned at `/etc/caddy/Caddyfile`, status fragment
