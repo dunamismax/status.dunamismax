@@ -1,118 +1,200 @@
 # Dunamis Status
 
-The stack is SvelteKit 3 · Svelte 5 · TypeScript · Tailwind CSS 4 · PostgreSQL 18 +
-Drizzle ORM · Node (adapter-node) · Caddy. Drizzle schemas, queries, the reviewed
-baseline migration and the owner-only runner are live: production adopted the
-baseline on November 2, 2026 ([BUILD.md Phase 0](BUILD.md),
-[migration evidence](docs/migration.md)). The web layer moved from Astro 7 to
-SvelteKit ([BUILD.md Phase 1](BUILD.md)); production has served the SvelteKit
-release since November 20, 2026. Python and Swift are
-conditional on actual project needs or a request.
+**The public, read-only status page for Stephen Sawyer's self-hosted ecosystem.**
+Every five minutes a bounded collector checks the websites, services, timers,
+backups and repositories on one Ubuntu server, and
+[status.dunamismax.com](https://status.dunamismax.com) shows what it found, as
+plain server-rendered HTML and stable JSON.
 
-Public operational status for Stephen Sawyer's self-hosted ecosystem at
-<https://status.dunamismax.com>. SvelteKit server-renders Svelte 5 pages
-(`csr = false`) and stable JSON endpoints from PostgreSQL 18. Strict TypeScript runs
-both the public application and the bounded background collector on the shared
-Node 24.22.3/npm 11.19.1 runtime. The browser receives no JavaScript; the
-responsive stylesheet is built with Tailwind CSS 4 and follows `prefers-color-scheme`.
+It is an observer, never a control panel. It reports what was measured, labels
+missing or old evidence as unknown or stale, and never invents uptime.
 
-Caddy → loopback SvelteKit (adapter-node) → four permitted PostgreSQL read models.
-The five-minute systemd collector → bounded probes → PostgreSQL history.
-The separate web and collector users never receive each other's credentials.
+| | |
+| --- | --- |
+| **Live site** | [status.dunamismax.com](https://status.dunamismax.com) |
+| **JSON** | [`/api/status.json`](https://status.dunamismax.com/api/status.json) · [`/api/incidents.json`](https://status.dunamismax.com/api/incidents.json) |
+| **Progress** | [BUILD.md](BUILD.md) (start with **Now**) |
+| **Source** | Private. `main` is pushed to GitHub and Codeberg together |
 
-## Routes and behavior
+## Status
+
+**Live, on SvelteKit since November 20, 2026.** The web layer moved from Astro 7
+to SvelteKit 3, Svelte 5 and Tailwind CSS 4 with every route, JSON field and
+header contract kept ([BUILD.md Phase 1](BUILD.md#phase-1--sveltekit-3-svelte-5-and-tailwind-css-4)).
+Drizzle ORM has owned the PostgreSQL 18 schema since November 2, 2026
+([Phase 0](BUILD.md#phase-0--drizzle-orm-on-the-existing-postgresql-history),
+[evidence](docs/migration.md)).
+
+**Still open from the cutover:** a rollback rehearsal to the last Astro release
+and the first encrypted backup and restore drill of the SvelteKit release. **Then:**
+live alert delivery, once the owner approves the destinations.
+
+## How it works
+
+```text
+browser ──HTTPS──▶ Caddy ──▶ SvelteKit (adapter-node, 127.0.0.1:4313)
+                                   │ SELECT on four read models only
+                                   ▼
+                          PostgreSQL 18 (schema app)
+                                   ▲
+                                   │ snapshots, checks, alerts, retention
+systemd timer (5 min) ──▶ TypeScript collector ──▶ bounded probes
+```
+
+- **Two processes, two identities.** The web server and the collector run as
+  separate nologin users with separate PostgreSQL roles and environment files.
+  Neither ever receives the other's credentials.
+- **The web side only reads.** It can select rollups, incidents, maintenance
+  windows and deployments, and nothing else. It never runs commands, probes URLs
+  or reads repositories, and Node's permission model stops it spawning processes
+  or writing files.
+- **The collector only observes.** Every probe runs a fixed program with an argv
+  array, no shell, a minimal environment, a deadline and an output cap. It never
+  restarts services or fetches, pulls or resets the repositories it watches.
+- **No browser JavaScript.** Pages are rendered on the server with `csr = false`.
+  The one stylesheet is built by Tailwind CSS 4 and follows
+  `prefers-color-scheme`. There are no fonts, analytics or third-party requests.
+
+## What it is not
+
+- Not a restart panel, deploy orchestrator, remote shell or command-output feed.
+- Not a source of uptime claims: a missing snapshot is **unknown**, and one at
+  least 15 minutes old is labelled **stale**.
+- Not a place for private detail. Public routes never show paths, arguments,
+  environment values, credentials, topology, database names, logs or stack
+  traces. Only the bearer-authenticated `/operator` page shows its deliberate
+  private metadata.
+- Not a hosted monitoring service, a container deployment or a static export.
+
+## Routes
 
 | Route | Contract |
 | --- | --- |
 | `/` | Public HTTP availability, backup and maintenance health, infrastructure, and check details |
 | `/services` | Every service check and its evidence timestamp |
-| `/projects` | Branch, upstream, ahead/behind, dirty state, commit age and BUILD progress |
-| `/incidents` | Incidents and recent/upcoming maintenance |
-| `/deployments` | Latest 50 deployment records |
-| `/operator` | 404 while token unset; otherwise constant-time bearer authorization, 401 on failure and noindex |
-| `/healthz` | `ok`, no database query |
-| `/readyz` | Existing status/dependencies/database shape; database dependency names now `postgresql-*` |
-| `/api/status.json` | Existing overall_state/checked_at/summary/services/projects shape. `overall_state` still rolls up all services and projects. |
-| `/api/incidents.json` | Existing incidents/maintenance shape, latest 25 each; maintenance ends within 30 days |
-| `/_app/immutable/assets/*.css` | Content-hashed Tailwind stylesheet, `public,max-age=31536000,immutable` from adapter-node |
-| `/icon.svg`, `/robots.txt` | Static assets (`static/`) with their existing Caddy cache policies |
+| `/projects` | Branch, upstream, ahead/behind, dirty state, commit age and BUILD.md progress |
+| `/incidents` | Incidents and recent or upcoming maintenance |
+| `/deployments` | The latest 50 deployment records |
+| `/operator` | 404 while no token is set; otherwise constant-time bearer check, 401 on failure, `noindex` |
+| `/healthz` | `ok`, with no database query |
+| `/readyz` | Status, dependencies and database fields; database dependency names are `postgresql-*` |
+| `/api/status.json` | `overall_state`, `checked_at`, `summary`, `services`, `projects`. `overall_state` rolls up all services and projects |
+| `/api/incidents.json` | Latest 25 incidents and 25 maintenance windows; maintenance that ended within 30 days |
+| `/_app/immutable/assets/*.css` | The content-hashed stylesheet, `public,max-age=31536000,immutable` |
+| `/icon.svg`, `/robots.txt` | Static files with their own Caddy cache policies |
 
-Known dynamic routes accept GET/HEAD only; other methods return 405 with Allow.
-Unknown/private paths return 404; a trailing slash on a page redirects (308) to
-the canonical path. Database failures return redacted 503s;
-readiness retains its degraded JSON/200 convention. Missing snapshots are
-unknown; snapshots at least 15 minutes old are labelled stale on snapshot pages.
-Timestamps retain the established fixed UTC-05:00 EST display and UTC API format.
+Known routes accept GET and HEAD only; other methods get 405 with `Allow`.
+Unknown and private paths get 404, and a page URL with a trailing slash
+redirects (308) to the canonical one. Database failures return a redacted 503
+with `Retry-After`; readiness keeps its degraded-JSON-with-200 convention. Pages
+show times in fixed UTC-05:00 (EST); the APIs use UTC.
 
-## Collection and history
+## What it watches
 
-`src/collector/inventory.ts` is the reviewed probe inventory. It covers public HTTPS
-targets including the Azeroth Trail tracker, Lorehallow game health, and the
-XrayService Windows installer, plus systemd services/timers, RustDesk TCP 21115–21117, Caddy
-parse/reload evidence, Cloudflare DDNS recency, root disk capacity, memory PSI/available RAM, certificate expiry, backup
-Git size, and the six active application repository targets. It additionally monitors the new status Node
-service and PostgreSQL. Retired PHP/MySQL targets remain only in historical snapshots.
-No Docker socket, restart action, fetch/pull/reset, remote shell or raw journal
-is exposed. Quiet repositories remain healthy.
+The reviewed inventory is [`src/collector/inventory.ts`](src/collector/inventory.ts).
+It covers:
 
-Every snapshot and its individual check rows are transactional. Check rows
-expire after the configured retention (30 days default). Rollups, incidents,
-maintenance, deployments and alert history remain. Down alerts are critical;
-degraded/unknown alerts are warnings; maintenance/operational states are silent.
-Failure and recovery deliveries require two matching observations within 20 minutes.
-Existing failure dedup keys, repeat window (60 minutes) and per-run limit (5)
-remain. A delivered failure receives one confirmed recovery; a subsequent failure
-is a new event even inside the repeat window. Webhook delivery failure fails the
-run and leaves the alert unsent for retry. The optional offsite heartbeat follows
-a successful snapshot write and retention pass. See the [production delivery
-setup and tests](docs/production.md#offsite-alerts-and-heartbeat). A collector
-advisory lock prevents overlapping notification runs.
+- **Public HTTPS:** each site, the Azeroth Trail tracker and its freshness,
+  Lorehallow's website and game-server health, and the XrayService Windows
+  installer (a two-byte range request that checks the executable signature).
+- **Host services:** the application services, PostgreSQL, Caddy (including
+  parse and reload evidence), Docker, access services, DDNS recency, RustDesk's
+  three TCP listeners (connect only) and every maintenance and backup job with
+  its timer.
+- **Host health:** root disk, available memory and memory pressure, certificate
+  expiry and the size of the backup Git store.
+- **Repositories:** the six active application checkouts, read-only: branch,
+  upstream, dirty state, commit age and BUILD.md progress. Quiet repositories
+  stay healthy.
 
-## Stack direction
+Backup jobs count as fresh only from a recorded successful completion, never
+from an enabled timer. Thresholds and windows are listed in
+[production operations](docs/production.md#monitoring-policy).
 
-SvelteKit with adapter-node serves the database-backed pages and endpoints; the
-host TypeScript collector, PostgreSQL engine and systemd/Caddy deployment are
-unchanged. Typed Drizzle schemas and reviewed migrations cover the same PostgreSQL
-history and access boundaries; production adopted them. See
-[architecture](docs/architecture.md#sveltekit-web-layer-phase-1) and
-[operations](docs/production.md#drizzle-operations-phase-0).
+## History and alerts
 
-Client-side hydration, form actions, remote functions and shadcn-svelte stay off
-until a concrete interactive feature needs them (with a CSP and smoke review).
-Better Auth and AI SDK are optional for actual account/LLM features. This observer
-currently needs none. Swift/SwiftUI is the choice for any future requested Apple
-client, communicating through the SvelteKit HTTPS APIs. Python/uv/ruff is available
-for appropriate future tools; existing TypeScript collection is retained and
-existing Python utilities remain.
+Each snapshot and its check rows are written in one transaction. Check rows
+expire after 30 days by default; rollups, incidents, maintenance, deployments
+and alert history are kept. Down is critical, degraded and unknown are warnings,
+and maintenance and operational are silent. A failure or recovery is delivered
+only after two matching observations within 20 minutes, with a 60-minute repeat
+window and at most five deliveries per run. A failed delivery fails the run and
+is retried later. An optional heartbeat to an off-site dead-man receiver follows
+each successful run. No delivery destination is configured yet
+([setup and tests](docs/production.md#offsite-alerts-and-heartbeat)).
+
+## Technology
+
+| Layer | Choice |
+| --- | --- |
+| Web | SvelteKit 3.2.0 with `@sveltejs/adapter-node` 6.0.2, Svelte 5.57.3, Vite 8.3.7 |
+| Styles | Tailwind CSS 4.3.5 through `@tailwindcss/vite`, palette tokens in `@theme`, no preflight |
+| Language | TypeScript 6.0.3, strict, with `noUncheckedIndexedAccess` and `exactOptionalPropertyTypes` |
+| Database | PostgreSQL 18, native and loopback-only, through Drizzle ORM 0.45.4 on `pg` 8.16.3 (Drizzle Kit 0.31.11 for development) |
+| Collector | TypeScript CLI on a systemd timer, on the same runtime |
+| Runtime | Node 24.22.3 and npm 11.19.1, the host's shared runtime at `/opt/node-runtime` |
+| Hosting | systemd units and immutable releases on ubuntu-vm, behind Caddy with its own Let's Encrypt certificates |
+| CI | GitHub Actions: checks, tests, build, disposable PostgreSQL 18 suite and `npm audit`; separate external and HTTP/3 probes |
+
+## Repository layout
+
+```text
+status.dunamismax/
+├── AGENTS.md           # Rules for working here: boundaries, workflow, verification
+├── BUILD.md            # Plan, current state, decisions and evidence
+├── src/
+│   ├── hooks.server.ts # Method gate, operator bearer check, response headers
+│   ├── routes/         # Pages (+page.server.ts loads) and endpoints (+server.ts)
+│   ├── lib/            # Read models, view helpers, config and the read-only source
+│   │   └── components/ # Svelte 5 components
+│   ├── app.css         # Tailwind CSS 4 entry: tokens and component rules
+│   ├── collector/      # Probes, command runner, alerts, writer and CLI
+│   └── db/             # Drizzle schema, catalog check and owner-only migration runner
+├── drizzle/            # Reviewed migrations, Kit metadata and the baseline catalog
+├── database/schema.sql # Legacy schema, kept for older releases and history tools
+├── scripts/            # History digests, permission check, public probes
+├── tests/              # Built-server tests and the disposable PostgreSQL suite
+├── static/             # icon.svg and robots.txt
+├── deploy/             # Build, deploy, rollback, smoke, backup, units and Caddy fragment
+└── docs/               # Architecture, production operations, migration evidence
+```
 
 ## Development
 
-On ubuntu-vm use `node-runtime npm ci`, `node-runtime npm run check`,
-`node-runtime npm run db:check`, `node-runtime npm test`, `bash tests/postgres.sh`,
-and `node-runtime npm run build` (`node-runtime` is the host's shared Node
-wrapper). `npm run dev` serves the app on 127.0.0.1:8096 (it still needs PostgreSQL
-settings for data pages). `npm test` builds first and then drives the built
-SvelteKit server in-process with injected test data. The PostgreSQL test starts a disposable private
-Unix-socket cluster with no TCP; it rehearses fresh Drizzle installation, legacy
-adoption, repeat no-op and actual grant denials. Use the same pinned runtime
-elsewhere; commit only `package-lock.json`. `make check` runs strict checks, the
-Drizzle drift check, tests and deployment syntax validation.
+Use exactly Node 24.22.3 and npm 11.19.1 (`.npmrc` sets `engine-strict`). On the
+server, prefix commands with `node-runtime`; elsewhere use any version manager
+that provides those versions, for example `mise exec node@24.22.3 -- npm ci`.
 
-Drizzle ORM 0.45.4 wraps the existing pg pool; Drizzle Kit 0.31.11 is a dev-only
-generator. `src/db/schema.ts` mirrors schema `app`; reviewed SQL and Kit metadata
-live in `drizzle/`. After a schema edit run `npm run db:generate`, hand-review the
-SQL (grants, triggers and bookkeeping are not Kit-generated) and, if the baseline
-structure itself changes, refresh `drizzle/baseline-catalog.json` with
-`STATUS_UPDATE_CATALOG=1 bash tests/postgres.sh`. `npm run db:check` fails when the
-TypeScript schema has unreviewed changes. Never use `drizzle-kit push`; migrations
-run only through the owner-only runner (`npm run db:migrate`, see production docs).
+```sh
+npm ci
+npm run check      # svelte-kit sync, svelte-check (warnings fail) and the CLI tsc
+npm run db:check   # fails on Drizzle schema changes without a reviewed migration
+npm test           # builds, then drives the built server in-process
+npm run build
+make check         # all of the above plus shell and Python syntax checks
+```
 
-`deploy/run-command.sh collect --dry-run` probes without writes or alerts;
-`collect --no-notify` records/prunes without notifications. Production operator
-commands run as root through this wrapper, which launches the separate collector
-identity and loads only its role environment via systemd. Deployment flags and
-the legacy `STATUS_DEPLOYMENT_*` environment names are preserved by the CLI.
+`npm run dev` serves the app at http://127.0.0.1:8096. Data pages need
+PostgreSQL settings; copy the variable names from [`.env.example`](.env.example).
+`bash tests/postgres.sh` starts a disposable, socket-only PostgreSQL 18 cluster
+and runs the database suite (fresh install, legacy adoption, repeat no-op and
+real grant denials). It uses Debian's PostgreSQL paths and the `node-runtime`
+wrapper, so it runs on the server and in CI.
 
-See [production operations](docs/production.md), [architecture](docs/architecture.md),
-and [migration evidence](docs/migration.md). The old PHP implementation is removed
-from this source tree. Legacy resources are protected recovery material; use PostgreSQL and retained SvelteKit or Astro releases for active recovery.
+To see what the collector would find without writing anything or sending alerts,
+build and run `npm run collect -- --dry-run`. [AGENTS.md](AGENTS.md) has the
+schema workflow and every rule for changing this repository.
+
+## Documentation
+
+- [Architecture](docs/architecture.md): process, data and access boundaries; the
+  SvelteKit web layer and the Drizzle adoption.
+- [Production operations](docs/production.md): releases, deploys, rollback,
+  backups, monitoring policy and alert delivery.
+- [Migration evidence](docs/migration.md): acceptance results for the PostgreSQL
+  migration and the Drizzle adoption.
+
+## License
+
+[MIT](LICENSE). The repository is private; the license applies to anyone it is
+shared with.
