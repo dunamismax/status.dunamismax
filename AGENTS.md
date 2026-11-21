@@ -201,7 +201,7 @@ npm ci
 npm run check        # svelte-kit sync, svelte-check --fail-on-warnings, CLI tsc
 npm run db:check     # Kit check plus the schema drift gate
 npm test             # builds, then drives dist/server in-process (2 PostgreSQL tests skip)
-bash tests/postgres.sh  # disposable socket-only PostgreSQL 18 cluster, all tests
+bash tests/postgres.sh  # disposable socket-only, UTC PostgreSQL 18 cluster, all tests
 npm run build
 for f in deploy/*.sh tests/postgres.sh; do bash -n "$f"; done
 python3 -m py_compile deploy/history-transfer.py
@@ -209,10 +209,12 @@ git diff --check
 ```
 
 `make check` runs all but `postgres.sh`, `npm ci` and `git diff --check`.
-`tests/postgres.sh` uses Debian's `/usr/lib/postgresql/18/bin` and the
-`node-runtime` wrapper, so it runs on the VM and in CI; on macOS, say it was not
-run and rely on CI. PostgreSQL integration runs only in that disposable private
-cluster, never against a live database. CI (`.github/workflows/verify.yml`) runs
+`tests/postgres.sh` defaults to Debian's `/usr/lib/postgresql/18/bin` and the
+`node-runtime` wrapper, as on the VM and in CI. Elsewhere, point `STATUS_PG_BIN`
+at a PostgreSQL 18 bin directory and run it under the pinned Node, for example
+`STATUS_PG_BIN=/opt/homebrew/opt/postgresql@18/bin mise exec node@24.22.3 -- bash tests/postgres.sh`;
+without PostgreSQL 18, say it was not run and rely on CI. PostgreSQL integration
+runs only in that disposable private cluster, never against a live database. CI (`.github/workflows/verify.yml`) runs
 the same checks plus `npm audit --audit-level=moderate`; check its result after
 pushing.
 

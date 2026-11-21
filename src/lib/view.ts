@@ -25,8 +25,10 @@ export interface Notice { missing: boolean; checked_at: string | null; age: numb
 export const notice = (s: Snapshot | null, f: Freshness): Notice | null =>
   f.stale ? { missing: f.missing, checked_at: s ? s.checked_at : null, age: f.age } : null;
 
-const groupsOrder = ['Public websites', 'Maintenance', 'Backups & maintenance', 'Application services', 'Remote access', 'Container services', 'Databases', 'Deployment automation', 'Host capacity', 'Network & access', 'Host infrastructure', 'Host services'];
+const groupsOrder = ['Public websites', 'Public certificates', 'Maintenance', 'Backups & maintenance', 'Application services', 'Remote access', 'Container services', 'Databases', 'Deployment automation', 'Host capacity', 'Network & access', 'Host infrastructure', 'Host services'];
 const attentionOrder: State[] = ['down', 'degraded', 'unknown', 'maintenance'];
+/** The overview lists this many checks needing attention and counts the rest, so none is hidden. */
+export const attentionLimit = 6;
 const maintenanceCheck = (s: Service) => ['Maintenance', 'Backups & maintenance'].includes(s.target.group) || s.target.id === 'backup-repository-growth';
 const order = (group: string) => groupsOrder.indexOf(group) < 0 ? 99 : groupsOrder.indexOf(group);
 
@@ -34,7 +36,7 @@ export interface Group { name: string; state: State; services: Service[]; track:
 export interface Overview {
   publicState: State; headline: string; lastChecked: string; publicChecks: string;
   maintenanceState: State; infrastructureState: State;
-  attentionTitle: string; attention: Service[]; attentionNote: string;
+  attentionTitle: string; attention: Service[]; attentionMore: number; attentionNote: string;
   groupsTitle: string; categories: Group[];
   tally: [State, number][]; checks: number; projects: number; sites: PropertyView[];
 }
@@ -54,7 +56,7 @@ export function overview(s: Snapshot, f: Freshness, h: History | null = null): O
     publicChecks: f.stale ? 'unknown' : String(publicChecks.length),
     maintenanceState: current(maintenance), infrastructureState: current(infrastructure),
     attentionTitle: previously ? 'Previously needing attention' : 'Attention',
-    attention: attention.slice(0, 6),
+    attention: attention.slice(0, attentionLimit), attentionMore: Math.max(0, attention.length - attentionLimit),
     attentionNote: f.missing ? 'No checks have been recorded yet.' : f.stale ? 'No checks needed attention in the last snapshot.' : 'No monitored checks currently need attention.',
     groupsTitle: previously ? 'Last observed systems' : 'Systems',
     categories: groups,

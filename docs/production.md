@@ -128,8 +128,9 @@ sudo /home/sawyer/github/ubuntu-vm-backup/bin/restore check
 sudo /home/sawyer/github/ubuntu-vm-backup/bin/restore postgres-verify
 ```
 
-The shared encrypted backup already captures this database in full, all astro-*
-units, both credential locations and the retained legacy recovery configuration.
+The shared encrypted backup already captures this database in full, the
+`status-dunamismax*` units, both credential locations and the retained legacy
+recovery configuration.
 For an empty replacement host, restore role/config secrets first, verify the encrypted
 archive with the shared runbook, reconstruct the pinned runtime, restore roles and
 `pg_restore --create --exit-on-error` into an empty target, restore the immutable
@@ -244,10 +245,14 @@ destination is approved. Keep both files out of Git, public web settings and
 command arguments. Never inject a failure into live backup, DDNS or Caddy to
 test alert delivery.
 
-`.github/workflows/external-probe.yml` probes public HTML, the demo's noindex and
-collector age from a GitHub-hosted Linux runner, independently of this VM and
+`.github/workflows/external-probe.yml` probes the public HTML of every site in
+`src/lib/catalog.ts` (a test keeps the probe's list in step), the demo's noindex
+and collector age from a GitHub-hosted Linux runner, independently of this VM and
 home network. It requires no production credentials. Check its actual Actions
-runs; schedules are best effort and can be delayed/disabled by GitHub. Failed
+runs; schedules are best effort and can be delayed/disabled by GitHub. It asks
+for a run every 30 minutes, but from 2026-11-17 to 2026-11-20 GitHub started
+one only every six to nine hours, so treat it as a slow second opinion, not as
+alerting. Failed
 runs use the owner's GitHub notification preferences, with no custom webhook.
 `workflow_dispatch` supports manual verification. The separate HTTP/3 validation
 workflow performs a certificate-verified, HTTP/3-only public request and asserts

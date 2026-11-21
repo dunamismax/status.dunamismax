@@ -1009,6 +1009,12 @@
     margin-top: 1rem;
   }
 
+  .attention-more {
+    border-top: 1px solid var(--color-line);
+    margin-top: .65rem;
+    padding-top: .65rem;
+  }
+
   .attention-list li {
     grid-template-columns: minmax(6.6rem, auto) minmax(10rem, .5fr) minmax(12rem, 1fr);
   }
@@ -1384,6 +1390,16 @@
     .site-card,
     .system-row {
       padding: 1rem;
+    }
+
+    /* Three fixed-minimum columns are wider than a phone: the state and name
+       share a row and the reason wraps beneath them. */
+    .attention-list li {
+      grid-template-columns: auto minmax(0, 1fr);
+    }
+
+    .attention-list li > span:last-child {
+      grid-column: 1 / -1;
     }
 
     .footer-links {

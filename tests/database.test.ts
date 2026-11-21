@@ -16,6 +16,8 @@ import { desc } from 'drizzle-orm';
 import { migrate } from '../src/db/migrate.js';
 import { catalog, accessViolations } from '../src/db/catalog.js';
 import { checkRuns } from '../src/db/schema.js';
+// tests/postgres.sh passes the PostgreSQL 18 tools it started the disposable cluster with.
+const pgBin=process.env.STATUS_PG_BIN??'/usr/lib/postgresql/18/bin';
 const service=(...args:Parameters<typeof fixtureService>)=>{const item=fixtureService(...args);item.check.checked_at=new Date().toISOString();return item;};
 test('isolated PostgreSQL: schema, privileges, transactions, history, alert suppression and retention',{skip:!process.env.STATUS_TEST_PG},async()=>{
  assert.match(process.env.PGHOST??'',/status-pg-test\./);
@@ -97,9 +99,9 @@ test('isolated PostgreSQL: Drizzle fresh install, lossless legacy adoption, repe
    INSERT INTO app.alert_notifications(dedup_key,target_id,severity,observed_state,title,public_summary,observed_at,notification_target,public_payload) VALUES ('service:t-é:down','t-é','critical','down','Target é down','summary','2026-01-01T00:00:00.999999Z','webhook','{"n":1}');
    UPDATE app.incidents SET public_notes=public_notes;`);
   // A backup restore re-parses CHECK text; it must still adopt cleanly.
-  const dump=execFileSync('/usr/lib/postgresql/18/bin/pg_dump',['-d','status_legacy'],{env:{...process.env,PGUSER:process.env.USER??''},maxBuffer:64<<20});
+  const dump=execFileSync(pgBin+'/pg_dump',['-d','status_legacy'],{env:{...process.env,PGUSER:process.env.USER??''},maxBuffer:64<<20});
   await admin.query('CREATE DATABASE status_restored TEMPLATE template0');
-  execFileSync('/usr/lib/postgresql/18/bin/psql',['-X','-q','-v','ON_ERROR_STOP=1','-d','status_restored'],{input:dump,env:{...process.env,PGUSER:process.env.USER??''}});
+  execFileSync(pgBin+'/psql',['-X','-q','-v','ON_ERROR_STOP=1','-d','status_restored'],{input:dump,env:{...process.env,PGUSER:process.env.USER??''}});
   const restoredSuperuser=new pg.Pool(connect('status_restored',process.env.USER??''));pools.push(restoredSuperuser);
   const restoredMigration=new pg.Client(connect('status_restored','status_dunamismax_migration'));await restoredMigration.connect();clients.push(restoredMigration);
   const restoredBefore=await fingerprints(restoredSuperuser);

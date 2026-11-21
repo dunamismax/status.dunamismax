@@ -26,8 +26,10 @@ Drizzle ORM has owned the PostgreSQL 18 schema since November 2, 2026
 [evidence](docs/migration.md)).
 
 **Still open from the cutover:** a rollback rehearsal to the last Astro release
-and the first encrypted backup and restore drill of the SvelteKit release. **Then:**
-live alert delivery, once the owner approves the destinations.
+and the first encrypted backup and restore drill of the SvelteKit release.
+**Waiting to deploy:** review follow-ups, including a phone layout fix
+([BUILD.md 3.4](BUILD.md#34-review-follow-ups)). **Then:** live alert delivery,
+once the owner approves the destinations.
 
 ## How it works
 
@@ -149,7 +151,7 @@ any JavaScript.
 | Collector | TypeScript CLI on a systemd timer, on the same runtime |
 | Runtime | Node 24.22.3 and npm 11.19.1, the host's shared runtime at `/opt/node-runtime` |
 | Hosting | systemd units and immutable releases on ubuntu-vm, behind Caddy with its own Let's Encrypt certificates |
-| CI | GitHub Actions: checks, tests, build, disposable PostgreSQL 18 suite and `npm audit`; separate external and HTTP/3 probes |
+| CI | GitHub Actions: checks, tests, build, disposable PostgreSQL 18 suite and `npm audit`; a separate external probe of every public site, and a manual HTTP/3 probe |
 
 ## Repository layout
 
@@ -193,8 +195,10 @@ make check         # all of the above plus shell and Python syntax checks
 PostgreSQL settings; copy the variable names from [`.env.example`](.env.example).
 `bash tests/postgres.sh` starts a disposable, socket-only PostgreSQL 18 cluster
 and runs the database suite (fresh install, legacy adoption, repeat no-op and
-real grant denials). It uses Debian's PostgreSQL paths and the `node-runtime`
-wrapper, so it runs on the server and in CI.
+real grant denials). It defaults to Debian's PostgreSQL paths and the
+`node-runtime` wrapper, as on the server and in CI. Anywhere else, set
+`STATUS_PG_BIN` to a PostgreSQL 18 bin directory, for example
+`STATUS_PG_BIN=/opt/homebrew/opt/postgresql@18/bin mise exec node@24.22.3 -- bash tests/postgres.sh`.
 
 To see what the collector would find without writing anything or sending alerts,
 build and run `npm run collect -- --dry-run`. [AGENTS.md](AGENTS.md) has the

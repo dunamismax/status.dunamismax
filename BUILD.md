@@ -11,12 +11,12 @@ a contract: see [Format contract](#format-contract).
 
 | | |
 | --- | --- |
-| **Current phase** | [Phase 1 · SvelteKit 3, Svelte 5 and Tailwind CSS 4](#phase-1--sveltekit-3-svelte-5-and-tailwind-css-4): two acceptance steps open. [Phase 3](#phase-3--full-inventory-site-view-and-daily-history) is complete and deployed |
-| **Next step** | **1.2** encrypted backup and restore drill, due with the scheduled ubuntu-vm-backup run on 2026-11-21 07:35 UTC (it now restores release `35c43d1`), then **1.2** rollback rehearsal. **2.1** waits on the owner (Q-1). |
+| **Current phase** | [Phase 1 · SvelteKit 3, Svelte 5 and Tailwind CSS 4](#phase-1--sveltekit-3-svelte-5-and-tailwind-css-4): two acceptance steps open. [Phase 3](#phase-3--full-inventory-site-view-and-daily-history) is deployed; its 3.4 review follow-ups are on `main` and not yet deployed |
+| **Next step** | **3.4** deploy the review follow-ups (they fix a phone layout bug that is live now), with the owner's go-ahead. **1.2** encrypted backup and restore drill, due with the scheduled ubuntu-vm-backup run on 2026-11-21 07:35 UTC (it restores whichever release is current), then **1.2** rollback rehearsal. **2.1** waits on the owner (Q-1). |
 | **In progress** | None. |
 | **Blockers** | None. The drill waits on its schedule; Phase 2 waits on owner-approved destinations. |
-| **Live site** | https://status.dunamismax.com serves release `35c43d1`, deployed 2026-11-21 01:33 UTC over `1da4095` (rollback directory `/root/status-rollback-20261121T013320Z`); each run stores 85 services and 13 projects. The SvelteKit cutover was `8c72b37` at 2026-11-20 13:45 UTC over Astro `cc3fc21` (rollback directory `/root/status-astro-rollback-20261120T134532Z`). Root disk was at 81% (degraded) at the same check. No alert webhook or heartbeat is configured. |
-| **`main`** | `35c43d1` (Phase 3) is deployed; this evidence commit follows it. `main` pushes to GitHub and Codeberg together. |
+| **Live site** | https://status.dunamismax.com serves release `35c43d1`, deployed 2026-11-21 01:33 UTC over `1da4095` (rollback directory `/root/status-rollback-20261121T013320Z`); each run stores 85 services and 13 projects. The SvelteKit cutover was `8c72b37` at 2026-11-20 13:45 UTC over Astro `cc3fc21` (rollback directory `/root/status-astro-rollback-20261120T134532Z`). Root disk was at 81% (degraded) at the same check and 82% at 02:05 UTC. No alert webhook or heartbeat is configured. |
+| **`main`** | `35c43d1` (Phase 3) is deployed. The commit after `d1b2387` holds the 3.4 follow-ups and is not deployed. `main` pushes to GitHub and Codeberg together. |
 | **Last updated** | 2026-11-21 |
 
 ## How to work this file
@@ -104,7 +104,7 @@ Use each default until the owner decides otherwise.
 | 0 | Drizzle ORM adopts the existing PostgreSQL history | Complete 2026-11-02 |
 | 1 | Web layer to SvelteKit 3, Svelte 5 and Tailwind CSS 4 | Deployed 2026-11-20; two acceptance steps open |
 | 2 | Live alert delivery and heartbeat | Waiting on the owner (Q-1) |
-| 3 | Full inventory, site view and daily history | Complete and deployed 2026-11-21 |
+| 3 | Full inventory, site view and daily history | Deployed 2026-11-21; 3.4 follow-ups built, not deployed |
 
 ## Baseline · PHP and MySQL to Astro and PostgreSQL
 
@@ -511,6 +511,32 @@ pages stay script-free.
   The first scheduled run (01:39 UTC) stored 85 services and 13 projects in 2.0 s
   with 0 alerts; every check was operational except the root disk at 81%.
 
+### 3.4 Review follow-ups
+
+- [x] Fix what a review of the deployed release found, with tests.
+  Evidence (2026-11-21): at 375 px the live overview scrolled sideways whenever
+  a check needed attention (the redesign's three-column attention row overrode
+  the narrow layout; measured 516 px in a 375 px viewport on the live site). The
+  row now stacks on phones, and the built pages measure 375 px on the overview,
+  services and projects at that width. The attention panel listed six checks and
+  silently dropped the rest; it now counts the ones it does not list and links to
+  the services page (worst state first, tested). "Public certificates" was
+  missing from the category order and sorted last; it now follows "Public
+  websites" (tested). The external probe covered five of eleven public sites; it
+  now probes every catalogued site, a test keeps the two lists in step, and a run
+  from a workstation passed all eleven plus collector freshness. `deploy.sh`'s
+  settings check listed keys it never read; it is now a plain file test that still
+  fires the rollback trap (exercised on bash 3.2 and 5.3). `tests/postgres.sh`
+  takes `STATUS_PG_BIN`, pins the disposable cluster to UTC and a fixed locale,
+  and so runs outside Debian. Checks on macOS with Node 24.22.3: `npm run check`
+  0/0, `db:check` clean, `npm test` 27 passed and 2 PostgreSQL-only skipped,
+  `tests/postgres.sh` 29/29 on Homebrew PostgreSQL 18.7, build, shell and Python
+  syntax, `git diff --check`, `npm audit` clean.
+- [ ] Deploy the follow-ups under `with-deploy-lock` with `deploy/build.sh` and
+  `deploy/deploy.sh`; the public overview has no sideways scroll at 375 px.
+  Remaining: waits for the owner's go-ahead. The changed `deploy.sh` settings
+  check first runs for real in this deploy.
+
 ## Ideas inbox
 
 Not planned or counted. Triage an idea into a phase, with the owner where it
@@ -525,13 +551,31 @@ changes scope, when you pick it up.
   vincentsawyer.org and Day by Word jobs do not write `/var/lib/ops-success`
   markers, so after a reboot they read unknown until their next run. Adding the
   `ExecStartPost` marker is host work in ubuntu-vm-backup.
-- **External probe evidence.** GitHub schedules are best effort. Check that
-  `external-probe.yml` and `http3-probe.yml` actually run, and note gaps here.
+- **External probe cadence.** Checked 2026-11-21: `external-probe.yml` asks for
+  a run every 30 minutes, but GitHub started only 12 between 2026-11-17 and
+  2026-11-20, six to nine hours apart, all passing. `http3-probe.yml` is manual
+  only and last ran 2026-10-23. If an outside view within minutes matters, it
+  needs a second scheduler, which is an owner decision (it may need an account).
+- **HSTS.** The Caddy fragment sends no `Strict-Transport-Security` header.
+  Headers are a contract, so adding one is the owner's call; check what the
+  other sites on the host send first.
+- **Repositories in the attention panel.** The overview's attention list covers
+  service checks only; a degraded repository shows only as a chip on its site
+  card and on `/projects`, although it counts toward the API's `overall_state`.
+- **Root disk.** 82% and rising on 2026-11-21 (warns at 80%, fails at 90%).
+  Freeing space is host work under the ubuntu-vm-backup runbook.
 
 ## Handoff log
 
 Newest first. Keep eight.
 
+- **2026-11-21 · Review follow-ups (3.4).** Owner request: review the project
+  and improve it. Added step 3.4 for what the review found: a live phone layout
+  bug on the overview, the truncated attention list, category order, external
+  probe coverage, a dead settings check in `deploy.sh` and a database suite that
+  now runs on macOS. All checks pass, including PostgreSQL locally. Not deployed.
+  Next: 3.4 deploy with the owner's go-ahead, then the 1.2 backup drill after
+  07:35 UTC.
 - **2026-11-21 · Phase 3 deployed.** `35c43d1` deployed at 01:33 UTC with the
   owner's go-ahead; smoke passed and the first scheduled run stored 85 services
   and 13 projects. Next: the 1.2 backup drill after 07:35 UTC.

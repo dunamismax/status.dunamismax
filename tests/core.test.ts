@@ -11,7 +11,7 @@ import { evaluateMemory,evaluateCertificate,evaluateHttp,evaluateUnit,evaluateCa
 import { httpTargets, units, projects } from '../src/collector/inventory.js';
 import { cfromthegroundupHealth, plainOk } from '../src/collector/http-evidence.js';
 import { properties } from '../src/lib/catalog.js';
-import { indexHistory, track, percent, sites, segments, anchor, buildNext } from '../src/lib/view.js';
+import { indexHistory, track, percent, sites, segments, anchor, buildNext, categories, attentionLimit } from '../src/lib/view.js';
 import { estDay, addDays, type DailyCount } from '../src/lib/model.js';
 import { alerts, notify, heartbeat, testAlert } from '../src/collector/alerts.js';
 import { deployment } from '../src/collector/cli.js';
@@ -266,4 +266,28 @@ test('overview shows sites with history bars; a history failure never fails the 
  assert.match(services, /<section class="section service-group" id="public-websites"/);
  assert.match(services, /<td class="numeric">100%<\/td>/);
  assert.doesNotMatch(await (await handle(request('/incidents'), provider, c, now)).text(), /http-equiv="refresh"/);
+});
+
+test('overview counts the attention items it does not list, and certificates follow public websites', async () => {
+ const failing = Array.from({length: attentionLimit + 2}, (_, i) => service(i === attentionLimit + 1 ? 'down' : 'degraded', 'check-' + i));
+ const html = await (await handle(request('/'), {...source, latest: async () => snapshot(failing)}, c, now)).text();
+ const panel = html.match(/<section class="overview-panel attention-panel"[\s\S]*?<\/section>/)?.[0] ?? '';
+ assert.equal((panel.match(/<li>/g) ?? []).length, attentionLimit);
+ // The most severe state is listed first, so truncation never hides an outage behind warnings.
+ assert.match(panel, /<li><span class="state state-down">down<\/span><strong>check-7<\/strong>/);
+ assert.match(panel, /Plus 2 more checks not shown here; every check is listed under <a href="\/services">all services<\/a>\./);
+ const one = await (await handle(request('/'), {...source, latest: async () => snapshot(failing.slice(0, attentionLimit + 1))}, c, now)).text();
+ assert.match(one, /Plus 1 more check not shown here/);
+ const exact = await (await handle(request('/'), {...source, latest: async () => snapshot(failing.slice(0, attentionLimit))}, c, now)).text();
+ assert.doesNotMatch(exact, /not shown here/);
+ const grouped = (group: string, id: string) => { const s = service('operational', id); s.target.group = group; return s; };
+ const names = categories(snapshot([grouped('Host capacity', 'a'), grouped('Public certificates', 'b'), grouped('Maintenance', 'c'), grouped('Public websites', 'd'), grouped('Unlisted', 'e')])).map(g => g.name);
+ assert.deepEqual(names, ['Public websites', 'Public certificates', 'Maintenance', 'Host capacity', 'Unlisted']);
+});
+
+test('the external probe covers every catalogued public site', async () => {
+ const script = await readFile('scripts/external-probe.py', 'utf8');
+ const probed = [...(script.match(/^SITES = \(([\s\S]*?)^\)/m)?.[1] ?? '').matchAll(/"([^"]+)"/g)].map(m => m[1]);
+ const catalogued = properties.flatMap(p => p.url ? [new URL(p.url).hostname] : []);
+ assert.deepEqual([...probed].sort(), [...catalogued].sort());
 });

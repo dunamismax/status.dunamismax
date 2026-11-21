@@ -5,7 +5,11 @@ import json
 import time
 import urllib.request
 
-SITES = ("dunamismax.com", "graceandfootnotes.com", "demo.xrayservice.net", "status.dunamismax.com", "xrayservice.net")
+# Every site with a public page in src/lib/catalog.ts; tests/core.test.ts keeps the two in step.
+SITES = (
+    "dunamismax.com", "azerothtrail.com", "lorehallow.com", "rivermindpoker.com", "cfromthegroundup.com", "daybyword.com",
+    "vincentsawyer.org", "graceandfootnotes.com", "xrayservice.net", "demo.xrayservice.net", "status.dunamismax.com",
+)
 
 def fresh(value, now=None):
     at = dt.datetime.fromisoformat(value.replace("Z", "+00:00"))

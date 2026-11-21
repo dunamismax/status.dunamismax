@@ -35,6 +35,7 @@
         <li><StateBadge state={s.check.state} /><strong>{s.target.name}</strong><span>{s.check.reason}</span></li>
       {/each}
     </ul>
+    {#if o.attentionMore}<p class="panel-note attention-more">Plus {o.attentionMore} more {o.attentionMore === 1 ? 'check' : 'checks'} not shown here; every check is listed under <a href="/services">all services</a>.</p>{/if}
   {:else}
     <p class="panel-note all-clear">{o.attentionNote}</p>
   {/if}

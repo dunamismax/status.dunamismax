@@ -53,16 +53,10 @@ adopt=()
 "$node" "$release/build/scripts/history.js" digest > "$backup/post-digest.json"
 if grep -q 'applied=none' "$backup/migration.log"; then cmp -s "$backup/pre-digest.json" "$backup/post-digest.json"; fi
 unset PGPASSWORD DATABASE_URL PGUSER PGDATABASE PGHOST PGPORT
-# Copy only role-appropriate settings; secrets never enter the release.
-python3 - <<'CONFIG'
-import os,shlex
-from pathlib import Path
-base=Path('/etc/status-dunamismax')
-for role,keys in [('web',['STATUS_OPERATOR_TOKEN','STATUS_STALE_AFTER_MINUTES','STATUS_REPO_ROOT']),('collector',['STATUS_ALERT_WEBHOOK_URL','STATUS_RETENTION_DAYS','STATUS_ALERT_REPEAT_AFTER_MINUTES','STATUS_ALERT_MAX_NOTIFICATIONS_PER_RUN','STATUS_REPO_ROOT'])]:
- target=base/(role+'.env')
- if target.exists():continue
- raise SystemExit('Restore the separate web/collector role settings before deployment')
-CONFIG
+# Each role keeps its own settings file on the host; secrets never enter the release.
+for role in web collector; do
+ [[ -f /etc/status-dunamismax/$role.env ]] || { echo 'Restore the separate web/collector role settings before deployment' >&2; false; }
+done
 # Reuse the already separate nologin accounts and existing read-only collector ACLs.
 [[ $(id -nG status-dunamismax) != *docker* ]]
 for unit in status-dunamismax.service status-dunamismax-collector.service status-dunamismax-collector.timer status-dunamismax-backup.service; do install -m 0644 "$release/deploy/$unit" "/etc/systemd/system/$unit"; done
