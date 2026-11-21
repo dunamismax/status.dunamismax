@@ -11,12 +11,12 @@ a contract: see [Format contract](#format-contract).
 
 | | |
 | --- | --- |
-| **Current phase** | [Phase 1 · SvelteKit 3, Svelte 5 and Tailwind CSS 4](#phase-1--sveltekit-3-svelte-5-and-tailwind-css-4): complete. [Phase 4](#phase-4--final-cleanup) (no rollback tooling, nothing from earlier stacks) is complete and deployed. [Phase 5](#phase-5--hsts) (an HSTS header, D-13) is built and not yet deployed. [Phase 3](#phase-3--full-inventory-site-view-and-daily-history) is complete and deployed, including 3.5 (second reconciliation) and 3.6 (a retired unit removed from the inventory) |
-| **Next step** | **5.1** deploy the HSTS header with `deploy/build.sh` and `deploy/deploy.sh`. After that, none in this repository until the owner decides on alert destinations (**2.1**, Q-1). Open with the owner: whether Lorehallow and the five repositories with uncommitted work also lose their rollback tooling (4.3). **2.1** waits on the owner (Q-1). |
+| **Current phase** | [Phase 1 · SvelteKit 3, Svelte 5 and Tailwind CSS 4](#phase-1--sveltekit-3-svelte-5-and-tailwind-css-4): complete. [Phase 4](#phase-4--final-cleanup) (no rollback tooling, nothing from earlier stacks) is complete and deployed. [Phase 5](#phase-5--hsts) (an HSTS header, D-13) is complete and deployed. [Phase 3](#phase-3--full-inventory-site-view-and-daily-history) is complete and deployed, including 3.5 (second reconciliation) and 3.6 (a retired unit removed from the inventory) |
+| **Next step** | None in this repository until the owner decides on alert destinations (**2.1**, Q-1). Open with the owner: whether the five repositories with uncommitted work also lose their rollback tooling (4.3). **2.1** waits on the owner (Q-1). |
 | **In progress** | None. |
 | **Blockers** | None. Phase 2 waits on owner-approved destinations. |
-| **Live site** | https://status.dunamismax.com serves release `a8e9b08`, deployed 2026-11-21 13:39 UTC with the rewritten deploy script; each run stores 96 services and 14 projects, all operational at 13:51 UTC. Root disk 70% after the final cleanup (4.1). There is no rollback tooling (D-12); a deployment's records are in the directory named by `/root/status-latest-deploy`. No alert webhook or heartbeat is configured. |
-| **`main`** | `a8e9b08` (Phase 4) is deployed. The 5.1 commit (HSTS header and its smoke check, D-13) follows the Phase 4 evidence commit and is not deployed yet. `main` pushes to GitHub and Codeberg together. |
+| **Live site** | https://status.dunamismax.com serves release `d0b96aa`, deployed 2026-11-21 14:02 UTC over `a8e9b08`, and sends `Strict-Transport-Security: max-age=31536000` (D-13); each run stores 96 services and 14 projects, all operational at 14:08 UTC. Root disk 70% after the final cleanup (4.1). There is no rollback tooling (D-12); a deployment's records are in the directory named by `/root/status-latest-deploy`. No alert webhook or heartbeat is configured. |
+| **`main`** | `d0b96aa` (Phase 5, the HSTS header) is deployed; this evidence commit follows it. `main` pushes to GitHub and Codeberg together. |
 | **Last updated** | 2026-11-21 |
 
 ## How to work this file
@@ -108,7 +108,7 @@ Use each default until the owner decides otherwise.
 | 2 | Live alert delivery and heartbeat | Waiting on the owner (Q-1) |
 | 3 | Full inventory, site view and daily history | Complete and deployed 2026-11-21 |
 | 4 | Final cleanup: no rollback tooling, nothing from earlier stacks | Complete and deployed 2026-11-21 |
-| 5 | HSTS header from the Caddy fragment | Built 2026-11-21; deployment open |
+| 5 | HSTS header from the Caddy fragment | Complete and deployed 2026-11-21 |
 
 ## Baseline · Migration to PostgreSQL
 
@@ -715,10 +715,14 @@ the stacks before SvelteKit, on the host or in the repositories.
   failures caused by these edits (a formatting check and a pinned checksum)
   were fixed the same hour. None of those sites was redeployed: no served code
   changed, so each one's next deploy is the first with its new cutover script.
-  Not changed: Lorehallow (its three deploy scripts and `make rollback-*`
-  targets), and the five repositories with other sessions' uncommitted work
-  (Day by Word, dunamismax.com, RiverMind Poker, Field Cadence,
-  vincentsawyer.org).
+  Lorehallow followed on the owner's go-ahead the same day: its server, client
+  and website deploy scripts stop on a failed check and leave the new release
+  live, its `make rollback-*` and rehearsal targets are gone, and its decision
+  record 0020 says why. Its BUILD.md, docs and web linters and 50 website
+  tests pass and CI passed; the three scripts have not been run against the
+  host yet. Not changed: the five repositories with other sessions'
+  uncommitted work (Day by Word, dunamismax.com, RiverMind Poker, Field
+  Cadence, vincentsawyer.org).
 
 ## Phase 5 · HSTS
 
@@ -741,10 +745,24 @@ the only site on it that sent no `Strict-Transport-Security` header.
   0/0, `db:check` clean, `npm test` 28 passed and 2 PostgreSQL-only skipped,
   `tests/postgres.sh` 30/30 on Homebrew PostgreSQL 18, build, shell and Python
   syntax, `git diff --check`, `npm audit` clean.
-- [ ] Deploy under `with-deploy-lock` with `deploy/build.sh` and
+- [x] Deploy under `with-deploy-lock` with `deploy/build.sh` and
   `deploy/deploy.sh`; the public site sends the header once and every other
   header is unchanged.
-  Remaining: the deployment itself, which needs this commit first.
+  Evidence (2026-11-21): `deploy/build.sh` built `d0b96aa` on the VM with 30/30
+  tests including PostgreSQL 18, and CI passed on the same commit. The
+  candidate's fragment adapted with the custom Caddy binary and differed from
+  the live one by the HSTS line only. `deploy/deploy.sh` ran from `a8e9b08`
+  between 14:02 and 14:03 UTC: candidate and public smoke, the static cache
+  checks and the new HSTS check passed, the migration was a no-op, Caddy
+  validated and the deployment was recorded (`/root/status-deploy-20261121T140200Z`).
+  Response headers for `/`, `/api/status.json`, `/robots.txt`, `/icon.svg` and
+  `/healthz`, captured before and after, differ only by one added
+  `strict-transport-security: max-age=31536000` line on each. Caddy and
+  PostgreSQL kept their PIDs, the web unit is active with 0 restarts, the
+  collector timer is active, readiness is `ready` and no temporary unit or
+  drop-in file was left. The deploy's own run (14:02 UTC) and the first
+  scheduled run (14:08 UTC) each stored 96 services and 14 projects with 0
+  alerts, all operational. The smoke script also passed from outside the host.
 
 ## Ideas inbox
 
@@ -788,8 +806,10 @@ Newest first. Keep eight.
   review found this the only site without one (D-13, moved out of the ideas
   inbox into Phase 5). The Caddy fragment now sets
   `Strict-Transport-Security: max-age=31536000` and the public smoke requires
-  it. All checks pass, including PostgreSQL locally. Not deployed. Next: the
-  5.1 deployment.
+  it. All checks pass, including PostgreSQL locally. `d0b96aa` deployed at
+  14:02 UTC; every other response header is unchanged and the first scheduled
+  run stored 96 services, all operational. Next: alert delivery (2.1) when the
+  owner names destinations.
 - **2026-11-21 · Final cleanup (Phase 4).** Owner decision D-12: no rollbacks,
   SvelteKit only, and nothing kept from earlier stacks. With the owner's
   confirmation, 81 old paths were deleted on the host (earlier-framework, PHP
@@ -798,9 +818,9 @@ Newest first. Keep eight.
   passage about rollback or legacy recovery; the 1.2 rollback rehearsal is
   dropped. `a8e9b08` deployed at 13:39 UTC with the rewritten deploy script and
   every check stayed operational. The backup repository and six other clean
-  repositories lost their rollback tooling too (4.3). Not changed, and open
-  with the owner: Lorehallow and the five repositories with other sessions'
-  uncommitted work. Next: alert delivery (2.1) when the owner names
+  repositories lost their rollback tooling too, Lorehallow included (4.3).
+  Not changed, and open with the owner: the five repositories with other
+  sessions' uncommitted work. Next: alert delivery (2.1) when the owner names
   destinations.
 - **2026-11-21 · Backup drill (1.2).** The owner asked for the overdue drill.
   The scheduled encrypted backup at 07:41 UTC had already restored and probed
