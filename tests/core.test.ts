@@ -8,7 +8,7 @@ import { handle } from './web.js';
 import type { Source } from '../src/lib/source.js';
 import { command } from '../src/collector/command.js';
 import { evaluateMemory,evaluateCertificate,evaluateHttp,evaluateUnit,evaluateCaddy,evaluateDdns,evaluateDisk,evaluateGit,buildProgress,httpProbe,parseFacts,evaluateBackupSize } from '../src/collector/probes.js';
-import { httpTargets, units, projects } from '../src/collector/inventory.js';
+import { httpTargets, units, projects, redirectHosts, certificateHosts } from '../src/collector/inventory.js';
 import { cfromthegroundupHealth, plainOk } from '../src/collector/http-evidence.js';
 import { properties } from '../src/lib/catalog.js';
 import { indexHistory, track, percent, sites, segments, anchor, buildNext, categories, attentionLimit } from '../src/lib/view.js';
@@ -93,7 +93,7 @@ test('backup size is a current bounded measurement, with invalid and unavailable
  assert.deepEqual(evaluateBackupSize({...output, stdout:'bad'}), ['unknown', 'current backup storage measurement is invalid']);
 });
 
-test('public probes check tracker freshness, game health and the two-byte installer download', async () => {
+test('public probes check tracker freshness, game and demo health and the two-byte installer download', async () => {
  const regions = ['us','eu','kr','tw'];
  const server = createServer((req, res) => {
   if (req.url?.startsWith('/tracker')) {
@@ -101,7 +101,10 @@ test('public probes check tracker freshness, game health and the two-byte instal
    const old = new Date(Date.now() - 6*60000).toISOString();
    res.end(JSON.stringify({version:1, generatedAt:req.url === '/tracker-old' ? old : time,
     regions:regions.map(key => ({key, checkedAt:req.url === '/tracker-missing' ? null : req.url === '/tracker-stale' ? old : time, rulesets:[{online:false}]}))}));
-  } else if (req.url === '/game') res.end('ok\n');
+  } else if (req.url === '/demo-health') res.end(JSON.stringify({status:'ok', storage:'postgres', revision:'abc'}));
+  else if (req.url === '/demo-health-failing') res.end(JSON.stringify({status:'error', storage:'postgres'}));
+  else if (req.url === '/demo-health-page') res.end('<html>ok</html>');
+  else if (req.url === '/game') res.end('ok\n');
   else if (req.url === '/game-fallback') res.end('<html>ok</html>');
   else if (req.headers.range === 'bytes=0-1') {
    res.writeHead(206, {'Content-Range':'bytes 0-1/123456', 'Content-Disposition':'attachment; filename="setup.exe"'});
@@ -123,6 +126,9 @@ test('public probes check tracker freshness, game health and the two-byte instal
   assert.match((await probe('azerothtrail-status-api', '/tracker-missing')).reason, /missing usable readings/);
   assert.equal((await probe('lorehallow-game', '/game')).state, 'operational');
   assert.equal((await probe('lorehallow-game', '/game-fallback')).state, 'degraded');
+  assert.equal((await probe('imagingservices-demo', '/demo-health')).state, 'operational');
+  assert.match((await probe('imagingservices-demo', '/demo-health-failing')).reason, /did not report ok/);
+  assert.equal((await probe('imagingservices-demo', '/demo-health-page')).state, 'degraded');
   assert.equal((await probe('xrayservice-installer', '/installer')).state, 'operational');
   assert.equal((await probe('xrayservice-installer', '/bad-installer')).state, 'degraded');
   assert.match((await probe('xrayservice-installer', '/large-installer')).reason, /size limit/);
@@ -185,7 +191,7 @@ test('response policy headers: 405 Allow, 503 Retry-After, operator noindex and 
 });
 
 test('every catalogued site check and repository exists in the collector inventory', () => {
- const hosts = new Set(httpTargets.flatMap(t => [new URL(t.publicUrl).hostname, new URL(t.probeUrl).hostname]));
+ const hosts = new Set(certificateHosts());
  const ids = new Set([...httpTargets.map(t => t.id), ...units.map(t => t.id), ...[21115, 21116, 21117].map(p => 'rustdesk-tcp-' + p),
   ...[...hosts].map(h => 'certificate-' + h), 'caddy-config', 'cloudflare-ddns-update', 'root-disk', 'memory-pressure', 'backup-repository-growth']);
  const repos = new Set(projects('/repos').map(p => p.id));
@@ -202,6 +208,23 @@ test('every catalogued site check and repository exists in the collector invento
  for (const unit of ['lorehallow-server', 'lorehallow-web', 'rivermind-poker-web', 'umami', 'daybyword-backup', 'daybyword-restore-check-timer']) assert.ok(units.some(t => t.id === unit));
  assert.equal(units.find(t => t.id === 'daybyword-restore-check')?.maxAgeMinutes, 32*24*60);
  assert.equal(units.find(t => t.id === 'vincentsawyer-backup')?.maxAgeMinutes, 26*60);
+ // Field Cadence runs in Docker like Day by Word: its page, both certificates and its repository are its evidence.
+ for (const host of ['fieldcadence.app', 'www.fieldcadence.app']) assert.ok(hosts.has(host));
+ assert.ok(repos.has('fieldcadence'));
+ assert.equal(httpTargets.find(t => t.id === 'imagingservices-demo')?.probeUrl, 'https://demo.xrayservice.net/healthz');
+});
+
+test('every redirect host belongs to a probed site and every certificate check to a catalogued one', () => {
+ const probed = new Set(httpTargets.map(t => new URL(t.publicUrl).hostname));
+ assert.equal(new Set(redirectHosts).size, redirectHosts.length);
+ for (const host of redirectHosts) {
+  assert.match(host, /^www\./);
+  assert.ok(probed.has(host.slice(4)), `${host} redirects to a site that is not probed`);
+ }
+ const hosts = certificateHosts();
+ assert.equal(new Set(hosts).size, hosts.length);
+ const catalogued = new Set(properties.flatMap(p => [p.primary, ...p.checks]));
+ for (const host of hosts) assert.ok(catalogued.has('certificate-' + host), `certificate-${host} is on no site card`);
 });
 
 test('new site health evidence: database-aware health JSON and plain ok bodies', () => {

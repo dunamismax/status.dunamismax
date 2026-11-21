@@ -3,8 +3,11 @@
 The active service is SvelteKit 3 (adapter-node) with native PostgreSQL 18,
 Drizzle, systemd and Caddy, deployed November 20, 2026 ([BUILD.md Phase 1](../BUILD.md)).
 That cutover changed the web entry point and stylesheet path only, not the
-database, roles, collector or timers. Rollback to the last Astro release
-(`cc3fc21`) uses `deploy/rollback.sh /root/status-astro-rollback-20261120T134532Z`. Deployment applies reviewed Drizzle
+database, roles, collector or timers. The last Astro release (`cc3fc21`) and its
+rollback directory `/root/status-astro-rollback-20261120T134532Z` are retained,
+but the current `deploy/rollback.sh` accepts only `/root/status-rollback-*`
+directories and installs the renamed units, so a rollback that far needs the
+rehearsal still open in BUILD.md step 1.2. Deployment applies reviewed Drizzle
 migrations through the owner-only runner; `database/schema.sql` is retained for
 older releases and history tooling only.
 
@@ -159,11 +162,21 @@ The collector includes every public website and app endpoint, every
 application unit (Node, Python and Go services, Umami and the bot), PostgreSQL,
 Docker, Caddy, access services, DDNS and its timer, RustDesk's three TCP
 listeners, cleanup, installer builder, backup and restore-check jobs and timers,
-and the thirteen repositories behind them. The inventory was last reconciled
+and the fourteen repositories behind them. The inventory was last reconciled
 against the host's running units, timers, Caddy sites, containers and listening
-ports on 2026-11-20. Day by Word runs in Docker Compose; the collector has no
+ports on 2026-11-21. Day by Word runs in Docker Compose; the collector has no
 Docker access, so its public page and its host backup and monthly restore-check
-jobs are its evidence. Umami serves only C From The Ground Up and is checked
+jobs are its evidence. Field Cadence also runs in Docker Compose and has no host
+units yet (its repository's jobs timer is not installed and it has no backup
+job), so its public page, its certificates and its repository are its evidence;
+its page is static, so that check does not exercise its database. Add its jobs
+and backup units to the inventory when they are installed. The Imaging Services
+demo is checked through `/healthz`, which answers only after loading its pages
+from its content store and must report `ok` and name that store. Every public
+host name gets a certificate check, including the ten `www.` names that only
+redirect to their site (`redirectHosts` in the inventory): Caddy holds a separate
+certificate for each, so one can lapse while the site itself stays healthy. Add a
+name there whenever a Caddy site gains a redirect host. Umami serves only C From The Ground Up and is checked
 through that site's `/stats/script.js`. RiverMind Poker's web server answers
 `/healthz` with `ok` and its table server's public `/api/config`; C From The
 Ground Up's `/healthz` must report both the app and its database as `ok`.

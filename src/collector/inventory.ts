@@ -1,13 +1,15 @@
-import { azerothStatus, cfromthegroundupHealth, installerRange, lorehallowHealth, plainOk, type HttpEvidence } from './http-evidence.js';
+import { azerothStatus, cfromthegroundupHealth, imagingHealth, installerRange, lorehallowHealth, plainOk, type HttpEvidence } from './http-evidence.js';
 
 export interface HttpTarget { id:string; name:string; publicUrl:string; probeUrl:string; expectedStatus:number; bodyToken?:string; evidence?:HttpEvidence; range?:string }
 export interface UnitTarget {id:string; unit:string; group:string; oneShot?:boolean; maxAgeMinutes?:number}
 export interface ProjectTarget {id:string; repo:string; url:string|null; path:string}
 const existingSites = [
- ['dunamismax-com','dunamismax.com','/healthz'],['graceandfootnotes-com','graceandfootnotes.com','/'],['status-dunamismax-com','status.dunamismax.com','/healthz'],['xrayservice-net','xrayservice.net','/'],['imagingservices-demo','demo.xrayservice.net','/']
+ ['dunamismax-com','dunamismax.com','/healthz'],['graceandfootnotes-com','graceandfootnotes.com','/'],['status-dunamismax-com','status.dunamismax.com','/healthz'],['xrayservice-net','xrayservice.net','/']
 ].map(([id,name,path])=>({id:id!,name:name!,publicUrl:'https://'+name,probeUrl:'https://'+name+path,expectedStatus:200}));
 export const httpTargets:HttpTarget[] = [
  ...existingSites,
+ {id:'imagingservices-demo',name:'demo.xrayservice.net',publicUrl:'https://demo.xrayservice.net',probeUrl:'https://demo.xrayservice.net/healthz',expectedStatus:200,evidence:imagingHealth},
+ {id:'fieldcadence-app',name:'Field Cadence',publicUrl:'https://fieldcadence.app/',probeUrl:'https://fieldcadence.app/',expectedStatus:200,bodyToken:'Field Cadence</title>'},
  {id:'azerothtrail-com',name:'Azeroth Trail',publicUrl:'https://azerothtrail.com/',probeUrl:'https://azerothtrail.com/',expectedStatus:200,bodyToken:'<title>Azeroth Trail</title>'},
  {id:'azerothtrail-status-api',name:'Azeroth Trail tracker',publicUrl:'https://azerothtrail.com/status/',probeUrl:'https://azerothtrail.com/api/status',expectedStatus:200,evidence:azerothStatus},
  {id:'lorehallow-com',name:'Lorehallow',publicUrl:'https://lorehallow.com/',probeUrl:'https://lorehallow.com/',expectedStatus:200,bodyToken:'<link rel="canonical" href="https://lorehallow.com/">'},
@@ -21,6 +23,11 @@ export const httpTargets:HttpTarget[] = [
  {id:'rivermindpoker-api',name:'RiverMind Poker table server',publicUrl:'https://rivermindpoker.com/',probeUrl:'https://rivermindpoker.com/api/config',expectedStatus:200,bodyToken:'"seat_counts":'},
  {id:'vincentsawyer-org',name:'vincentsawyer.org',publicUrl:'https://vincentsawyer.org/',probeUrl:'https://vincentsawyer.org/',expectedStatus:200,bodyToken:'<link rel="canonical" href="https://vincentsawyer.org/"'}
 ];
+// Hosts that only redirect to their site. Caddy holds a separate certificate for
+// each, so each gets its own certificate check.
+export const redirectHosts:string[] = ['azerothtrail.com','cfromthegroundup.com','daybyword.com','dunamismax.com','fieldcadence.app','graceandfootnotes.com','lorehallow.com','rivermindpoker.com','vincentsawyer.org','xrayservice.net'].map(host=>'www.'+host);
+/** Every public host name served here: the probed ones first, then the redirect-only ones. */
+export const certificateHosts=():string[] => [...new Set([...httpTargets.flatMap(t=>[new URL(t.publicUrl).hostname,new URL(t.probeUrl).hostname]),...redirectHosts])];
 // Daily jobs must have succeeded within 26 hours; the weekly installer build
 // within eight days and the monthly Day by Word restore drill within 32 days.
 const maxAge:Record<string,number> = {'rustdesk-preconfig-build':8*24*60,'daybyword-restore-check':32*24*60};
@@ -43,5 +50,5 @@ export const projects=(root:string):ProjectTarget[] => [
 ,{id:'graceandfootnotes-com',repo:'graceandfootnotes.com',url:'https://graceandfootnotes.com'},{id:'imagingservices',repo:'imagingservices',url:'https://demo.xrayservice.net'}
 ,{id:'azerothtrail',repo:'azerothtrail',url:'https://azerothtrail.com'},{id:'lorehallow',repo:'lorehallow',url:'https://lorehallow.com'},{id:'c-from-the-ground-up',repo:'c-from-the-ground-up',url:'https://cfromthegroundup.com'}
 ,{id:'daybyword',repo:'daybyword',url:'https://daybyword.com'},{id:'rivermind-poker',repo:'rivermind-poker',url:'https://rivermindpoker.com'},{id:'vincentsawyer-org',repo:'vincentsawyer.org',url:'https://vincentsawyer.org'}
-,{id:'ubuntu-vm-backup',repo:'ubuntu-vm-backup',url:null}
+,{id:'ubuntu-vm-backup',repo:'ubuntu-vm-backup',url:null},{id:'fieldcadence',repo:'fieldcadence',url:'https://fieldcadence.app'}
 ].map(p=>({...p,path:root+'/'+p.repo}));

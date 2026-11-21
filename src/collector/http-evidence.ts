@@ -65,6 +65,14 @@ export const cfromthegroundupHealth: HttpEvidence = body => {
   return ['operational', 'site and database health responses are OK'];
 };
 
+/** The Imaging Services `/healthz` answers only after loading its pages from its content store. */
+export const imagingHealth: HttpEvidence = body => {
+  const data = jsonObject(body);
+  if (data?.status !== 'ok') return ['degraded', 'health response did not report ok'];
+  if (typeof data.storage !== 'string' || !data.storage) return ['degraded', 'health response did not name its content store'];
+  return ['operational', 'site and content store health response is OK'];
+};
+
 export const installerRange: HttpEvidence = (body, headers) => {
   const length = Number(headers.get('content-range')?.match(/^bytes 0-1\/(\d+)$/i)?.[1]);
   if (!Number.isSafeInteger(length) || length <= 2 || !/^attachment\s*;/i.test(headers.get('content-disposition') ?? '')) {

@@ -100,16 +100,21 @@ It covers:
   Ground Up (health with its database, and its Umami analytics script), Day by
   Word, vincentsawyer.org, Grace and Footnotes, XrayService (site, email assets
   and the Windows installer, a two-byte range request that checks the executable
-  signature), the Imaging Services demo and this status page.
+  signature), the Imaging Services demo (health with its content store), Field
+  Cadence and this status page.
 - **Host services:** every application unit (including both Lorehallow units,
   both RiverMind Poker units and Umami), PostgreSQL, Caddy (including parse and
   reload evidence), Docker, access services, DDNS recency, RustDesk's three TCP
   listeners (connect only) and every maintenance, backup and restore-check job
-  with its timer. Day by Word runs in Docker, which the collector cannot see by
-  design, so it is covered by its public check and its backup jobs.
-- **Host health:** root disk, available memory and memory pressure, certificate
-  expiry and the size of the backup Git store.
-- **Repositories:** the thirteen checkouts behind running sites, apps and backups,
+  with its timer. Day by Word and Field Cadence run in Docker, which the
+  collector cannot see by design: Day by Word is covered by its public check and
+  its backup jobs, Field Cadence by its public check alone until it has host jobs.
+- **Certificates:** expiry and a verified handshake for every public host name,
+  including the ten `www.` names that only redirect, since each holds its own
+  certificate.
+- **Host health:** root disk, available memory and memory pressure, and the size
+  of the backup Git store.
+- **Repositories:** the fourteen checkouts behind running sites, apps and backups,
   read-only: branch, upstream, dirty state, commit age and BUILD.md progress.
   Quiet repositories stay healthy.
 

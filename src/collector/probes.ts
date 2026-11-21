@@ -3,7 +3,7 @@ import { connect as tlsConnect } from 'node:tls';
 import { readFile, stat } from 'node:fs/promises';
 import { command, type CommandResult } from './command.js';
 import { snapshot, type Service, type Project, type GitStatus, type BuildProgress } from '../lib/model.js';
-import { httpTargets, units, projects, type HttpTarget, type UnitTarget, type ProjectTarget } from './inventory.js';
+import { httpTargets, units, projects, certificateHosts, type HttpTarget, type UnitTarget, type ProjectTarget } from './inventory.js';
 import type { Evaluation } from './http-evidence.js';
 const result=(id:string,name:string,group:string,kind:string,e:Evaluation,at:string,ms:number|null,version:string):Service=>({target:{id,name,group,public_url:'',probe_url:'',expected_status:0},check:{target_id:id,check_kind:kind,state:e[0],checked_at:at,latency_ms:ms,reason:e[1],probe_version:version}});
 export function failureReason(error:unknown):string {
@@ -114,8 +114,7 @@ export async function collect(repoRoot:string,home:string) {
  at=new Date().toISOString();const [ddns,d]=await show('cloudflare-ddns.service',['LoadState','ActiveState','Result','ExecMainStatus','ExecMainExitTimestamp'],home);services.push(result('cloudflare-ddns-update','Cloudflare DDNS','Host infrastructure','cloudflare-ddns',ddns?evaluateDdns(await completedFacts('cloudflare-ddns.service',ddns)):['unknown','Cloudflare DDNS status unavailable'],at,d.durationMs,'cloudflare-ddns-v2'));
  at=new Date().toISOString();const disk=await command('/usr/bin/df',['--output=pcent,avail','/'],{home});services.push(result('root-disk','Root filesystem','Host capacity','disk',disk.exitCode===0?evaluateDisk(disk.stdout):['unknown','root filesystem usage unavailable'],at,disk.durationMs,'disk-v1'));
  services.push(await memoryProbe());
- const hosts = new Set(httpTargets.flatMap(t => [new URL(t.publicUrl).hostname, new URL(t.probeUrl).hostname]));
- for (const host of hosts) services.push(await certificateProbe(host));
+ for (const host of certificateHosts()) services.push(await certificateProbe(host));
  const size = await command('/usr/bin/du', ['-skx', '--', '/home/sawyer/github/ubuntu-vm-backup/.git'], {home});
  services.push(result('backup-repository-growth','Backup repository size','Host capacity','capacity',evaluateBackupSize(size),new Date().toISOString(),null,'growth-v2'));
  const projectResults:Project[]=[];for(const t of projects(repoRoot))projectResults.push(await gitProbe(t,home));return snapshot(services,projectResults);

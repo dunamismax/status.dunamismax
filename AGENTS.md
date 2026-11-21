@@ -146,9 +146,11 @@ it.
   repository. Raw outputs are never persisted.
 - **Inventory changes** go in `src/collector/inventory.ts` with a test, in
   `src/lib/catalog.ts` when the check belongs to a site or app, and in README's
-  "What it watches" and the monitoring policy in `docs/production.md`. Reconcile
-  against the host (running units, timers, Caddy sites, containers, listening
-  ports and `~/github`) rather than memory.
+  "What it watches" and the monitoring policy in `docs/production.md`. A new
+  public site also goes in `scripts/external-probe.py`, and a host name that
+  only redirects (`www.`) in `redirectHosts`, which gives it a certificate
+  check. Reconcile against the host (running units, timers, Caddy sites,
+  containers, listening ports and `~/github`) rather than memory.
 - **Alerts** are tested only with mock or loopback endpoints, or with
   `--dry-run` or `--no-notify`. Never send to a destination the owner has not
   approved.
