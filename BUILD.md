@@ -11,12 +11,12 @@ a contract: see [Format contract](#format-contract).
 
 | | |
 | --- | --- |
-| **Current phase** | [Phase 1 · SvelteKit 3, Svelte 5 and Tailwind CSS 4](#phase-1--sveltekit-3-svelte-5-and-tailwind-css-4): two acceptance steps open. [Phase 3](#phase-3--full-inventory-site-view-and-daily-history) is deployed through its 3.5 second reconciliation; **3.6** (a retired unit removed from the inventory) is built and waits on its deploy |
-| **Next step** | **3.6** deploy, then the **1.2** encrypted backup and restore drill (its scheduled ubuntu-vm-backup run on 2026-11-21 07:35 UTC has passed, so it is due), then the **1.2** rollback rehearsal. **2.1** waits on the owner (Q-1). |
-| **In progress** | **3.6** deploy · 2026-11-21. |
+| **Current phase** | [Phase 1 · SvelteKit 3, Svelte 5 and Tailwind CSS 4](#phase-1--sveltekit-3-svelte-5-and-tailwind-css-4): two acceptance steps open. [Phase 3](#phase-3--full-inventory-site-view-and-daily-history) is complete and deployed, including 3.5 (second reconciliation) and 3.6 (a retired unit removed from the inventory) |
+| **Next step** | **1.2** encrypted backup and restore drill (its scheduled ubuntu-vm-backup run on 2026-11-21 07:35 UTC has passed, so it is due; it now restores release `cadc299`), then the **1.2** rollback rehearsal. **2.1** waits on the owner (Q-1). |
+| **In progress** | None. |
 | **Blockers** | None. Phase 2 waits on owner-approved destinations. |
-| **Live site** | https://status.dunamismax.com serves release `fefd9ea`, deployed 2026-11-21 05:02 UTC over `bf56806` (rollback directory `/root/status-rollback-20261121T050258Z`); each run stores 97 services and 14 projects. `bf56806` went live at 02:55 UTC over `35c43d1` (rollback directory `/root/status-rollback-20261121T025518Z`) and `35c43d1` at 01:33 UTC over `1da4095` (rollback directory `/root/status-rollback-20261121T013320Z`). The SvelteKit cutover was `8c72b37` at 2026-11-20 13:45 UTC over Astro `cc3fc21` (rollback directory `/root/status-astro-rollback-20261120T134532Z`). Root disk was at 81% (degraded) at 01:33 UTC, 83% at 03:32 UTC and 82% at 05:03 UTC; after the owner-approved cleanup at 13:09 UTC it is 73% and operational. Since about 06:55 UTC the overview has read down for RiverMind Poker's retired table server unit, which 3.6 removes. No alert webhook or heartbeat is configured. |
-| **`main`** | `fefd9ea` (3.5 second reconciliation) is deployed; the 3.6 commit follows it and is not deployed yet. `main` pushes to GitHub and Codeberg together. |
+| **Live site** | https://status.dunamismax.com serves release `cadc299`, deployed 2026-11-21 13:14 UTC over `fefd9ea` (rollback directory `/root/status-rollback-20261121T131405Z`); each run stores 96 services and 14 projects, all operational at 13:20 UTC. `fefd9ea` went live at 05:02 UTC over `bf56806` (rollback directory `/root/status-rollback-20261121T050258Z`), `bf56806` at 02:55 UTC over `35c43d1` (rollback directory `/root/status-rollback-20261121T025518Z`) and `35c43d1` at 01:33 UTC over `1da4095` (rollback directory `/root/status-rollback-20261121T013320Z`). The SvelteKit cutover was `8c72b37` at 2026-11-20 13:45 UTC over Astro `cc3fc21` (rollback directory `/root/status-astro-rollback-20261120T134532Z`). Root disk was at 81% (degraded) at 01:33 UTC, 83% at 03:32 UTC and 82% at 05:03 UTC; after the owner-approved cleanup at 13:09 UTC it is 73% and operational. From 06:52 to 13:10 UTC the overview read down for RiverMind Poker's retired table server unit, which 3.6 removed. No alert webhook or heartbeat is configured. |
+| **`main`** | `cadc299` (3.6 retired unit) is deployed; this evidence commit follows it. `main` pushes to GitHub and Codeberg together. |
 | **Last updated** | 2026-11-21 |
 
 ## How to work this file
@@ -104,7 +104,7 @@ Use each default until the owner decides otherwise.
 | 0 | Drizzle ORM adopts the existing PostgreSQL history | Complete 2026-11-02 |
 | 1 | Web layer to SvelteKit 3, Svelte 5 and Tailwind CSS 4 | Deployed 2026-11-20; two acceptance steps open |
 | 2 | Live alert delivery and heartbeat | Waiting on the owner (Q-1) |
-| 3 | Full inventory, site view and daily history | Deployed 2026-11-21; 3.6 deploy open |
+| 3 | Full inventory, site view and daily history | Complete and deployed 2026-11-21 |
 
 ## Baseline · PHP and MySQL to Astro and PostgreSQL
 
@@ -602,7 +602,7 @@ pages stay script-free.
 
 - [x] Stop reporting a unit that was retired on purpose, with a test.
   Evidence (2026-11-21 13:10 UTC, read-only over SSH as root): the overview had
-  read `down` since about 06:55 UTC because of one check, the
+  read `down` since the 06:52 UTC run because of one check, the
   `rivermind-poker.service` unit ("unit is inactive"). RiverMind Poker's own
   deployment at 06:50 UTC moved its tables into the Node server
   (`rivermind-poker-web`) and left the Python unit stopped and disabled, kept
@@ -616,9 +616,20 @@ pages stay script-free.
   0/0, `db:check` clean, `npm test` 28 passed and 2 PostgreSQL-only skipped,
   `tests/postgres.sh` 30/30 on Homebrew PostgreSQL 18, build, shell and Python
   syntax, `git diff --check`, `npm audit` clean.
-- [ ] Deploy under `with-deploy-lock` with `deploy/build.sh` and
+- [x] Deploy under `with-deploy-lock` with `deploy/build.sh` and
   `deploy/deploy.sh`; the first scheduled run stores 96 services and the
   overview no longer reads down for the retired unit.
+  Evidence (2026-11-21, under the owner's standing request to fix what the
+  review finds): `deploy/build.sh` built `cadc299` on the VM with 30/30 tests
+  including PostgreSQL 18, and CI passed on the same commit. `deploy/deploy.sh`
+  from `fefd9ea` ran 13:14 to 13:15 UTC, passed candidate and public smoke and
+  the static cache checks, and recorded the deployment (rollback directory
+  `/root/status-rollback-20261121T131405Z`). Caddy and PostgreSQL kept their
+  PIDs; the web unit is active with 0 restarts and readiness is `ready` and
+  fresh. The deploy's own run (13:14 UTC) and the first scheduled run (13:20
+  UTC) each stored 96 services and 14 projects with 0 alerts, all operational,
+  including the root disk at 73%. The overview's headline reads all public
+  endpoints operational, with no script.
 
 ## Ideas inbox
 
@@ -676,8 +687,9 @@ Newest first. Keep eight.
   its check is operational (details in the ideas inbox). The follow-up check
   found the overview reading down for `rivermind-poker.service`, which that
   project retired on purpose at 06:50 UTC when its Node server took over the
-  tables. Step 3.6 removes the unit from the inventory and the site card; all
-  checks pass. Next: 3.6 deploy, then the 1.2 backup drill, which is now due.
+  tables. Step 3.6 removed the unit from the inventory and the site card;
+  `cadc299` deployed at 13:14 UTC and the first scheduled run stored 96
+  services, all operational. Next: the 1.2 backup drill, which is now due.
 - **2026-11-21 · Second reconciliation (3.5).** Owner request: review the repo
   and everything live on the server, add what is missing and fix what is found.
   The host was healthy apart from the root disk (81%). Added Field Cadence (site,
