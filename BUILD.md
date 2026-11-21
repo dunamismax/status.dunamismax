@@ -11,12 +11,12 @@ a contract: see [Format contract](#format-contract).
 
 | | |
 | --- | --- |
-| **Current phase** | [Phase 1 · SvelteKit 3, Svelte 5 and Tailwind CSS 4](#phase-1--sveltekit-3-svelte-5-and-tailwind-css-4): complete. [Phase 4](#phase-4--final-cleanup) (no rollback tooling, nothing from earlier stacks) is complete and deployed. [Phase 5](#phase-5--hsts) (an HSTS header, D-13) is complete and deployed. [Phase 6](#phase-6--host-platform-contract) (pnpm, Node 26 and fix-forward candidate deploys, D-14) is built and waiting for its deployment. [Phase 3](#phase-3--full-inventory-site-view-and-daily-history) is complete and deployed, including 3.5 (second reconciliation) and 3.6 (a retired unit removed from the inventory) |
+| **Current phase** | [Phase 1 · SvelteKit 3, Svelte 5 and Tailwind CSS 4](#phase-1--sveltekit-3-svelte-5-and-tailwind-css-4): complete. [Phase 4](#phase-4--final-cleanup) (no rollback tooling, nothing from earlier stacks) is complete and deployed. [Phase 5](#phase-5--hsts) (an HSTS header, D-13) is complete and deployed. [Phase 6](#phase-6--host-platform-contract) (pnpm, Node 26 and fix-forward candidate deploys, D-14) is complete and deployed. [Phase 3](#phase-3--full-inventory-site-view-and-daily-history) is complete and deployed, including 3.5 (second reconciliation) and 3.6 (a retired unit removed from the inventory) |
 | **Next step** | None in this repository until the owner decides on alert destinations (**2.1**, Q-1). Open with the owner: whether the four repositories with uncommitted work also lose their rollback tooling (4.3; dunamismax.com lost its own in its M.5, 2026-11-21). **2.1** waits on the owner (Q-1). |
-| **In progress** | 6.1 deployment · 2026-11-21. |
+| **In progress** | None. |
 | **Blockers** | None. Phase 2 waits on owner-approved destinations. |
-| **Live site** | https://status.dunamismax.com serves release `d0b96aa`, deployed 2026-11-21 14:02 UTC over `a8e9b08`, and sends `Strict-Transport-Security: max-age=31536000` (D-13); each run stores 96 services and 14 projects, all operational at 14:08 UTC. Root disk 70% after the final cleanup (4.1). There is no rollback tooling (D-12); a deployment's records are in the directory named by `/root/status-latest-deploy`. No alert webhook or heartbeat is configured. |
-| **`main`** | `d0b96aa` (Phase 5, the HSTS header) is deployed; this evidence commit follows it. `main` pushes to GitHub and Codeberg together. |
+| **Live site** | https://status.dunamismax.com serves release `980d897` on Node 26.13.1 (`/opt/node-26`), deployed 2026-11-21 15:57 UTC with the contract deploy (6.1); `/healthz` reports that commit. It sends `Strict-Transport-Security: max-age=31536000` (D-13); each run stores 96 services and 14 projects. Releases fix forward (D-12, D-14); the deploy prints its evidence and logs `web-deploy` to the journal, and keeps a pre-migration dump in `/var/backups/status.dunamismax.com/`. No alert webhook or heartbeat is configured. |
+| **`main`** | `980d897` is deployed; this evidence commit follows it. `main` pushes to GitHub and Codeberg together. |
 | **Last updated** | 2026-11-21 |
 
 ## How to work this file
@@ -110,7 +110,7 @@ Use each default until the owner decides otherwise.
 | 3 | Full inventory, site view and daily history | Complete and deployed 2026-11-21 |
 | 4 | Final cleanup: no rollback tooling, nothing from earlier stacks | Complete and deployed 2026-11-21 |
 | 5 | HSTS header from the Caddy fragment | Complete and deployed 2026-11-21 |
-| 6 | Host platform contract: pnpm, Node 26, fix-forward candidate deploys | Built 2026-11-21; deployment open |
+| 6 | Host platform contract: pnpm, Node 26, fix-forward candidate deploys | Complete and deployed 2026-11-21 |
 
 ## Baseline · Migration to PostgreSQL
 
@@ -798,13 +798,29 @@ configuration are left as they are (a separate task).
   time because the public web code has no filesystem access. The settings
   files moved unchanged to `/etc/web-apps/status_dunamismax/app.env` and
   `collector-settings.env`.
-- [ ] Deploy with the new scripts; the site and the collector run on Node 26.
-  The first attempt (`9dbd2a9`, 15:51 UTC) stopped at the candidate: under
-  Node 26 `--permission` also denies the network, so the candidate could not
-  listen (`ERR_ACCESS_DENIED`). The live release was untouched, the migration
-  was a no-op and the paused collector timer was resumed by hand. Fixed forward
-  with `--allow-net` in the web unit.
-  Remaining: the deployment.
+- [x] Deploy with the new scripts; the site and the collector run on Node 26.
+  Evidence (2026-11-21): the first attempt (`9dbd2a9`, 15:51 UTC) stopped at
+  the candidate: under Node 26 `--permission` also denies the network, so the
+  candidate could not listen (`ERR_ACCESS_DENIED`). The live release was
+  untouched, the migration was a no-op and the paused collector timer was
+  resumed by hand. Fixed forward with `--allow-net` (`cd62b9c`, live 15:55 UTC)
+  and `--disable-warning=ExperimentalWarning` for the warning that flag logs on
+  Node 26 (`980d897`, live 15:57 UTC). Each deploy: `deploy/build.sh` 30/30
+  tests including PostgreSQL 18; migration `applied=none`, history digests
+  unchanged, journal 1 of 1; candidate on 4400 reported its commit with
+  `"database":"ok"` and passed `deploy/smoke.sh`; 4313 and the public smoke
+  (static cache and HSTS checks) passed; `web-live` reported
+  `/opt/node-v26.13.1-linux-x64/bin/node`, the release and `current`; Caddy
+  unchanged; deployment recorded. After `980d897`: the web journal has only
+  its start lines; installed units equal the release's; no candidate unit or
+  `--no-notify` drop-in left; readiness `ready`. The collector ran on Node 26
+  for the deploy (15:57 UTC) and on its timer (16:02 UTC, notifications on,
+  heartbeat not configured): 96 services, all operational. The snapshot's
+  overall state is degraded only because two other repositories have
+  uncommitted work. The old settings files in `/etc/status-dunamismax/` were
+  removed after the move (the directory stays for the delivery-test
+  settings), as were `/root/status-latest-deploy` and the `previous` files of
+  the two earlier deployment records.
 
 ## Ideas inbox
 
@@ -849,9 +865,12 @@ Newest first. Keep eight.
   and Node 26.13.1 with baseline pins (SvelteKit, Svelte, Vite, adapter-node,
   `pg` and the type packages upgraded), a contract `/healthz`, and the
   contract's fix-forward deploy with a candidate check. The settings files
-  move to `/etc/web-apps/status_dunamismax/`, content unchanged; alerting and
+  moved to `/etc/web-apps/status_dunamismax/`, content unchanged; alerting and
   heartbeat settings are otherwise untouched. All checks pass on Node 26 and
-  `web-conformance` conforms. Next: the deployment (6.1).
+  `web-conformance` conforms. Deployed as `980d897` after the candidate check
+  caught Node 26 denying the network under `--permission` (fixed forward
+  with `--allow-net`). Next: alert delivery (2.1) when the owner names
+  destinations.
 - **2026-11-21 · HSTS (5.1).** The owner approved the header after a host
   review found this the only site without one (D-13, moved out of the ideas
   inbox into Phase 5). The Caddy fragment now sets
