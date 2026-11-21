@@ -24,8 +24,8 @@ Drizzle ORM has owned the PostgreSQL 18 schema since November 2, 2026
 ([Phase 0](BUILD.md#phase-0--drizzle-orm-on-the-existing-postgresql-history),
 [evidence](docs/migration.md)).
 
-The encrypted backup and restore drill passed on November 21, 2026. There is no
-rollback tooling: a deployment that fails stops and is fixed forward.
+The encrypted backup and restore drill passed on November 21, 2026. Releases fix
+forward: each is checked as a candidate before it takes traffic.
 **Next:** live alert delivery, once the owner approves the destinations.
 
 ## How it works
@@ -75,7 +75,7 @@ systemd timer (5 min) ──▶ TypeScript collector ──▶ bounded probes
 | `/incidents` | Incidents and recent or upcoming maintenance |
 | `/deployments` | The latest 50 deployment records |
 | `/operator` | 404 while no token is set; otherwise constant-time bearer check, 401 on failure, `noindex` |
-| `/healthz` | `ok`, with no database query |
+| `/healthz` | `{"status":"ok","revision":"<commit>","database":"ok"}` after one database query; 503 when PostgreSQL cannot answer |
 | `/readyz` | Status, dependencies and database fields; database dependency names are `postgresql-*` |
 | `/api/status.json` | `overall_state`, `checked_at`, `summary`, `services`, `projects`. `overall_state` rolls up all services and projects |
 | `/api/incidents.json` | Latest 25 incidents and 25 maintenance windows; maintenance that ended within 30 days |
@@ -147,14 +147,14 @@ any JavaScript.
 
 | Layer | Choice |
 | --- | --- |
-| Web | SvelteKit 3.2.0 with `@sveltejs/adapter-node` 6.0.2, Svelte 5.57.3, Vite 8.3.7 |
+| Web | SvelteKit 3.4.0 with `@sveltejs/adapter-node` 6.0.5, Svelte 5.58.1, Vite 8.3.8 |
 | Styles | Tailwind CSS 4.3.5 through `@tailwindcss/vite`, palette tokens in `@theme`, no preflight |
 | Language | TypeScript 6.0.3, strict, with `noUncheckedIndexedAccess` and `exactOptionalPropertyTypes` |
-| Database | PostgreSQL 18, native and loopback-only, through Drizzle ORM 0.45.4 on `pg` 8.16.3 (Drizzle Kit 0.31.11 for development) |
+| Database | PostgreSQL 18, native and loopback-only, through Drizzle ORM 0.45.4 on `pg` 8.23.1 (Drizzle Kit 0.31.11 for development) |
 | Collector | TypeScript CLI on a systemd timer, on the same runtime |
-| Runtime | Node 24.22.3 and npm 11.19.1, the host's shared runtime at `/opt/node-runtime` |
+| Runtime | Node 26.13.1 (`/opt/node-26` on the host) and pnpm 12.18.0 |
 | Hosting | systemd units and immutable releases on ubuntu-vm, behind Caddy with its own Let's Encrypt certificates |
-| CI | GitHub Actions: checks, tests, build, disposable PostgreSQL 18 suite and `npm audit`; a separate external probe of every public site, and a manual HTTP/3 probe |
+| CI | GitHub Actions: checks, tests, build, disposable PostgreSQL 18 suite and `pnpm audit`; a separate external probe of every public site, and a manual HTTP/3 probe |
 
 ## Repository layout
 
@@ -181,30 +181,31 @@ status.dunamismax/
 
 ## Development
 
-Use exactly Node 24.22.3 and npm 11.19.1 (`.npmrc` sets `engine-strict`). On the
-server, prefix commands with `node-runtime`; elsewhere use any version manager
-that provides those versions, for example `mise exec node@24.22.3 -- npm ci`.
+Use exactly Node 26.13.1 and pnpm 12.18.0 (`pnpm-workspace.yaml` sets
+`engineStrict`). On the server, prefix commands with `node-26`; elsewhere use
+any version manager that provides those versions, for example
+`mise exec node@26.13.1 -- pnpm install --frozen-lockfile`.
 
 ```sh
-npm ci
-npm run check      # svelte-kit sync, svelte-check (warnings fail) and the CLI tsc
-npm run db:check   # fails on Drizzle schema changes without a reviewed migration
-npm test           # builds, then drives the built server in-process
-npm run build
+pnpm install --frozen-lockfile
+pnpm run check     # svelte-kit sync, svelte-check (warnings fail) and the CLI tsc
+pnpm run db:check  # fails on Drizzle schema changes without a reviewed migration
+pnpm test          # builds, then drives the built server in-process
+pnpm run build
 make check         # all of the above plus shell and Python syntax checks
 ```
 
-`npm run dev` serves the app at http://127.0.0.1:8096. Data pages need
+`pnpm run dev` serves the app at http://127.0.0.1:8096. Data pages need
 PostgreSQL settings; copy the variable names from [`.env.example`](.env.example).
 `bash tests/postgres.sh` starts a disposable, socket-only PostgreSQL 18 cluster
 and runs the database suite (fresh install, legacy adoption, repeat no-op and
 real grant denials). It defaults to Debian's PostgreSQL paths and the
-`node-runtime` wrapper, as on the server and in CI. Anywhere else, set
+`node-26` wrapper when present, as on the server. Anywhere else, set
 `STATUS_PG_BIN` to a PostgreSQL 18 bin directory, for example
-`STATUS_PG_BIN=/opt/homebrew/opt/postgresql@18/bin mise exec node@24.22.3 -- bash tests/postgres.sh`.
+`STATUS_PG_BIN=/opt/homebrew/opt/postgresql@18/bin mise exec node@26.13.1 -- bash tests/postgres.sh`.
 
 To see what the collector would find without writing anything or sending alerts,
-build and run `npm run collect -- --dry-run`. [AGENTS.md](AGENTS.md) has the
+build and run `pnpm run collect --dry-run`. [AGENTS.md](AGENTS.md) has the
 schema workflow and every rule for changing this repository.
 
 ## Documentation

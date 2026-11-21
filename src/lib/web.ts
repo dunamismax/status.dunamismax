@@ -27,6 +27,19 @@ export function operatorAccess(authorization: string | null, token: string | nul
   return candidate.length === expected.length && timingSafeEqual(candidate, expected) ? 'granted' : 'denied';
 }
 
+/** The release's commit, fixed at build time: deploy/build.sh builds with
+ * STATUS_REVISION set to the commit it also writes to the release's REVISION file.
+ * Web code has no filesystem access, so it is not read at runtime. */
+declare const __STATUS_REVISION__: string | undefined;
+// Vite replaces the name in the server build; tsc output (the collector's build/) has none.
+export const revision: string = typeof __STATUS_REVISION__ === 'string' ? __STATUS_REVISION__ : 'unrecorded';
+
+/** Deploy and monitoring health: one real query through the web pool; 503 when PostgreSQL cannot answer. */
+export async function health(source: Source): Promise<{ status: 200 | 503; body: { status: string; revision: string; database: string } }> {
+  try { await source.ping(); return { status: 200, body: { status: 'ok', revision, database: 'ok' } }; }
+  catch { return { status: 503, body: { status: 'unavailable', revision, database: 'unavailable' } }; }
+}
+
 export async function readiness(source: Source, c: Config, now = Date.now()) {
   try { await source.ping(); const f = freshness(await source.latest(), c.stale, now); return { status: f.stale ? 'degraded' : 'ready', dependencies: 'postgresql-ready,' + f.dependency, database: 'ready' }; }
   catch { return { status: 'degraded', dependencies: 'postgresql-unavailable,collector-snapshot-unknown', database: 'unavailable' }; }

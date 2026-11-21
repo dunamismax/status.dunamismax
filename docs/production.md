@@ -5,65 +5,92 @@ Drizzle, systemd and Caddy, deployed November 20, 2026 ([BUILD.md Phase 1](../BU
 Deployment applies reviewed Drizzle migrations through the owner-only runner;
 `database/schema.sql` is kept for the database tests and baseline adoption only.
 
-There is no rollback tooling (owner decision, 2026-11-21): no rollback script,
-no rehearsal and no fallback release. The host's final cleanup the same day
-removed every earlier-framework, PHP and MySQL release, the retired MySQL data
-and the old rollback directories. A deployment that fails is fixed forward.
+Releases fix forward (owner decision, 2026-11-21; host web-platform contract):
+each release is checked as a candidate on its final directory, as its service
+account, under its new unit file, on Node 26, against the real database, before
+it takes traffic. There is no script, pointer or retained copy for going back.
 
-Read `/home/sawyer/github/ubuntu-vm-backup/docs/web-platform.md` (host runbook) first.
-Every shared mutation, schema migration and release switch must run
-on the VM under `/usr/local/sbin/with-deploy-lock`. The wrappers acquire it or
-reuse inherited descriptor 9; never nest separate acquisitions.
+Read `/home/sawyer/github/ubuntu-vm-backup/docs/web-platform.md` (host contract) first.
+Every shared mutation, schema migration and release switch runs on the VM inside
+one `/usr/local/sbin/with-deploy-lock` process. The wrappers acquire it or reuse
+inherited descriptor 9; never nest separate acquisitions.
 
 ## Runtime and access
 
+- Node 26.13.1 at `/opt/node-26/bin/node` for both units and every command;
+  builds run through the `node-26` wrapper (`node-26 pnpm ...`), pnpm 12.18.0.
 - Releases: `/srv/www/status.dunamismax.com/releases/<commit>`, root-owned and
-  immutable, with atomic `current`. Build outside the lock as sawyer.
-- Web: `status-dunamismax.service` (retained unit name), `status-dunamismax-web`,
-  loopback 4313. SvelteKit releases run `dist/index.js` under `node --permission`
-  with `HOST`, `PORT` and `ORIGIN=https://status.dunamismax.com`. Each release's
-  unit file is installed with it.
+  immutable (`REVISION`, `.node-version`, `package.json`, `dist/`, `build/`,
+  production `node_modules/`, `deploy/`, `drizzle/`), with atomic `current`.
+  Build work: `/home/sawyer/web-work/status.dunamismax.com-<commit>/`.
+- Web: `status-dunamismax.service`, `status-dunamismax-web`, loopback 4313. It
+  runs `dist/index.js` under `node --permission` with `HOST`, `PORT` and
+  `ORIGIN=https://status.dunamismax.com`. Candidates take the first free port in
+  4400–4499.
 - Collector: `status-dunamismax-collector.timer` → `.service`, existing
   `status-dunamismax` account, every five minutes plus up to 30s jitter, 4min cap.
-- PostgreSQL: `status_dunamismax`, owner schema `app`. Role files remain root-only
-  under `/etc/web-apps/status_dunamismax/`; each unit loads only its own role.
-- Application settings: `/etc/status-dunamismax/web.env` (operator token,
-  freshness and repo-root metadata) and `collector.env` (webhook, heartbeat, repeat,
-  maximum notifications, retention and repo root), root 0600. Changes need an
-  owning Node service restart or take effect on the next collector run.
+- PostgreSQL: `status_dunamismax`, owner schema `app`. Everything lives in
+  `/etc/web-apps/status_dunamismax/`, root 0600, and each unit loads only its
+  own files: role credentials `web.env`, `collector.env`, `migration.env` (the
+  deploy's migration step only); application settings `app.env` for the web
+  (operator token, freshness, repo root) and `collector-settings.env` for the
+  collector (webhook, heartbeat, repeat, maximum notifications, retention, repo
+  root). Until 2026-11-21 the two settings files were
+  `/etc/status-dunamismax/{web,collector}.env`; they were moved unchanged.
+  Changes need a web restart or take effect on the next collector run.
+- Pre-migration dumps: `/var/backups/status.dunamismax.com/pre-migrate-<commit>.dump` (root 0600).
 - Private collector HOME/state: `/var/lib/status-dunamismax-collector`, 0700.
 
 ## Release
 
-Commit and dual-push the owning repository; update the clean VM checkout by
-fast-forward. `deploy/build.sh` builds/tests an exact Git archive and emits only
-the candidate path on stdout. Diagnostics go to stderr. Complete same-commit
-candidates are reusable after digest verification; partial candidates are rebuilt.
+Commit and dual-push; then on the VM:
 
 ```sh
-cd /home/sawyer/github/status.dunamismax
-candidate=$(deploy/build.sh)
-previous=$(readlink -f /srv/www/status.dunamismax.com/current)
-sudo deploy/deploy.sh "$candidate" "$previous"
+cd /home/sawyer/github/status.dunamismax && git pull --ff-only origin main
+bash deploy/build.sh               # as sawyer, outside the lock; default origin/main
+sudo with-deploy-lock bash /home/sawyer/web-work/status.dunamismax.com-COMMIT/src/deploy/deploy.sh COMMIT
 ```
 
-The deploy helper rechecks current state inside the lock, opens a root-only
-record directory (`/root/status-deploy-<time>`, named in
-`/root/status-latest-deploy`), drains the owning collector, takes a PostgreSQL
-safety dump into it and applies reviewed Drizzle migrations through the
-owner-only runner (see Drizzle operations below), bracketed by every-row digests.
-It validates a separate candidate on loopback 14313, atomically switches current,
-records a notification-free snapshot, changes only this Caddy fragment, validates
-as caddy with the custom binary, reloads Caddy and tests public routes. It records
-one deployment and enables the successor timer. Same-commit release retries
-validate the retained release digest.
+`deploy/build.sh` refuses anything but `origin/main`, extracts it with
+`git archive`, installs with `pnpm install --frozen-lockfile`, runs check,
+db:check, the full test suite in a disposable PostgreSQL 18 cluster, the
+production build (with `STATUS_REVISION` set to the commit, which `/healthz`
+reports) and the shell and Python syntax checks, then assembles `release/` with
+production dependencies installed fresh and `REVISION`.
 
-A failure stops the deployment where it is: nothing is rolled back. The script
-removes only its temporary candidate unit and collector drop-in, then prints the
-live release, the release it started from and the record directory. Before the
-switch the previous release is still live; in either case the collector timer may
-be stopped. Read the error, fix the cause and deploy again, then check that
-`status-dunamismax-collector.timer` is active.
+`deploy/deploy.sh COMMIT`, as root under the lock, in order:
+
+1. **Stage** the build as `releases/<commit>` (root-owned, read-only to the
+   service accounts); an existing directory must be identical.
+2. **Migrate**: pause the collector timer and wait for a running collection,
+   dump the database, take the every-row history digest, run
+   `build/src/db/migrate.js` (`--adopt-baseline` only when there is no journal)
+   as `status-dunamismax-web` with only `migration.env`, take the digest again
+   (identical when no migration applied) and check that
+   `app.drizzle_migrations` has one row per journal entry.
+3. **Candidate**: start the release as a transient copy of its *new* web unit
+   on a free port in 4400–4499; `/healthz` must answer
+   `{"status":"ok","revision":"<commit>","database":"ok"}`, then
+   `deploy/smoke.sh` runs against it; the candidate is always removed.
+4. **Switch**: install changed units and the backup helper, verify them,
+   switch `current`, restart the web unit.
+5. **Verify**: `/healthz` and the smoke check on 4313, `web-live` reports the
+   release, revision, Node 26 binary and `current`; then one notification-free
+   collector run on the new release (a temporary `--no-notify` drop-in, which
+   also covers any timer run meanwhile) with the timer re-enabled.
+6. **Caddy** only if `deploy/Caddyfile` differs from the installed fragment,
+   through `caddy-apply`.
+7. **Record**: smoke check against the public site, one deployment record
+   (`run-command.sh record-deployment`), `logger -t web-deploy`.
+
+A failure stops the deployment and names the step. Before the switch the
+previous release is still live; the script removes its candidate unit and the
+`--no-notify` drop-in, and the collector timer stays paused if the failure came
+after the migrate step began, until a deploy succeeds (check
+`status-dunamismax-collector.timer`). After the switch the new release is live
+and unhealthy: read `journalctl -u status-dunamismax`, fix it in a new commit and
+deploy that. Never point `current` at an older release or restore an old dump
+over newer writes.
 
 `/healthz`, `/readyz`, HTML, APIs, static bytes, HEAD/405, private paths and operator
 failure are checked by `deploy/smoke.sh`. It also requires a script-free home page
@@ -146,7 +173,7 @@ through that site's `/stats/script.js`. RiverMind Poker's web server answers
 `/healthz` with `ok` and its table server's public `/api/config`; since that
 project's 2026-11-21 cutover one unit, `rivermind-poker-web`, serves the pages, the
 API and the tables, and the old `rivermind-poker.service` is kept stopped and
-disabled for rollback only, so it is not a check. C From The
+disabled, so it is not a check. C From The
 Ground Up's `/healthz` must report both the app and its database as `ok`.
 Azeroth Trail checks its homepage and `/api/status`, with usable readings for all
 four regions and a snapshot and readings no older than five minutes. This measures
@@ -219,7 +246,7 @@ receiver accepted a request. The test command loads the dedicated test settings
 and does not write production notification or snapshot history.
 
 Install only approved production URL(s) under the same variable names in
-`/etc/status-dunamismax/collector.env`, owned by root with mode `0600`.
+`/etc/web-apps/status_dunamismax/collector-settings.env`, owned by root with mode `0600`.
 The next normal timer run picks them up. Confirm `heartbeat=sent` in the collector
 journal and a recent ping at the receiver. Leave either variable unset until its
 destination is approved. Keep both files out of Git, public web settings and
@@ -239,7 +266,7 @@ runs use the owner's GitHub notification preferences, with no custom webhook.
 workflow performs a certificate-verified, HTTP/3-only public request and asserts
 ALPN `h3` plus HTTP 200. An Alt-Svc header never satisfies it.
 
-CI uses the exact Node/npm pins and frozen npm lock, synthetic disposable
+CI uses the exact Node and pnpm pins and the frozen pnpm lockfile, synthetic disposable
 PostgreSQL, strict checks/tests/builds and advisory checks. Dependency updates are reviewed
 and made directly on `main`; no workflow deploys an update. Apply the host resource,
 backup and maintenance procedures from ubuntu-vm-backup before production changes.
@@ -248,32 +275,29 @@ backup and maintenance procedures from ubuntu-vm-backup before production change
 ## Drizzle operations (Phase 0)
 
 Retain the runtime, accounts, root-only env files, release/current paths, systemd
-units, five-minute collector and backup timers, CLI interfaces and loopback ports
-4313/14313 described above. PostgreSQL remains native/loopback-only with the same
+units, five-minute collector and backup timers, CLI interfaces and loopback port
+4313 described above. PostgreSQL remains native/loopback-only with the same
 project database, schema and separate roles. No Compose conversion, SQLite file,
 Litestream replication or Python/Swift application is required by this project.
 
 `deploy/deploy.sh` runs the reviewed runner, `build/src/db/migrate.js`
-(`npm run db:migrate`), with the root-only migration role settings inside the lock
-after draining the collector and taking the safety dump. The runner refuses the
+(`pnpm run db:migrate`), as the web service account with only `migration.env`,
+inside the lock after draining the collector and taking the safety dump. The runner refuses the
 web/collector logins and requires a provisioned schema `app`. When
 `app.drizzle_migrations` is absent the helper passes `--adopt-baseline`, which
 executes no DDL: it records `0000_baseline` only if the live structural catalog
 equals `drizzle/baseline-catalog.json` (CHECK text is compared in its dump/restore
 form, so restored databases adopt too), otherwise it prints the private differences
 and the deployment stops. `history.js digest` writes every-row counts/
-SHA256 and sequence positions before and after into the root-only record
-directory; when no migration was applied they must be byte-identical.
+SHA256 and sequence positions before and after; when no migration was
+applied they must be byte-identical.
 
 ```sh
 # Manual use only inside a deploy-lock transaction with writers drained:
 set -a; source /etc/web-apps/status_dunamismax/migration.env; set +a
-/opt/node-runtime/bin/node "$release/build/scripts/history.js" digest > "$backup/pre-digest.json"
-/opt/node-runtime/bin/node "$release/build/src/db/migrate.js"   # --adopt-baseline only without a journal
+/opt/node-26/bin/node "$release/build/scripts/history.js" digest
+/opt/node-26/bin/node "$release/build/src/db/migrate.js"   # --adopt-baseline only without a journal
 ```
-
-Compatible retained releases (including pre-Drizzle `1149ae6`) run unchanged on an
-adopted database; the private journal table is invisible to their code paths.
 
 Retain historical schema/transfer tooling needed by backups and old releases.
 Introspection/baseline operations may write bookkeeping: rehearse on a disposable
@@ -283,12 +307,12 @@ Never use schema push, runtime startup migrations or public runtime credentials.
 Build/check candidates outside the lock. Inside one transaction recheck expected
 current/configuration, back up PostgreSQL and affected configuration, drain all
 owning writers, verify matching baseline and every-row digests, apply reviewed DDL,
-verify grants/constraints/sequences, smoke candidate on 14313, atomically switch
+verify grants/constraints/sequences, smoke the candidate on its 4400–4499 port, atomically switch
 current and validate/reload custom Caddy as needed. Resume exactly one collector,
 verify fresh evidence and record deployment without notifications during acceptance.
 No shared PostgreSQL restart, other-site change or listener relocation is needed.
 
-There is no rollback. Keep a schema change compatible with the release that is
+Releases fix forward. Keep a schema change compatible with the release that is
 live while it deploys, and never restore an old dump over subsequent writes. Keep
 journals and roles private.
 

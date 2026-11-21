@@ -1,17 +1,17 @@
 .PHONY: check build test database-test serve collect
 check:
-	npm run check
-	npm run db:check
-	npm test
+	pnpm run check
+	pnpm run db:check
+	pnpm test
 	for file in deploy/*.sh tests/postgres.sh; do bash -n "$$file" || exit; done
 	python3 -m py_compile scripts/external-probe.py scripts/http3-probe.py
 build:
-	npm run build
+	pnpm run build
 test:
-	npm test
+	pnpm test
 database-test:
 	bash tests/postgres.sh
 serve:
-	npm run dev
+	pnpm run dev
 collect:
-	npm run collect -- --dry-run
+	pnpm run collect --dry-run

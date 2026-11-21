@@ -10,7 +10,10 @@ components rendered on the server only; JSON, health and readiness are `+server.
 endpoints. `src/hooks.server.ts` applies no-store, CSP, nosniff, referrer and
 permissions headers to every application response. Static files retain their Caddy
 cache policies. The Caddy fragment adds `Strict-Transport-Security:
-max-age=31536000` to every response (BUILD.md D-13). `/healthz` does not access the database. Error responses never
+max-age=31536000` to every response (BUILD.md D-13). `/healthz` runs one query through the web pool and
+reports the release's commit (fixed at build time, the same one as the release's
+`REVISION`) for the deploy's candidate check; it answers 503 when PostgreSQL
+cannot. `/readyz` adds collector freshness. Error responses never
 include exception messages, database URLs, command output or private paths.
 Only authenticated `/operator` renders repository paths, without reading them.
 

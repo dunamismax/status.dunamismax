@@ -17,16 +17,17 @@ jobs:
     timeout-minutes: 25
     steps:
       - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4
+      - uses: pnpm/action-setup@73e46992e05b19abd31f2f3c20e0e7370d762115 # v6.1.1, reads packageManager
       - uses: actions/setup-node@49933ea5288caeca8642d1e84afbd3f7d6820020 # v4
         with:
           node-version-file: .node-version
-          cache: npm
-      - run: test "$(node --version)" = v24.22.3 && test "$(npm --version)" = 11.19.1
-      - run: npm ci
-      - run: npm run check
-      - run: npm run db:check
-      - run: npm test
-      - run: npm run build
+          cache: pnpm
+      - run: test "$(node --version)" = v26.13.1 && test "$(pnpm --version)" = 12.18.0
+      - run: pnpm install --frozen-lockfile
+      - run: pnpm run check
+      - run: pnpm run db:check
+      - run: pnpm test
+      - run: pnpm run build
       - name: Disposable PostgreSQL 18 toolchain
         run: |
           sudo install -d /usr/share/postgresql-common/pgdg
@@ -34,8 +35,5 @@ jobs:
           echo "deb [signed-by=/usr/share/postgresql-common/pgdg/apt.postgresql.org.asc] https://apt.postgresql.org/pub/repos/apt $(. /etc/os-release; echo "$VERSION_CODENAME")-pgdg main" | sudo tee /etc/apt/sources.list.d/pgdg.list
           sudo apt-get update -qq
           sudo apt-get install -y postgresql-18
-          sudo ln -s "$(dirname "$(dirname "$(command -v node)")")" /opt/node-runtime
-          printf '#!/bin/sh\nexec env PATH=/opt/node-runtime/bin:$PATH "$@"\n' | sudo tee /usr/local/bin/node-runtime >/dev/null
-          sudo chmod 755 /usr/local/bin/node-runtime
-      - run: node-runtime bash tests/postgres.sh
-      - run: npm audit --audit-level=moderate
+      - run: bash tests/postgres.sh
+      - run: pnpm audit --audit-level=moderate

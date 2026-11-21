@@ -11,9 +11,9 @@ a contract: see [Format contract](#format-contract).
 
 | | |
 | --- | --- |
-| **Current phase** | [Phase 1 · SvelteKit 3, Svelte 5 and Tailwind CSS 4](#phase-1--sveltekit-3-svelte-5-and-tailwind-css-4): complete. [Phase 4](#phase-4--final-cleanup) (no rollback tooling, nothing from earlier stacks) is complete and deployed. [Phase 5](#phase-5--hsts) (an HSTS header, D-13) is complete and deployed. [Phase 3](#phase-3--full-inventory-site-view-and-daily-history) is complete and deployed, including 3.5 (second reconciliation) and 3.6 (a retired unit removed from the inventory) |
-| **Next step** | None in this repository until the owner decides on alert destinations (**2.1**, Q-1). Open with the owner: whether the five repositories with uncommitted work also lose their rollback tooling (4.3). **2.1** waits on the owner (Q-1). |
-| **In progress** | None. |
+| **Current phase** | [Phase 1 · SvelteKit 3, Svelte 5 and Tailwind CSS 4](#phase-1--sveltekit-3-svelte-5-and-tailwind-css-4): complete. [Phase 4](#phase-4--final-cleanup) (no rollback tooling, nothing from earlier stacks) is complete and deployed. [Phase 5](#phase-5--hsts) (an HSTS header, D-13) is complete and deployed. [Phase 6](#phase-6--host-platform-contract) (pnpm, Node 26 and fix-forward candidate deploys, D-14) is built and waiting for its deployment. [Phase 3](#phase-3--full-inventory-site-view-and-daily-history) is complete and deployed, including 3.5 (second reconciliation) and 3.6 (a retired unit removed from the inventory) |
+| **Next step** | None in this repository until the owner decides on alert destinations (**2.1**, Q-1). Open with the owner: whether the four repositories with uncommitted work also lose their rollback tooling (4.3; dunamismax.com lost its own in its M.5, 2026-11-21). **2.1** waits on the owner (Q-1). |
+| **In progress** | 6.1 deployment · 2026-11-21. |
 | **Blockers** | None. Phase 2 waits on owner-approved destinations. |
 | **Live site** | https://status.dunamismax.com serves release `d0b96aa`, deployed 2026-11-21 14:02 UTC over `a8e9b08`, and sends `Strict-Transport-Security: max-age=31536000` (D-13); each run stores 96 services and 14 projects, all operational at 14:08 UTC. Root disk 70% after the final cleanup (4.1). There is no rollback tooling (D-12); a deployment's records are in the directory named by `/root/status-latest-deploy`. No alert webhook or heartbeat is configured. |
 | **`main`** | `d0b96aa` (Phase 5, the HSTS header) is deployed; this evidence commit follows it. `main` pushes to GitHub and Codeberg together. |
@@ -87,6 +87,7 @@ owner's approval, and record the change here.
 | D-11 | **Alert semantics.** Two matching observations within 20 minutes confirm a failure or a recovery; 60-minute repeat window; at most five deliveries per run; a delivered failure gets one confirmed recovery. Alerts are tested only against mock or loopback endpoints, or with `--dry-run` or `--no-notify`. |
 | D-12 | **No rollback, SvelteKit only** (owner, 2026-11-21). Every site on the host runs well on SvelteKit and stays on it. There are no rollbacks: no rollback script, rehearsal or retained fallback release, and a deployment that fails is fixed forward. The host's final cleanup removed every earlier-framework, PHP and MySQL release, the retired MySQL data and the old rollback directories. Do not bring any of it back. |
 | D-13 | **HSTS** (owner, 2026-11-21). The Caddy fragment sends `Strict-Transport-Security: max-age=31536000` on every response, without `includeSubDomains` or `preload`. Every other site on the host already sent that value, some with `includeSubDomains`. `deploy/smoke.sh` requires exactly one such header on the public site. |
+| D-14 | **Host web-platform contract** (owner, 2026-11-21; `ubuntu-vm-backup/docs/web-platform.md`). pnpm 12.18.0 only, Node 26.13.1 only (`/opt/node-26`), every dependency pinned at the host baseline, every unit's settings in `/etc/web-apps/status_dunamismax/`, and each release checked as a candidate (its `/healthz` reports its commit and a working database) before it takes traffic. |
 
 ## Open questions
 
@@ -109,6 +110,7 @@ Use each default until the owner decides otherwise.
 | 3 | Full inventory, site view and daily history | Complete and deployed 2026-11-21 |
 | 4 | Final cleanup: no rollback tooling, nothing from earlier stacks | Complete and deployed 2026-11-21 |
 | 5 | HSTS header from the Caddy fragment | Complete and deployed 2026-11-21 |
+| 6 | Host platform contract: pnpm, Node 26, fix-forward candidate deploys | Built 2026-11-21; deployment open |
 
 ## Baseline · Migration to PostgreSQL
 
@@ -764,6 +766,41 @@ the only site on it that sent no `Strict-Transport-Security` header.
   scheduled run (14:08 UTC) each stored 96 services and 14 projects with 0
   alerts, all operational. The smoke script also passed from outside the host.
 
+## Phase 6 · Host platform contract
+
+The owner's decision of 2026-11-21 (D-14): every web project on the host uses
+one toolchain and one deploy flow. Tooling only; alerting and heartbeat
+configuration are left as they are (a separate task).
+
+### 6.1 Move to pnpm and Node 26
+
+- [x] pnpm 12.18.0 and Node 26.13.1 everywhere, dependencies at the baseline.
+  Evidence (2026-11-21): `pnpm-lock.yaml` from `pnpm import` (no
+  `package-lock.json` or `.npmrc`), `pnpm-workspace.yaml` with `saveExact`,
+  `engineStrict`, `allowBuilds` and the `@esbuild-kit` override; Node 26.13.1 in
+  `.node-version`, `engines`, CI, both units and `run-command.sh`. Upgraded to
+  the baseline: SvelteKit 3.2.0 → 3.4.0, adapter-node 6.0.2 → 6.0.5, Svelte
+  5.57.3 → 5.58.1, Vite 8.3.7 → 8.3.8, `pg` 8.16.3 → 8.23.1, `@types/pg` 8.15.6
+  → 8.23.1, `@types/node` 24.19.2 → 26.6.6. On the VM with `node-26`: check,
+  db:check, `tests/postgres.sh` 30/30, build, shell and Python syntax,
+  shellcheck, `git diff --check`; `web-conformance` conforms.
+- [x] Fix-forward deploy with a candidate check, and a `/healthz` that proves it.
+  Evidence (2026-11-21): `deploy/build.sh` builds `origin/main` from
+  `git archive` and assembles the release (production dependencies only,
+  `REVISION`); `deploy/deploy.sh` stages, dumps, migrates as the web account
+  with only `migration.env` between the history digests, checks a candidate on
+  a 4400–4499 port under the new unit, switches, verifies with `web-live`, runs
+  one notification-free collection, applies Caddy through `caddy-apply` only
+  if the fragment changed and records the deployment. No `/root` records or
+  pointer files any more. `/healthz` now answers
+  `{"status":"ok","revision":"<commit>","database":"ok"}` after one query (503
+  without the database) instead of a plain `ok`; the commit is fixed at build
+  time because the public web code has no filesystem access. The settings
+  files moved unchanged to `/etc/web-apps/status_dunamismax/app.env` and
+  `collector-settings.env`.
+- [ ] Deploy with the new scripts; the site and the collector run on Node 26.
+  Remaining: the deployment.
+
 ## Ideas inbox
 
 Not planned or counted. Triage an idea into a phase, with the owner where it
@@ -802,6 +839,14 @@ changes scope, when you pick it up.
 
 Newest first. Keep eight.
 
+- **2026-11-21 · Host platform contract (6.1).** The owner adopted one
+  standard for every web project (D-14). This repository moved to pnpm 12.18.0
+  and Node 26.13.1 with baseline pins (SvelteKit, Svelte, Vite, adapter-node,
+  `pg` and the type packages upgraded), a contract `/healthz`, and the
+  contract's fix-forward deploy with a candidate check. The settings files
+  move to `/etc/web-apps/status_dunamismax/`, content unchanged; alerting and
+  heartbeat settings are otherwise untouched. All checks pass on Node 26 and
+  `web-conformance` conforms. Next: the deployment (6.1).
 - **2026-11-21 · HSTS (5.1).** The owner approved the header after a host
   review found this the only site without one (D-13, moved out of the ideas
   inbox into Phase 5). The Caddy fragment now sets

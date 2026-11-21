@@ -8,8 +8,8 @@ User=status-dunamismax
 Group=status-dunamismax
 WorkingDirectory=/srv/www/status.dunamismax.com/current
 EnvironmentFile=/etc/web-apps/status_dunamismax/collector.env
-EnvironmentFile=/etc/status-dunamismax/collector.env
-ExecStart=/opt/node-runtime/bin/node /srv/www/status.dunamismax.com/current/build/src/collector/cli.js collect
+EnvironmentFile=/etc/web-apps/status_dunamismax/collector-settings.env
+ExecStart=/opt/node-26/bin/node /srv/www/status.dunamismax.com/current/build/src/collector/cli.js collect
 TimeoutStartSec=4min
 UMask=0077
 StateDirectory=status-dunamismax-collector
@@ -17,6 +17,9 @@ StateDirectoryMode=0700
 NoNewPrivileges=true
 PrivateTmp=true
 PrivateDevices=true
+# Exception to the web-unit sandbox: the collector reads the repository checkouts
+# under /home/sawyer/github (STATUS_REPO_ROOT) for its git probes, so home is
+# read-only rather than hidden.
 ProtectHome=read-only
 ProtectSystem=strict
 ProtectKernelTunables=true

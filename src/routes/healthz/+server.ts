@@ -1,4 +1,8 @@
+import { health } from '#lib/web.js';
 import type { RequestHandler } from './$types';
 
-// Liveness only: never touches storage.
-export const GET: RequestHandler = () => new Response('ok\n', { headers: { 'Content-Type': 'text/plain; charset=utf-8' } });
+// Readiness for the deploy's candidate check: the release's revision and a real database query.
+export const GET: RequestHandler = async ({ locals }) => {
+  const { status, body } = await health(locals.status.source);
+  return Response.json(body, { status });
+};

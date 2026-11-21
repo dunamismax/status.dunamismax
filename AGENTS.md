@@ -67,14 +67,15 @@ code: they change faster than memory.
 
 | Area | Pinned |
 | --- | --- |
-| Runtime | Node 24.22.3 and npm 11.19.1 (`.node-version`, `engines`, `engine-strict`). On the VM: the host's shared runtime `/opt/node-runtime` through the `node-runtime` wrapper |
-| Web | SvelteKit 3.2.0, `@sveltejs/adapter-node` 6.0.2, `@sveltejs/vite-plugin-svelte` 7.3.1, Svelte 5.57.3 (runes), Vite 8.3.7, svelte-check 4.7.8 |
+| Runtime | Node 26.13.1 and pnpm 12.18.0 (`.node-version`, `engines`, `packageManager`; `pnpm-workspace.yaml` sets `engineStrict` and `saveExact`). On the VM: `/opt/node-26/bin/node`, and builds through the `node-26` wrapper |
+| Web | SvelteKit 3.4.0, `@sveltejs/adapter-node` 6.0.5, `@sveltejs/vite-plugin-svelte` 7.3.1, Svelte 5.58.1 (runes), Vite 8.3.8, svelte-check 4.7.8 |
 | Styles | Tailwind CSS 4.3.5 with `@tailwindcss/vite` 4.3.5 |
 | Language | TypeScript 6.0.3, strict, `noUncheckedIndexedAccess`, `exactOptionalPropertyTypes` |
-| Database | PostgreSQL 18; Drizzle ORM 0.45.4 over `pg` 8.16.3; Drizzle Kit 0.31.11 (dev only). The `@esbuild-kit` esbuild override (0.25.12) keeps `npm audit` clean |
+| Database | PostgreSQL 18; Drizzle ORM 0.45.4 over `pg` 8.23.1 (`@types/pg` 8.23.1); Drizzle Kit 0.31.11 (dev only). The `@esbuild-kit` esbuild override (0.25.12, in `pnpm-workspace.yaml`) keeps `pnpm audit` clean |
 | Host | systemd, Caddy (custom binary `/usr/local/lib/caddy/caddy`) |
 
-Exact versions only, with `package-lock.json` and `npm ci`; commit only that
+Exact versions only, at the host baseline (`ubuntu-vm-backup/config/web-platform.json`),
+with `pnpm-lock.yaml` and `pnpm install --frozen-lockfile`; commit only that
 lockfile. Runtime `dependencies` are `pg` and `drizzle-orm`; the framework is a
 devDependency because adapter-node bundles it. A new version must be at least ten
 days old. Update this table, README's technology table and BUILD.md in the same
@@ -120,8 +121,8 @@ it.
   writes or DDL. Future tables must not gain web SELECT by default. The collector
   cannot read or alter migration bookkeeping.
 - **Identities and secrets.** OS users, root-only role env files in
-  `/etc/web-apps/status_dunamismax/`, app settings in
-  `/etc/status-dunamismax/{web,collector}.env`. Neither process gets the
+  `/etc/web-apps/status_dunamismax/`, app settings beside them in `app.env`
+  (web) and `collector-settings.env` (collector). Neither process gets the
   other's env, token or webhook. The release contains no env files.
 - **Process isolation.** The web unit runs under Node's `--permission`,
   ProtectHome and a read-only filesystem. The collector has no Docker group or
@@ -181,43 +182,43 @@ readiness dependency label only when its backing technology actually changes,
 and keep its response shape and status. Timestamps stay strings and IDs stay
 `BigInt`: never through JS `Date` or `Number`.
 
-**Schema changes.** Edit `src/db/schema.ts`, run `npm run db:generate`, then
+**Schema changes.** Edit `src/db/schema.ts`, run `pnpm run db:generate`, then
 review the SQL by hand: grants, triggers and bookkeeping are not Kit-generated,
 and new tables need explicit grants. If the baseline structure itself changes,
 refresh `drizzle/baseline-catalog.json` with
-`STATUS_UPDATE_CATALOG=1 bash tests/postgres.sh`. `npm run db:check` fails on
+`STATUS_UPDATE_CATALOG=1 bash tests/postgres.sh`. `pnpm run db:check` fails on
 unreviewed changes. Migrations run only through the owner-only runner
-(`npm run db:migrate`) inside a deploy, where `deploy/deploy.sh` brackets it
+(`pnpm run db:migrate`) inside a deploy, where `deploy/deploy.sh` brackets it
 with every-row digests; never `drizzle-kit push`, never on startup. The journal
 `app.drizzle_migrations` stays private to the owner, apart from the legacy
-`app.schema_migrations`. There is no rollback (section 9), so keep a schema
+`app.schema_migrations`. Releases fix forward (section 9), so keep a schema
 change compatible with the release that is live while it deploys.
 
 ## 8. Verification
 
-Run on the pinned runtime: prefix with `node-runtime` on the VM; on a Mac use a
-version manager, for example `mise exec node@24.22.3 -- <command>`.
+Run on the pinned runtime: prefix with `node-26` on the VM; on a Mac use a
+version manager, for example `mise exec node@26.13.1 -- <command>`.
 
 ```sh
-npm ci
-npm run check        # svelte-kit sync, svelte-check --fail-on-warnings, CLI tsc
-npm run db:check     # Kit check plus the schema drift gate
-npm test             # builds, then drives dist/server in-process (2 PostgreSQL tests skip)
+pnpm install --frozen-lockfile
+pnpm run check       # svelte-kit sync, svelte-check --fail-on-warnings, CLI tsc
+pnpm run db:check    # Kit check plus the schema drift gate
+pnpm test            # builds, then drives dist/server in-process (2 PostgreSQL tests skip)
 bash tests/postgres.sh  # disposable socket-only, UTC PostgreSQL 18 cluster, all tests
-npm run build
+pnpm run build
 for f in deploy/*.sh tests/postgres.sh; do bash -n "$f"; done
 python3 -m py_compile scripts/external-probe.py scripts/http3-probe.py
 git diff --check
 ```
 
-`make check` runs all but `postgres.sh`, `npm ci` and `git diff --check`.
+`make check` runs all but `postgres.sh`, the install and `git diff --check`.
 `tests/postgres.sh` defaults to Debian's `/usr/lib/postgresql/18/bin` and the
-`node-runtime` wrapper, as on the VM and in CI. Elsewhere, point `STATUS_PG_BIN`
+`node-26` wrapper when present, as on the VM. Elsewhere, point `STATUS_PG_BIN`
 at a PostgreSQL 18 bin directory and run it under the pinned Node, for example
-`STATUS_PG_BIN=/opt/homebrew/opt/postgresql@18/bin mise exec node@24.22.3 -- bash tests/postgres.sh`;
+`STATUS_PG_BIN=/opt/homebrew/opt/postgresql@18/bin mise exec node@26.13.1 -- bash tests/postgres.sh`;
 without PostgreSQL 18, say it was not run and rely on CI. PostgreSQL integration
 runs only in that disposable private cluster, never against a live database. CI (`.github/workflows/verify.yml`) runs
-the same checks plus `npm audit --audit-level=moderate`; check its result after
+the same checks plus `pnpm audit --audit-level=moderate`; check its result after
 pushing.
 
 For a production change, also verify: failures stay redacted, the web role's
@@ -229,25 +230,25 @@ encrypted backup restore.
 
 The host is ubuntu-vm. Releases live in
 `/srv/www/status.dunamismax.com/releases/<commit>` with an atomic `current`; web
-on 127.0.0.1:4313, candidates on 127.0.0.1:14313. Units:
+on 127.0.0.1:4313, candidates on the first free port in 127.0.0.1:4400–4499. Units:
 `status-dunamismax.service` (web), `status-dunamismax-collector.timer` and
 `.service`, `status-dunamismax-backup.timer`. Caddy: `/etc/caddy/Caddyfile`, the owning fragment
 `/etc/caddy/sites/status.dunamismax.com.caddy`, binary
 `/usr/local/lib/caddy/caddy`. Commands are in
 [docs/production.md](docs/production.md).
 
-- **Build outside the lock.** `deploy/build.sh` builds and tests an exact Git
-  archive as sawyer.
+- **Build outside the lock.** `deploy/build.sh` builds and tests `origin/main`
+  from `git archive` as sawyer.
 - **One transaction for shared changes.** Every systemd, Caddy, ACL, role,
   schema and release mutation runs in one VM transaction under
   `with-deploy-lock`, reusing the inherited FD 9; never nest acquisitions.
-  Recheck current state, back up files and data, validate the candidate on
-  loopback, switch atomically, validate Caddy with the custom binary and reload,
-  then smoke the public site.
-- **No rollback, fix forward.** The owner retired every rollback tool on
-  2026-11-21. A deployment that fails stops where it is, says what is live and
-  where its records are, and is repaired by hand or by deploying a fix. Do not
-  add rollback scripts, rehearsals or retained fallback releases.
+  `deploy/deploy.sh` follows the host contract's order: stage, dump and migrate
+  as the service account, candidate on the new unit file, switch, verify, Caddy
+  through `caddy-apply` only if the fragment changed, record.
+- **Fix forward.** The owner retired the earlier tooling for going back on
+  2026-11-21. A deployment that fails stops at the step it names and is
+  repaired by deploying a fix. Never repoint `current`, restore an old unit or
+  fragment, or keep copies of them.
 - **History stays authoritative.** Never restore an old dump over newer writes;
   the dump each deployment takes is for inspection and disaster recovery.
 - **The host's final cleanup is done.** No earlier-framework, PHP or MySQL

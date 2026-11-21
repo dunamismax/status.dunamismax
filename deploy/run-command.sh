@@ -7,7 +7,7 @@ flock -n 9
 case ${1:-} in
  collect|record-deployment)
    settings=(--property=EnvironmentFile=/etc/web-apps/status_dunamismax/collector.env
-             --property=EnvironmentFile=/etc/status-dunamismax/collector.env)
+             --property=EnvironmentFile=/etc/web-apps/status_dunamismax/collector-settings.env)
    ;;
  test-delivery)
    [[ $# == 2 && ( $2 == alert || $2 == heartbeat ) ]] || { echo 'Expected test-delivery alert or heartbeat' >&2; exit 64; }
@@ -26,4 +26,4 @@ exec systemd-run --quiet --wait --pipe --collect --unit="status-command-$$" \
  --property=StateDirectory=status-dunamismax-collector --property=StateDirectoryMode=0700 \
  --property=RuntimeMaxSec=4min --property=UMask=0077 --property=NoNewPrivileges=true --property=ProtectSystem=strict \
  --property=ProtectHome=read-only --property=PrivateTmp=true --property=PrivateDevices=true \
- /opt/node-runtime/bin/node "$release/build/src/collector/cli.js" "$@"
+ /opt/node-26/bin/node "$release/build/src/collector/cli.js" "$@"

@@ -1,0 +1,11 @@
+# pnpm settings (pnpm 12 reads them here, not from .npmrc). See the host
+# contract, ubuntu-vm-backup/docs/web-platform.md, section 3.
+saveExact: true
+engineStrict: true
+allowBuilds:
+  esbuild: true
+overrides:
+  # drizzle-kit's legacy @esbuild-kit loader otherwise pulls an esbuild with
+  # known advisories; pin it to the tree's patched esbuild. Drop this once
+  # drizzle-kit no longer depends on @esbuild-kit.
+  "@esbuild-kit/core-utils>esbuild": 0.25.12

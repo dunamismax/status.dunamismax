@@ -6,6 +6,8 @@ import tailwindcss from '@tailwindcss/vite';
 // Server-rendered observer: adapter-node standalone output in dist/ (the
 // collector's tsc output owns build/). Caddy compresses, so no precompression.
 export default defineConfig({
+  // The commit /healthz reports; deploy/build.sh sets it (see src/lib/web.ts).
+  define: { __STATUS_REVISION__: JSON.stringify(process.env.STATUS_REVISION || 'unrecorded') },
   plugins: [
     tailwindcss(),
     sveltekit({
