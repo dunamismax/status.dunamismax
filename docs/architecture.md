@@ -43,7 +43,9 @@ bound and a 256 KiB body limit. The installer probe requests a two-byte range.
 TCP checks connect and close without sending
 bytes. Systemd handles one-shots and restart loops; DDNS uses latest successful
 run recency. All public reasons are fixed phrases or counts. Webhook POSTs have
-five-second timeouts, no redirects and redacted failure messages. The optional
+five-second timeouts, no redirects and redacted failure messages; the body is
+the collector's own JSON or, when configured, a Discord message that cannot
+mention anyone. The optional
 offsite heartbeat uses a separate bounded GET after the snapshot and retention
 writes succeed.
 

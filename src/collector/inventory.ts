@@ -30,7 +30,7 @@ export const redirectHosts:string[] = ['azerothtrail.com','cfromthegroundup.com'
 export const certificateHosts=():string[] => [...new Set([...httpTargets.flatMap(t=>[new URL(t.publicUrl).hostname,new URL(t.probeUrl).hostname]),...redirectHosts])];
 // Daily jobs must have succeeded within 26 hours; the weekly installer build
 // within eight days and the monthly Day by Word restore drill within 32 days.
-const maxAge:Record<string,number> = {'rustdesk-preconfig-build':8*24*60,'daybyword-restore-check':32*24*60};
+const maxAge:Record<string,number> = {'rustdesk-preconfig-build':8*24*60,'daybyword-restore-check':32*24*60,'media-backup-verify':37*24*60};
 export const units:UnitTarget[] = [
  {id:'mtg-card-bot',unit:'mtg-card-bot.service',group:'Application services'},
  {id:'status-dunamismax-collector',unit:'status-dunamismax-collector.timer',group:'Application services'},
@@ -45,7 +45,7 @@ export const units:UnitTarget[] = [
  {id:'ssh',unit:'ssh.socket',group:'Network & access'},
  ...['tailscaled','fail2ban'].map(id=>({id,unit:id+'.service',group:'Network & access'})),
  {id:'ufw',unit:'ufw.service',group:'Network & access',oneShot:true},
- ...['server-disk-cleanup','rustdesk-preconfig-build','status-dunamismax-backup','dunamismax-backup','graceandfootnotes-backup','rustdesk-backup','ubuntu-vm-backup','cfromthegroundup-backup','vincentsawyer-backup','daybyword-backup','daybyword-restore-check'].flatMap(id=>[{id,unit:id+'.service',group:'Maintenance',oneShot:true,maxAgeMinutes:maxAge[id]??26*60},{id:id+'-timer',unit:id+'.timer',group:'Maintenance'}])
+ ...['server-disk-cleanup','rustdesk-preconfig-build','status-dunamismax-backup','dunamismax-backup','graceandfootnotes-backup','rustdesk-backup','ubuntu-vm-backup','cfromthegroundup-backup','vincentsawyer-backup','daybyword-backup','daybyword-restore-check','media-backup','media-backup-verify'].flatMap(id=>[{id,unit:id+'.service',group:'Maintenance',oneShot:true,maxAgeMinutes:maxAge[id]??26*60},{id:id+'-timer',unit:id+'.timer',group:'Maintenance'}])
 ];
 export const projects=(root:string):ProjectTarget[] => [
  {id:'dunamismax-com',repo:'dunamismax.com',url:'https://dunamismax.com'}, {id:'mtg-card-bot',repo:'mtg-card-bot',url:null}, {id:'status-dunamismax',repo:'status.dunamismax',url:'https://status.dunamismax.com'},{id:'xrayservice',repo:'xrayservice',url:'https://xrayservice.net'}

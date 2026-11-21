@@ -24,7 +24,7 @@ export async function main(args:string[]) {
  const c=config();
  if (mode === 'test-delivery') {
   if (args.length !== 2) throw new Error('Expected one delivery test');
-  if (args[1] === 'alert' && c.webhook) await testAlert(c.webhook);
+  if (args[1] === 'alert' && c.webhook) await testAlert(c.webhook, c.webhookFormat);
   else if (args[1] === 'heartbeat' && c.heartbeat) await heartbeat(c.heartbeat);
   else throw new Error('Test destination is unavailable');
   console.log(`${args[1]} test endpoint accepted the request`);

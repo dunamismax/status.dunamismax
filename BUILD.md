@@ -12,9 +12,9 @@ a contract: see [Format contract](#format-contract).
 | | |
 | --- | --- |
 | **Current phase** | [Phase 1 · SvelteKit 3, Svelte 5 and Tailwind CSS 4](#phase-1--sveltekit-3-svelte-5-and-tailwind-css-4): complete. [Phase 4](#phase-4--final-cleanup) (no rollback tooling, nothing from earlier stacks) is complete and deployed. [Phase 5](#phase-5--hsts) (an HSTS header, D-13) is complete and deployed. [Phase 6](#phase-6--host-platform-contract) (pnpm, Node 26 and fix-forward candidate deploys, D-14) is complete and deployed. [Phase 3](#phase-3--full-inventory-site-view-and-daily-history) is complete and deployed, including 3.5 (second reconciliation) and 3.6 (a retired unit removed from the inventory) |
-| **Next step** | None in this repository until the owner decides on alert destinations (**2.1**, Q-1). Open with the owner: whether the four repositories with uncommitted work also lose their rollback tooling (4.3; dunamismax.com lost its own in its M.5, 2026-11-21). **2.1** waits on the owner (Q-1). |
+| **Next step** | **2.1**: the owner supplies the healthchecks.io ping URL and the Discord webhook URL; then the test alert, a deliberately missed heartbeat and its recovery, and the production settings (2.2). Open with the owner: whether the four repositories with uncommitted work also lose their rollback tooling (4.3; dunamismax.com lost its own in its M.5, 2026-11-21). |
 | **In progress** | None. |
-| **Blockers** | None. Phase 2 waits on owner-approved destinations. |
+| **Blockers** | None. Phase 2 waits on the two destination URLs from the owner. |
 | **Live site** | https://status.dunamismax.com serves release `980d897` on Node 26.13.1 (`/opt/node-26`), deployed 2026-11-21 15:57 UTC with the contract deploy (6.1); `/healthz` reports that commit. It sends `Strict-Transport-Security: max-age=31536000` (D-13); each run stores 96 services and 14 projects. Releases fix forward (D-12, D-14); the deploy prints its evidence and logs `web-deploy` to the journal, and keeps a pre-migration dump in `/var/backups/status.dunamismax.com/`. No alert webhook or heartbeat is configured. |
 | **`main`** | `980d897` is deployed; this evidence commit follows it. `main` pushes to GitHub and Codeberg together. |
 | **Last updated** | 2026-11-21 |
@@ -95,7 +95,7 @@ Use each default until the owner decides otherwise.
 
 | ID | Question | Default until decided | Needed by |
 | --- | --- | --- | --- |
-| Q-1 | Where do failure alerts and the heartbeat go? | Leave `STATUS_ALERT_WEBHOOK_URL` and `STATUS_HEARTBEAT_URL` unset. Only the owner supplies and approves destinations, test ones first. | 2.1 |
+| Q-1 | Where do failure alerts and the heartbeat go? | Answered by the owner on 2026-11-21: a healthchecks.io check for the heartbeat (five-minute period, ten minutes' grace) and a Discord channel webhook for alerts (`STATUS_ALERT_WEBHOOK_FORMAT=discord`). Both stay unset until the owner supplies the URLs. | 2.1 |
 | Q-2 | When should Drizzle move to 1.0? | Stay on ORM 0.45.4 and Kit 0.31.11 until 1.0 is stable and at least ten days old. Rehearse the upgrade, including its baseline mechanism, in the disposable cluster before production. | — |
 | Q-3 | Should incidents and maintenance get an authoring tool? | No. Operator SQL under the deploy lock. If one is added, it is an owner-run CLI on the writer side, never a web route. | — |
 
@@ -106,7 +106,7 @@ Use each default until the owner decides otherwise.
 | Baseline | Migration to strict TypeScript and PostgreSQL | Complete 2026-10-22 |
 | 0 | Drizzle ORM adopts the existing PostgreSQL history | Complete 2026-11-02 |
 | 1 | Web layer to SvelteKit 3, Svelte 5 and Tailwind CSS 4 | Complete 2026-11-21 |
-| 2 | Live alert delivery and heartbeat | Waiting on the owner (Q-1) |
+| 2 | Live alert delivery and heartbeat | Destinations chosen 2026-11-21 (Q-1); waiting on their URLs |
 | 3 | Full inventory, site view and daily history | Complete and deployed 2026-11-21 |
 | 4 | Final cleanup: no rollback tooling, nothing from earlier stacks | Complete and deployed 2026-11-21 |
 | 5 | HSTS header from the Caddy fragment | Complete and deployed 2026-11-21 |
@@ -457,11 +457,27 @@ into live backup, DDNS or Caddy to test delivery.
 ### 2.2 Production destinations
 
 - [ ] **Owner gate.** The owner approves the production URLs; they are installed
-  under the same names in `/etc/status-dunamismax/collector.env` (root,
-  0600) and nowhere else. The next scheduled run logs `heartbeat=sent` and the
+  under the same names in `/etc/web-apps/status_dunamismax/collector-settings.env`
+  (root, 0600) and nowhere else. The next scheduled run logs `heartbeat=sent` and the
   receiver shows a recent ping.
 - [ ] README, `docs/production.md` and **Now** no longer say delivery is
   unconfigured, and record which variables are set (never their values).
+
+### 2.3 Discord format and off-site backup checks
+
+- [x] Alerts can be sent as a Discord message: `STATUS_ALERT_WEBHOOK_FORMAT`
+  is `json` (default, the existing payload) or `discord` (one message, no
+  mentions possible); any other value stops the collector at startup.
+  Evidence: `discordPayload` and the format setting, with a loopback test of
+  the message shape, the 1,900-character cap and the rejected value; check,
+  db:check, the full suite in a disposable PostgreSQL 18 cluster and the build
+  pass on Node 26.13.1.
+- [x] The collector watches the off-site media backup: `media-backup` (daily,
+  26 hours) and `media-backup-verify` (first Sunday of the month, 37 days),
+  each with its timer, on the vincentsawyer.org card.
+  Evidence: inventory, catalog and the inventory test; both jobs write a
+  completion marker in `/var/lib/ops-success`.
+- [ ] Deployed, and the first scheduled run stores the four new checks.
 
 ## Phase 3 · Full inventory, site view and daily history
 
@@ -860,6 +876,14 @@ changes scope, when you pick it up.
 
 Newest first. Keep eight.
 
+- **2026-11-21 · Alert destinations chosen (2.3).** A host review confirmed
+  that nothing off the server reports an outage: no webhook, no heartbeat,
+  and the GitHub-hosted probe started 121 runs in 29 days (median gap 5.8
+  hours, longest 10.9). The owner chose a healthchecks.io check for the
+  heartbeat and a Discord channel webhook for alerts (Q-1). The collector
+  gained a Discord message format (`STATUS_ALERT_WEBHOOK_FORMAT=discord`) and
+  four checks for the new off-site media backup jobs. All checks pass on Node
+  26. Next: 2.1 once the owner supplies the two URLs.
 - **2026-11-21 · Host platform contract (6.1).** The owner adopted one
   standard for every web project (D-14). This repository moved to pnpm 12.18.0
   and Node 26.13.1 with baseline pins (SvelteKit, Svelte, Vite, adapter-node,
@@ -921,13 +945,3 @@ Newest first. Keep eight.
   instruction; smoke, grants and the phone layout check passed and scheduled runs
   resumed at 03:01 UTC. Phase 3 is complete. Next: the 1.2 backup drill after
   07:35 UTC. Watch the root disk (83%).
-- **2026-11-21 · Review follow-ups (3.4).** Owner request: review the project
-  and improve it. Added step 3.4 for what the review found: a live phone layout
-  bug on the overview, the truncated attention list, category order, external
-  probe coverage, a dead settings check in `deploy.sh` and a database suite that
-  now runs on macOS. All checks pass, including PostgreSQL locally. Not deployed.
-  Next: 3.4 deploy with the owner's go-ahead, then the 1.2 backup drill after
-  07:35 UTC.
-- **2026-11-21 · Phase 3 deployed.** `35c43d1` deployed at 01:33 UTC with the
-  owner's go-ahead; smoke passed and the first scheduled run stored 85 services
-  and 13 projects. Next: the 1.2 backup drill after 07:35 UTC.

@@ -34,7 +34,7 @@ inherited descriptor 9; never nest separate acquisitions.
   own files: role credentials `web.env`, `collector.env`, `migration.env` (the
   deploy's migration step only); application settings `app.env` for the web
   (operator token, freshness, repo root) and `collector-settings.env` for the
-  collector (webhook, heartbeat, repeat, maximum notifications, retention, repo
+  collector (webhook and its format, heartbeat, repeat, maximum notifications, retention, repo
   root). Until 2026-11-21 the two settings files were
   `/etc/status-dunamismax/{web,collector}.env`; they were moved unchanged.
   Changes need a web restart or take effect on the next collector run.
@@ -182,7 +182,8 @@ its homepage and verifies the game server's `ok` response on `/healthz`. The
 XrayService `/download` check requires HTTP 206, attachment and valid range headers,
 and the two-byte Windows executable signature. It requests only the first two bytes.
 Successful completion must be within 26 hours for daily jobs, eight days for the
-weekly builder, 32 days for Day by Word's monthly restore check, 30 minutes for
+weekly builder, 32 days for Day by Word's monthly restore check, 37 days for the monthly
+off-site media verification (first Sunday of the month), 30 minutes for
 DDNS and 15 minutes for the collector. Enabled
 or active timers alone never prove backup freshness. Root-owned completion
 markers in `/var/lib/ops-success` survive reboot (the C From The Ground Up,
@@ -210,6 +211,13 @@ bound delivery. Delivery failures remain unsent and retry later; URL-bearing
 exceptions are redacted. The collector sends a JSON `POST` with `source`,
 `severity`, `state`, `target_id`, `target_name`, `title`, `public_summary`, and
 `observed_at`. Its receiver must route the payload to the approved recipient.
+
+When the destination is a Discord channel webhook, set
+`STATUS_ALERT_WEBHOOK_FORMAT=discord` on its own line beside the URL. The same
+alert is then sent as one Discord message: the title in bold, the summary, the
+severity and the time, with `allowed_mentions` empty so no name can ping
+anyone. The default, `json`, is the payload above; any other value stops the
+collector at startup with `Invalid STATUS_ALERT_WEBHOOK_FORMAT`.
 
 The heartbeat is a `GET` to an independent dead-man receiver after the collector
 stores a snapshot and completes retention. A backup failure can still produce a

@@ -105,7 +105,8 @@ It covers:
   RiverMind Poker's web and table server and Umami), PostgreSQL, Caddy
   (including parse and reload evidence), Docker, access services, DDNS recency,
   RustDesk's three TCP listeners (connect only) and every maintenance, backup
-  and restore-check job with its timer. Day by Word and Field Cadence run in
+  and restore-check job with its timer, including the off-site media backup and
+  its monthly full verification. Day by Word and Field Cadence run in
   Docker, which the collector cannot see by design: Day by Word is covered by
   its public check and its backup jobs, Field Cadence by its public check alone
   until it has host jobs.
@@ -132,8 +133,9 @@ and alert history are kept. Down is critical, degraded and unknown are warnings,
 and maintenance and operational are silent. A failure or recovery is delivered
 only after two matching observations within 20 minutes, with a 60-minute repeat
 window and at most five deliveries per run. A failed delivery fails the run and
-is retried later. An optional heartbeat to an off-site dead-man receiver follows
-each successful run. No delivery destination is configured yet
+is retried later. Alerts are POSTed as the collector's own JSON or, with
+`STATUS_ALERT_WEBHOOK_FORMAT=discord`, as a Discord message. An optional
+heartbeat to an off-site dead-man receiver follows each successful run. No delivery destination is configured yet
 ([setup and tests](docs/production.md#offsite-alerts-and-heartbeat)).
 
 The daily history bars come from the stored rollups: each cell is one EST day,

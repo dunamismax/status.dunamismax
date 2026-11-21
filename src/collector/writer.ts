@@ -4,7 +4,7 @@ import { and, desc, eq, gte, lt, sql } from 'drizzle-orm';
 import type { Snapshot, Deployment } from '../lib/model.js';
 import type { Config } from '../lib/config.js';
 import { targets, checkRuns, rollups, alertNotifications, deploymentEvents } from '../db/schema.js';
-import { alerts, notify } from './alerts.js';
+import { alerts, notify, type Alert } from './alerts.js';
 // Bound to the caller's single client: transactions and the advisory session
 // lock can never move to a different pool connection.
 const orm=(db:pg.PoolClient)=>drizzle({client:db});
@@ -19,7 +19,7 @@ export async function recordSnapshot(db:pg.PoolClient,s:Snapshot){
  });
 }
 /** Caller holds the collector's advisory session lock across selection, delivery and recording. */
-export async function sendAlerts(db:pg.PoolClient,s:Snapshot,c:Config,send=notify):Promise<number>{
+export async function sendAlerts(db:pg.PoolClient,s:Snapshot,c:Config,send:(url:string,a:Alert)=>Promise<void>=(url,a)=>notify(url,a,c.webhookFormat)):Promise<number>{
  if(!c.webhook)return 0;let sent=0;const q=orm(db),a_=alertNotifications;
  const candidates=alerts(s);
  // Recovery is sent only for a target with an actually delivered failure.

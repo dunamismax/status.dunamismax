@@ -13,7 +13,7 @@ import { cfromthegroundupHealth, plainOk } from '../src/collector/http-evidence.
 import { properties } from '../src/lib/catalog.js';
 import { indexHistory, track, percent, sites, segments, anchor, buildNext, categories, attentionLimit } from '../src/lib/view.js';
 import { estDay, addDays, type DailyCount } from '../src/lib/model.js';
-import { alerts, notify, heartbeat, testAlert } from '../src/collector/alerts.js';
+import { alerts, notify, heartbeat, testAlert, discordPayload } from '../src/collector/alerts.js';
 import { deployment } from '../src/collector/cli.js';
 import { canonical,normalize } from '../scripts/history.js';
 import { createServer } from 'node:http';
@@ -138,6 +138,35 @@ test('public probes check tracker freshness, game and demo health and the two-by
  }
 });
 
+test('the Discord format sends one message that cannot mention anyone', async () => {
+ const bodies: string[] = [];
+ const server = createServer(async (req, res) => {
+  const chunks:Buffer[] = [];
+  for await (const chunk of req) chunks.push(chunk);
+  bodies.push(Buffer.concat(chunks).toString('utf8'));
+  res.writeHead(204);
+  res.end();
+ });
+ await new Promise<void>(resolve => server.listen(0, '127.0.0.1', resolve));
+ const address = server.address();
+ assert.ok(address && typeof address !== 'string');
+ try {
+  assert.equal(config({}).webhookFormat, 'json');
+  assert.equal(config({STATUS_ALERT_WEBHOOK_FORMAT:'discord'}).webhookFormat, 'discord');
+  assert.throws(() => config({STATUS_ALERT_WEBHOOK_FORMAT:'slack'}), {message:'Invalid STATUS_ALERT_WEBHOOK_FORMAT'});
+  await testAlert(`http://127.0.0.1:${address.port}/hook`, 'discord');
+  const sent = JSON.parse(bodies[0]!);
+  assert.deepEqual(Object.keys(sent).sort(), ['allowed_mentions', 'content']);
+  assert.deepEqual(sent.allowed_mentions, {parse: []});
+  assert.match(sent.content, /^\*\*TEST: Dunamis Status alert delivery\*\*\nDelivery test only\. No outage was detected\.\nwarning · /);
+  const long = discordPayload({dedup_key:'k', target_id:'t', target_name:'n', severity:'critical', state:'down', observed_at:'2026-01-01T00:00:00Z', title:'x'.repeat(3000), public_summary:'@everyone'});
+  assert.equal([...long.content].length, 1900);
+ } finally {
+  server.closeAllConnections();
+  await new Promise<void>(resolve => server.close(() => resolve()));
+ }
+});
+
 test('alerts and heartbeat use separate requests, with test labeling and redacted redirect failures', async () => {
  const seen: [string|undefined, string|undefined, string][] = [];
  const server = createServer(async (req, res) => {
@@ -210,6 +239,10 @@ test('every catalogued site check and repository exists in the collector invento
  assert.ok(!units.some(t => t.unit === 'rivermind-poker.service'));
  assert.equal(units.find(t => t.id === 'daybyword-restore-check')?.maxAgeMinutes, 32*24*60);
  assert.equal(units.find(t => t.id === 'vincentsawyer-backup')?.maxAgeMinutes, 26*60);
+ // The off-site copy of the sermon media: a daily run, and a full restore check on the first Sunday of the month.
+ assert.equal(units.find(t => t.id === 'media-backup')?.maxAgeMinutes, 26*60);
+ assert.equal(units.find(t => t.id === 'media-backup-verify')?.maxAgeMinutes, 37*24*60);
+ assert.ok(units.some(t => t.id === 'media-backup-timer'));
  // Field Cadence runs in Docker like Day by Word: its page, both certificates and its repository are its evidence.
  for (const host of ['fieldcadence.app', 'www.fieldcadence.app']) assert.ok(hosts.has(host));
  assert.ok(repos.has('fieldcadence'));

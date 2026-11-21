@@ -34,7 +34,7 @@ export const properties: Property[] = [
   { id: 'daybyword', name: 'Day by Word', url: 'https://daybyword.com', summary: 'Bible reading plans and progress',
     primary: 'daybyword-com', checks: [cert('daybyword.com'), cert('www.daybyword.com'), ...job('daybyword-backup'), ...job('daybyword-restore-check')], projects: ['daybyword'] },
   { id: 'vincentsawyer-org', name: 'vincentsawyer.org', url: 'https://vincentsawyer.org', summary: 'Sermons and Bible teaching',
-    primary: 'vincentsawyer-org', checks: [cert('vincentsawyer.org'), cert('www.vincentsawyer.org'), 'vincentsawyer-web', ...job('vincentsawyer-backup')], projects: ['vincentsawyer-org'] },
+    primary: 'vincentsawyer-org', checks: [cert('vincentsawyer.org'), cert('www.vincentsawyer.org'), 'vincentsawyer-web', ...job('vincentsawyer-backup'), ...job('media-backup'), ...job('media-backup-verify')], projects: ['vincentsawyer-org'] },
   { id: 'graceandfootnotes', name: 'Grace and Footnotes', url: 'https://graceandfootnotes.com', summary: 'Christian faith and honest questions',
     primary: 'graceandfootnotes-com', checks: [cert('graceandfootnotes.com'), cert('www.graceandfootnotes.com'), 'graceandfootnotes', ...job('graceandfootnotes-backup')], projects: ['graceandfootnotes-com'] },
   { id: 'xrayservice', name: 'XrayService', url: 'https://xrayservice.net', summary: 'Remote support portal, installer and email assets',
