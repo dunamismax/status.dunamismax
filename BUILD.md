@@ -11,12 +11,12 @@ a contract: see [Format contract](#format-contract).
 
 | | |
 | --- | --- |
-| **Current phase** | [Phase 3 · Full inventory, site view and daily history](#phase-3--full-inventory-site-view-and-daily-history): built and verified, not deployed. [Phase 1](#phase-1--sveltekit-3-svelte-5-and-tailwind-css-4) still has two acceptance steps open |
-| **Next step** | **3.3** deploy the Phase 3 release (owner's go-ahead) and confirm the first scheduled run. Then **1.2** encrypted backup and restore drill, due with the scheduled ubuntu-vm-backup run on 2026-11-21 07:35 UTC, and **1.2** rollback rehearsal. **2.1** waits on the owner (Q-1). |
+| **Current phase** | [Phase 1 · SvelteKit 3, Svelte 5 and Tailwind CSS 4](#phase-1--sveltekit-3-svelte-5-and-tailwind-css-4): two acceptance steps open. [Phase 3](#phase-3--full-inventory-site-view-and-daily-history) is complete and deployed |
+| **Next step** | **1.2** encrypted backup and restore drill, due with the scheduled ubuntu-vm-backup run on 2026-11-21 07:35 UTC (it now restores release `35c43d1`), then **1.2** rollback rehearsal. **2.1** waits on the owner (Q-1). |
 | **In progress** | None. |
 | **Blockers** | None. The drill waits on its schedule; Phase 2 waits on owner-approved destinations. |
-| **Live site** | https://status.dunamismax.com serves release `1da4095` (checked 2026-11-21 01:10 UTC: `current` points at it), which stores 61 services and 6 projects per run. The SvelteKit cutover was `8c72b37` at 2026-11-20 13:45 UTC over Astro `cc3fc21` (rollback directory `/root/status-astro-rollback-20261120T134532Z`). Root disk was at 81% (degraded) at the same check. No alert webhook or heartbeat is configured. |
-| **`main`** | Phase 3 (inventory reconciliation, the sites view, daily history bars and the redesign) is committed on `main` and not yet deployed. `main` pushes to GitHub and Codeberg together. |
+| **Live site** | https://status.dunamismax.com serves release `35c43d1`, deployed 2026-11-21 01:33 UTC over `1da4095` (rollback directory `/root/status-rollback-20261121T013320Z`); each run stores 85 services and 13 projects. The SvelteKit cutover was `8c72b37` at 2026-11-20 13:45 UTC over Astro `cc3fc21` (rollback directory `/root/status-astro-rollback-20261120T134532Z`). Root disk was at 81% (degraded) at the same check. No alert webhook or heartbeat is configured. |
+| **`main`** | `35c43d1` (Phase 3) is deployed; this evidence commit follows it. `main` pushes to GitHub and Codeberg together. |
 | **Last updated** | 2026-11-21 |
 
 ## How to work this file
@@ -104,7 +104,7 @@ Use each default until the owner decides otherwise.
 | 0 | Drizzle ORM adopts the existing PostgreSQL history | Complete 2026-11-02 |
 | 1 | Web layer to SvelteKit 3, Svelte 5 and Tailwind CSS 4 | Deployed 2026-11-20; two acceptance steps open |
 | 2 | Live alert delivery and heartbeat | Waiting on the owner (Q-1) |
-| 3 | Full inventory, site view and daily history | Built and verified 2026-11-21; deployment open |
+| 3 | Full inventory, site view and daily history | Complete and deployed 2026-11-21 |
 
 ## Baseline · PHP and MySQL to Astro and PostgreSQL
 
@@ -499,10 +499,17 @@ pages stay script-free.
 
 ### 3.3 Production rollout
 
-- [ ] Deploy under `with-deploy-lock` with `deploy/build.sh` and
+- [x] Deploy under `with-deploy-lock` with `deploy/build.sh` and
   `deploy/deploy.sh` (candidate smoke, atomic switch, Caddy validation, public
   smoke, `--no-notify` run, recorded deployment). The first scheduled run stores
   85 services and 13 projects; the public overview renders the history bars.
+  Evidence (2026-11-21): `deploy/build.sh` built `35c43d1` on the VM with 27/27
+  tests including PostgreSQL 18; `deploy/deploy.sh` from `1da4095` passed
+  candidate and public smoke and recorded the deployment (rollback directory
+  `/root/status-rollback-20261121T013320Z`). Readiness `ready` and fresh; the
+  overview returned 200 in about 60 ms with all 13 site cards and history bars.
+  The first scheduled run (01:39 UTC) stored 85 services and 13 projects in 2.0 s
+  with 0 alerts; every check was operational except the root disk at 81%.
 
 ## Ideas inbox
 
@@ -525,6 +532,9 @@ changes scope, when you pick it up.
 
 Newest first. Keep eight.
 
+- **2026-11-21 · Phase 3 deployed.** `35c43d1` deployed at 01:33 UTC with the
+  owner's go-ahead; smoke passed and the first scheduled run stored 85 services
+  and 13 projects. Next: the 1.2 backup drill after 07:35 UTC.
 - **2026-11-21 · Phase 3 built.** Owner request: monitor everything self-hosted
   and improve the site. Host inventory reconciled (7 HTTP checks, 4 units, 4 jobs
   with timers, 7 repositories added), the sites and apps view, 90-day daily
