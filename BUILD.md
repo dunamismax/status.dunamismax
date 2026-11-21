@@ -11,12 +11,12 @@ a contract: see [Format contract](#format-contract).
 
 | | |
 | --- | --- |
-| **Current phase** | [Phase 1 · SvelteKit 3, Svelte 5 and Tailwind CSS 4](#phase-1--sveltekit-3-svelte-5-and-tailwind-css-4): two acceptance steps open. [Phase 3](#phase-3--full-inventory-site-view-and-daily-history) is complete and deployed, including its 3.5 second reconciliation |
-| **Next step** | **1.2** encrypted backup and restore drill, due with the scheduled ubuntu-vm-backup run on 2026-11-21 07:35 UTC (it now restores release `fefd9ea`), then **1.2** rollback rehearsal. **2.1** waits on the owner (Q-1). |
-| **In progress** | None. |
-| **Blockers** | None. The drill waits on its schedule; Phase 2 waits on owner-approved destinations. |
-| **Live site** | https://status.dunamismax.com serves release `fefd9ea`, deployed 2026-11-21 05:02 UTC over `bf56806` (rollback directory `/root/status-rollback-20261121T050258Z`); each run stores 97 services and 14 projects. `bf56806` went live at 02:55 UTC over `35c43d1` (rollback directory `/root/status-rollback-20261121T025518Z`) and `35c43d1` at 01:33 UTC over `1da4095` (rollback directory `/root/status-rollback-20261121T013320Z`). The SvelteKit cutover was `8c72b37` at 2026-11-20 13:45 UTC over Astro `cc3fc21` (rollback directory `/root/status-astro-rollback-20261120T134532Z`). Root disk was at 81% (degraded) at 01:33 UTC, 83% at 03:32 UTC and 82% at 05:03 UTC. No alert webhook or heartbeat is configured. |
-| **`main`** | `fefd9ea` (3.5 second reconciliation) is deployed; this evidence commit follows it. `main` pushes to GitHub and Codeberg together. |
+| **Current phase** | [Phase 1 · SvelteKit 3, Svelte 5 and Tailwind CSS 4](#phase-1--sveltekit-3-svelte-5-and-tailwind-css-4): two acceptance steps open. [Phase 3](#phase-3--full-inventory-site-view-and-daily-history) is deployed through its 3.5 second reconciliation; **3.6** (a retired unit removed from the inventory) is built and waits on its deploy |
+| **Next step** | **3.6** deploy, then the **1.2** encrypted backup and restore drill (its scheduled ubuntu-vm-backup run on 2026-11-21 07:35 UTC has passed, so it is due), then the **1.2** rollback rehearsal. **2.1** waits on the owner (Q-1). |
+| **In progress** | **3.6** deploy · 2026-11-21. |
+| **Blockers** | None. Phase 2 waits on owner-approved destinations. |
+| **Live site** | https://status.dunamismax.com serves release `fefd9ea`, deployed 2026-11-21 05:02 UTC over `bf56806` (rollback directory `/root/status-rollback-20261121T050258Z`); each run stores 97 services and 14 projects. `bf56806` went live at 02:55 UTC over `35c43d1` (rollback directory `/root/status-rollback-20261121T025518Z`) and `35c43d1` at 01:33 UTC over `1da4095` (rollback directory `/root/status-rollback-20261121T013320Z`). The SvelteKit cutover was `8c72b37` at 2026-11-20 13:45 UTC over Astro `cc3fc21` (rollback directory `/root/status-astro-rollback-20261120T134532Z`). Root disk was at 81% (degraded) at 01:33 UTC, 83% at 03:32 UTC and 82% at 05:03 UTC; after the owner-approved cleanup at 13:09 UTC it is 73% and operational. Since about 06:55 UTC the overview has read down for RiverMind Poker's retired table server unit, which 3.6 removes. No alert webhook or heartbeat is configured. |
+| **`main`** | `fefd9ea` (3.5 second reconciliation) is deployed; the 3.6 commit follows it and is not deployed yet. `main` pushes to GitHub and Codeberg together. |
 | **Last updated** | 2026-11-21 |
 
 ## How to work this file
@@ -104,7 +104,7 @@ Use each default until the owner decides otherwise.
 | 0 | Drizzle ORM adopts the existing PostgreSQL history | Complete 2026-11-02 |
 | 1 | Web layer to SvelteKit 3, Svelte 5 and Tailwind CSS 4 | Deployed 2026-11-20; two acceptance steps open |
 | 2 | Live alert delivery and heartbeat | Waiting on the owner (Q-1) |
-| 3 | Full inventory, site view and daily history | Complete and deployed 2026-11-21 |
+| 3 | Full inventory, site view and daily history | Deployed 2026-11-21; 3.6 deploy open |
 
 ## Baseline · PHP and MySQL to Astro and PostgreSQL
 
@@ -598,6 +598,28 @@ pages stay script-free.
   services and 14 projects with 0 alerts; every check was operational except the
   root disk at 82% and the backup repository's uncommitted snapshot files.
 
+### 3.6 Retired table server unit
+
+- [x] Stop reporting a unit that was retired on purpose, with a test.
+  Evidence (2026-11-21 13:10 UTC, read-only over SSH as root): the overview had
+  read `down` since about 06:55 UTC because of one check, the
+  `rivermind-poker.service` unit ("unit is inactive"). RiverMind Poker's own
+  deployment at 06:50 UTC moved its tables into the Node server
+  (`rivermind-poker-web`) and left the Python unit stopped and disabled, kept
+  for rollback only; the web unit names it in `Conflicts=`, so the two never run
+  together. The site was healthy throughout: `/healthz` and the table server's
+  `/api/config` stayed operational and the external probe passed. Removed the
+  unit from the inventory and from the RiverMind Poker card; its `/healthz`,
+  `/api/config`, both certificates, the web unit and the repository remain. A
+  run now stores 96 services and 14 projects. Test: the inventory no longer
+  names the retired unit. Checks on macOS with Node 24.22.3: `npm run check`
+  0/0, `db:check` clean, `npm test` 28 passed and 2 PostgreSQL-only skipped,
+  `tests/postgres.sh` 30/30 on Homebrew PostgreSQL 18, build, shell and Python
+  syntax, `git diff --check`, `npm audit` clean.
+- [ ] Deploy under `with-deploy-lock` with `deploy/build.sh` and
+  `deploy/deploy.sh`; the first scheduled run stores 96 services and the
+  overview no longer reads down for the retired unit.
+
 ## Ideas inbox
 
 Not planned or counted. Triage an idea into a phase, with the owner where it
@@ -623,15 +645,18 @@ changes scope, when you pick it up.
 - **Repositories in the attention panel.** The overview's attention list covers
   service checks only; a degraded repository shows only as a chip on its site
   card and on `/projects`, although it counts toward the API's `overall_state`.
-- **Root disk.** 81% on 2026-11-21 04:51 UTC (83% at 03:32 UTC; warns at 80%,
-  fails at 90%), 95 GB of 124 GB. The largest holders: vincentsawyer.org's
-  shared media in `/srv/www` (25 GB), build candidates under
-  `/home/sawyer/web-work` (9.8 GB across 35 directories, mostly other sites'),
-  `/var/backups` (4.3 GB), the retired MySQL data (2.4 GB) and 1.3 GB of
-  reclaimable Docker build cache. The daily cleanup job already removes
-  candidates older than 14 days and releases beyond the newest five, so the
-  candidates from 2026-11-07 start to expire on their own. Clearing more is the
-  owner's call and host work under the ubuntu-vm-backup runbook.
+- **Root disk.** 73% (85 GB of 124 GB) since 2026-11-21 13:09 UTC; it warns at
+  80% and fails at 90%, and was at 81% to 83% earlier that day. With the owner's
+  go-ahead, 32 spare build candidates under `/home/sawyer/web-work` (9.4 GB)
+  were removed under the deploy lock, keeping each live release's candidate and
+  one built but undeployed XrayService candidate, and the unused Docker build
+  cache (1.95 GB) was pruned; no release, rollback directory, image or volume
+  was touched and every site passed the external probe afterwards. The largest
+  holders left: vincentsawyer.org's shared media in `/srv/www` (25 GB),
+  `/var/backups` (4.3 GB) and the retired MySQL data (2.4 GB). The daily cleanup
+  job removes candidates only after 14 days, so busy deploy days fill the disk
+  again; a shorter window for candidates is host work in ubuntu-vm-backup and
+  the owner's call.
 - **Field Cadence host evidence.** It has no backup job, no installed jobs
   timer and no health route that touches its database, so the status page can
   only vouch for its static page and certificates. When the project adds them,
@@ -646,6 +671,13 @@ changes scope, when you pick it up.
 
 Newest first. Keep eight.
 
+- **2026-11-21 · Disk cleanup and 3.6.** The owner approved clearing old build
+  candidates and the Docker build cache: the root disk went from 82% to 73% and
+  its check is operational (details in the ideas inbox). The follow-up check
+  found the overview reading down for `rivermind-poker.service`, which that
+  project retired on purpose at 06:50 UTC when its Node server took over the
+  tables. Step 3.6 removes the unit from the inventory and the site card; all
+  checks pass. Next: 3.6 deploy, then the 1.2 backup drill, which is now due.
 - **2026-11-21 · Second reconciliation (3.5).** Owner request: review the repo
   and everything live on the server, add what is missing and fix what is found.
   The host was healthy apart from the root disk (81%). Added Field Cadence (site,
@@ -687,6 +719,3 @@ Newest first. Keep eight.
   and rollback paths moved off the `astro-` names, CI's runtime wrapper became
   `node-runtime`, and the inventory gained five application units. Deployment
   state not recorded here.
-- **2026-11-20 · Phase 1 cutover.** `8c72b37` deployed over Astro `cc3fc21` at
-  13:45 UTC under the deploy lock and recorded in `2d7199b`. Open: the rollback
-  rehearsal and the first backup drill.

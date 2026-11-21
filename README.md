@@ -103,12 +103,13 @@ It covers:
   signature), the Imaging Services demo (health with its content store), Field
   Cadence and this status page.
 - **Host services:** every application unit (including both Lorehallow units,
-  both RiverMind Poker units and Umami), PostgreSQL, Caddy (including parse and
-  reload evidence), Docker, access services, DDNS recency, RustDesk's three TCP
-  listeners (connect only) and every maintenance, backup and restore-check job
-  with its timer. Day by Word and Field Cadence run in Docker, which the
-  collector cannot see by design: Day by Word is covered by its public check and
-  its backup jobs, Field Cadence by its public check alone until it has host jobs.
+  RiverMind Poker's web and table server and Umami), PostgreSQL, Caddy
+  (including parse and reload evidence), Docker, access services, DDNS recency,
+  RustDesk's three TCP listeners (connect only) and every maintenance, backup
+  and restore-check job with its timer. Day by Word and Field Cadence run in
+  Docker, which the collector cannot see by design: Day by Word is covered by
+  its public check and its backup jobs, Field Cadence by its public check alone
+  until it has host jobs.
 - **Certificates:** expiry and a verified handshake for every public host name,
   including the ten `www.` names that only redirect, since each holds its own
   certificate.

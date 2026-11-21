@@ -35,7 +35,9 @@ export const units:UnitTarget[] = [
  {id:'mtg-card-bot',unit:'mtg-card-bot.service',group:'Application services'},
  {id:'status-dunamismax-collector',unit:'status-dunamismax-collector.timer',group:'Application services'},
  {id:'status-dunamismax-web',unit:'status-dunamismax.service',group:'Application services'},
- ...['dunamismax','graceandfootnotes','imagingservices','xrayservice-web','vincentsawyer-web','azerothtrail','cfromthegroundup','rivermind-poker','rivermind-poker-web','lorehallow-web','lorehallow-server','umami'].map(id=>({id,unit:id+'.service',group:'Application services'})),
+ // RiverMind Poker is one unit: rivermind-poker-web has served the tables since its
+ // 2026-11-21 cutover, and the old rivermind-poker.service stays stopped for rollback only.
+ ...['dunamismax','graceandfootnotes','imagingservices','xrayservice-web','vincentsawyer-web','azerothtrail','cfromthegroundup','rivermind-poker-web','lorehallow-web','lorehallow-server','umami'].map(id=>({id,unit:id+'.service',group:'Application services'})),
  {id:'collector-run',unit:'status-dunamismax-collector.service',group:'Application services',oneShot:true,maxAgeMinutes:15},
  {id:'ddns-timer',unit:'cloudflare-ddns.timer',group:'Network & access'},
  {id:'postgresql',unit:'postgresql@18-main.service',group:'Databases'},

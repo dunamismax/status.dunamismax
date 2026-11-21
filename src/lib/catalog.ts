@@ -28,7 +28,7 @@ export const properties: Property[] = [
   { id: 'lorehallow', name: 'Lorehallow', url: 'https://lorehallow.com', summary: 'Pixel-art MMO website and Go game server',
     primary: 'lorehallow-com', checks: ['lorehallow-game', cert('lorehallow.com'), cert('www.lorehallow.com'), cert('play.lorehallow.com'), 'lorehallow-web', 'lorehallow-server'], projects: ['lorehallow'] },
   { id: 'rivermind-poker', name: 'RiverMind Poker', url: 'https://rivermindpoker.com', summary: 'No-limit poker tables in the browser',
-    primary: 'rivermindpoker-com', checks: ['rivermindpoker-api', cert('rivermindpoker.com'), cert('www.rivermindpoker.com'), 'rivermind-poker-web', 'rivermind-poker'], projects: ['rivermind-poker'] },
+    primary: 'rivermindpoker-com', checks: ['rivermindpoker-api', cert('rivermindpoker.com'), cert('www.rivermindpoker.com'), 'rivermind-poker-web'], projects: ['rivermind-poker'] },
   { id: 'cfromthegroundup', name: 'C From The Ground Up', url: 'https://cfromthegroundup.com', summary: 'Free 38-lesson C course, with analytics',
     primary: 'cfromthegroundup-com', checks: ['cfromthegroundup-analytics', cert('cfromthegroundup.com'), cert('www.cfromthegroundup.com'), 'cfromthegroundup', 'umami', ...job('cfromthegroundup-backup')], projects: ['c-from-the-ground-up'] },
   { id: 'daybyword', name: 'Day by Word', url: 'https://daybyword.com', summary: 'Bible reading plans and progress',

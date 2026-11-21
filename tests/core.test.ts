@@ -206,6 +206,8 @@ test('every catalogued site check and repository exists in the collector invento
  assert.equal(repos.size, projects('/repos').length);
  for (const host of ['cfromthegroundup.com', 'daybyword.com', 'rivermindpoker.com', 'vincentsawyer.org', 'data.xrayservice.net']) assert.ok(hosts.has(host));
  for (const unit of ['lorehallow-server', 'lorehallow-web', 'rivermind-poker-web', 'umami', 'daybyword-backup', 'daybyword-restore-check-timer']) assert.ok(units.some(t => t.id === unit));
+ // The retired Python table server is stopped on purpose (rollback only), so it is not a check.
+ assert.ok(!units.some(t => t.unit === 'rivermind-poker.service'));
  assert.equal(units.find(t => t.id === 'daybyword-restore-check')?.maxAgeMinutes, 32*24*60);
  assert.equal(units.find(t => t.id === 'vincentsawyer-backup')?.maxAgeMinutes, 26*60);
  // Field Cadence runs in Docker like Day by Word: its page, both certificates and its repository are its evidence.

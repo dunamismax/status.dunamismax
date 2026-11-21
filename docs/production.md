@@ -178,7 +178,10 @@ redirect to their site (`redirectHosts` in the inventory): Caddy holds a separat
 certificate for each, so one can lapse while the site itself stays healthy. Add a
 name there whenever a Caddy site gains a redirect host. Umami serves only C From The Ground Up and is checked
 through that site's `/stats/script.js`. RiverMind Poker's web server answers
-`/healthz` with `ok` and its table server's public `/api/config`; C From The
+`/healthz` with `ok` and its table server's public `/api/config`; since that
+project's 2026-11-21 cutover one unit, `rivermind-poker-web`, serves the pages, the
+API and the tables, and the old `rivermind-poker.service` is kept stopped and
+disabled for rollback only, so it is not a check. C From The
 Ground Up's `/healthz` must report both the app and its database as `ok`.
 Azeroth Trail checks its homepage and `/api/status`, with usable readings for all
 four regions and a snapshot and readings no older than five minutes. This measures
