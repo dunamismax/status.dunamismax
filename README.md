@@ -27,9 +27,7 @@ Drizzle ORM has owned the PostgreSQL 18 schema since November 2, 2026
 
 **Still open from the cutover:** a rollback rehearsal to the last Astro release
 and the first encrypted backup and restore drill of the SvelteKit release.
-**Waiting to deploy:** review follow-ups, including a phone layout fix
-([BUILD.md 3.4](BUILD.md#34-review-follow-ups)). **Then:** live alert delivery,
-once the owner approves the destinations.
+**Then:** live alert delivery, once the owner approves the destinations.
 
 ## How it works
 

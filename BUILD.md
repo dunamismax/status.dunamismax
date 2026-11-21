@@ -11,12 +11,12 @@ a contract: see [Format contract](#format-contract).
 
 | | |
 | --- | --- |
-| **Current phase** | [Phase 1 · SvelteKit 3, Svelte 5 and Tailwind CSS 4](#phase-1--sveltekit-3-svelte-5-and-tailwind-css-4): two acceptance steps open. [Phase 3](#phase-3--full-inventory-site-view-and-daily-history) is deployed; its 3.4 review follow-ups are on `main` and not yet deployed |
-| **Next step** | **3.4** deploy the review follow-ups (they fix a phone layout bug that is live now), with the owner's go-ahead. **1.2** encrypted backup and restore drill, due with the scheduled ubuntu-vm-backup run on 2026-11-21 07:35 UTC (it restores whichever release is current), then **1.2** rollback rehearsal. **2.1** waits on the owner (Q-1). |
+| **Current phase** | [Phase 1 · SvelteKit 3, Svelte 5 and Tailwind CSS 4](#phase-1--sveltekit-3-svelte-5-and-tailwind-css-4): two acceptance steps open. [Phase 3](#phase-3--full-inventory-site-view-and-daily-history) is complete and deployed, including its 3.4 review follow-ups |
+| **Next step** | **1.2** encrypted backup and restore drill, due with the scheduled ubuntu-vm-backup run on 2026-11-21 07:35 UTC (it now restores release `bf56806`), then **1.2** rollback rehearsal. **2.1** waits on the owner (Q-1). |
 | **In progress** | None. |
 | **Blockers** | None. The drill waits on its schedule; Phase 2 waits on owner-approved destinations. |
-| **Live site** | https://status.dunamismax.com serves release `35c43d1`, deployed 2026-11-21 01:33 UTC over `1da4095` (rollback directory `/root/status-rollback-20261121T013320Z`); each run stores 85 services and 13 projects. The SvelteKit cutover was `8c72b37` at 2026-11-20 13:45 UTC over Astro `cc3fc21` (rollback directory `/root/status-astro-rollback-20261120T134532Z`). Root disk was at 81% (degraded) at the same check and 82% at 02:05 UTC. No alert webhook or heartbeat is configured. |
-| **`main`** | `35c43d1` (Phase 3) is deployed. The commit after `d1b2387` holds the 3.4 follow-ups and is not deployed. `main` pushes to GitHub and Codeberg together. |
+| **Live site** | https://status.dunamismax.com serves release `bf56806`, deployed 2026-11-21 02:55 UTC over `35c43d1` (rollback directory `/root/status-rollback-20261121T025518Z`); each run stores 85 services and 13 projects. `35c43d1` went live at 01:33 UTC over `1da4095` (rollback directory `/root/status-rollback-20261121T013320Z`). The SvelteKit cutover was `8c72b37` at 2026-11-20 13:45 UTC over Astro `cc3fc21` (rollback directory `/root/status-astro-rollback-20261120T134532Z`). Root disk was at 81% (degraded) at 01:33 UTC and 83% at 03:32 UTC. No alert webhook or heartbeat is configured. |
+| **`main`** | `bf56806` (3.4 follow-ups) is deployed; this evidence commit follows it. `main` pushes to GitHub and Codeberg together. |
 | **Last updated** | 2026-11-21 |
 
 ## How to work this file
@@ -104,7 +104,7 @@ Use each default until the owner decides otherwise.
 | 0 | Drizzle ORM adopts the existing PostgreSQL history | Complete 2026-11-02 |
 | 1 | Web layer to SvelteKit 3, Svelte 5 and Tailwind CSS 4 | Deployed 2026-11-20; two acceptance steps open |
 | 2 | Live alert delivery and heartbeat | Waiting on the owner (Q-1) |
-| 3 | Full inventory, site view and daily history | Deployed 2026-11-21; 3.4 follow-ups built, not deployed |
+| 3 | Full inventory, site view and daily history | Complete and deployed 2026-11-21 |
 
 ## Baseline · PHP and MySQL to Astro and PostgreSQL
 
@@ -532,10 +532,21 @@ pages stay script-free.
   0/0, `db:check` clean, `npm test` 27 passed and 2 PostgreSQL-only skipped,
   `tests/postgres.sh` 29/29 on Homebrew PostgreSQL 18.7, build, shell and Python
   syntax, `git diff --check`, `npm audit` clean.
-- [ ] Deploy the follow-ups under `with-deploy-lock` with `deploy/build.sh` and
+- [x] Deploy the follow-ups under `with-deploy-lock` with `deploy/build.sh` and
   `deploy/deploy.sh`; the public overview has no sideways scroll at 375 px.
-  Remaining: waits for the owner's go-ahead. The changed `deploy.sh` settings
-  check first runs for real in this deploy.
+  Evidence (2026-11-21, on the owner's instruction): `deploy/build.sh` built
+  `bf56806` on the VM with 29/29 tests including PostgreSQL 18; `deploy/deploy.sh`
+  from `35c43d1` ran 02:55 to 02:56 UTC, passed the changed settings check,
+  candidate and public smoke and Caddy validation, and recorded the deployment
+  (rollback directory `/root/status-rollback-20261121T025518Z`). The migration
+  was a no-op with identical every-row digests. Caddy, PostgreSQL and three other
+  site services kept their PIDs. The web unit runs `dist/index.js` under
+  `--permission` with 0 restarts and only web keys in its environment; the web
+  role passed four reads and 13 denials. Readiness `ready` and fresh. The live
+  stylesheet is byte-identical to the build verified locally, and the public
+  overview at 375 px measures 375 px wide (the attention row ends at 342 px; it
+  was 516 px), with no script. The first scheduled run (03:01 UTC) and the five
+  after it each stored 85 services and 13 projects with 0 alerts.
 
 ## Ideas inbox
 
@@ -562,13 +573,21 @@ changes scope, when you pick it up.
 - **Repositories in the attention panel.** The overview's attention list covers
   service checks only; a degraded repository shows only as a chip on its site
   card and on `/projects`, although it counts toward the API's `overall_state`.
-- **Root disk.** 82% and rising on 2026-11-21 (warns at 80%, fails at 90%).
-  Freeing space is host work under the ubuntu-vm-backup runbook.
+- **Root disk.** 83% on 2026-11-21 03:32 UTC, up from 81% two hours earlier
+  (warns at 80%, fails at 90%). Build candidates under `/home/sawyer/web-work`
+  hold 9.2 GB across 33 directories, mostly other sites' (this project's six are
+  1.2 GB); they can be rebuilt from Git, unlike the releases and rollback
+  directories. Clearing them is the owner's call and host work under the
+  ubuntu-vm-backup runbook.
 
 ## Handoff log
 
 Newest first. Keep eight.
 
+- **2026-11-21 · 3.4 deployed.** `bf56806` deployed at 02:55 UTC on the owner's
+  instruction; smoke, grants and the phone layout check passed and scheduled runs
+  resumed at 03:01 UTC. Phase 3 is complete. Next: the 1.2 backup drill after
+  07:35 UTC. Watch the root disk (83%).
 - **2026-11-21 · Review follow-ups (3.4).** Owner request: review the project
   and improve it. Added step 3.4 for what the review found: a live phone layout
   bug on the overview, the truncated attention list, category order, external
@@ -601,5 +620,3 @@ Newest first. Keep eight.
 - **2026-11-02 · Phase 0 complete.** Drizzle baseline adopted by `5fb1713` with
   byte-identical digests; `50da380` fixed the journal probe and is the active
   release. Evidence in [docs/migration.md](docs/migration.md).
-- **2026-10-22 · Baseline.** PHP and MySQL replaced by Astro, strict TypeScript
-  and PostgreSQL, with every history row reconciled.
