@@ -95,7 +95,7 @@ It covers:
 
 - **Public HTTPS:** every site on the host: dunamismax.com, Azeroth Trail (and
   its tracker's freshness), Lorehallow (website and game-server health), RiverMind
-  Poker (web server health and the table server's public config), C From The
+  Poker (health with its database, and the table server's public config), C From The
   Ground Up (health with its database, and its Umami analytics script), Day by
   Word, vincentsawyer.org, Grace and Footnotes, XrayService (site, email assets
   and the Windows installer, a two-byte range request that checks the executable

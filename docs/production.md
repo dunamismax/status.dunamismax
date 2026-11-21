@@ -169,8 +169,10 @@ host name gets a certificate check, including the ten `www.` names that only
 redirect to their site (`redirectHosts` in the inventory): Caddy holds a separate
 certificate for each, so one can lapse while the site itself stays healthy. Add a
 name there whenever a Caddy site gains a redirect host. Umami serves only C From The Ground Up and is checked
-through that site's `/stats/script.js`. RiverMind Poker's web server answers
-`/healthz` with `ok` and its table server's public `/api/config`; since that
+through that site's `/stats/script.js`. RiverMind Poker is checked through
+`/healthz`, which must report both the web server and its database as `ok`
+(the host contract's JSON since its 2026-11-21 deploy; a bare `ok` is no longer
+accepted), and through its table server's public `/api/config`; since that
 project's 2026-11-21 cutover one unit, `rivermind-poker-web`, serves the pages, the
 API and the tables, and the old `rivermind-poker.service` is kept stopped and
 disabled, so it is not a check. C From The

@@ -13,7 +13,7 @@ a contract: see [Format contract](#format-contract).
 | --- | --- |
 | **Current phase** | [Phase 1 · SvelteKit 3, Svelte 5 and Tailwind CSS 4](#phase-1--sveltekit-3-svelte-5-and-tailwind-css-4): complete. [Phase 4](#phase-4--final-cleanup) (no rollback tooling, nothing from earlier stacks) is complete and deployed. [Phase 5](#phase-5--hsts) (an HSTS header, D-13) is complete and deployed. [Phase 6](#phase-6--host-platform-contract) (pnpm, Node 26 and fix-forward candidate deploys, D-14) is complete and deployed. [Phase 3](#phase-3--full-inventory-site-view-and-daily-history) is complete and deployed, including 3.5 (second reconciliation) and 3.6 (a retired unit removed from the inventory) |
 | **Next step** | **2.1**: the owner supplies the healthchecks.io ping URL and the Discord webhook URL; then the test alert, a deliberately missed heartbeat and its recovery, and the production settings (2.2). Open with the owner: whether the four repositories with uncommitted work also lose their rollback tooling (4.3; dunamismax.com lost its own in its M.5, 2026-11-21). |
-| **In progress** | None. |
+| **In progress** | 3.7 (RiverMind Poker's health check reads the contract's JSON): committed, waiting for its deploy, 2026-11-21. |
 | **Blockers** | None. Phase 2 waits on the two destination URLs from the owner. |
 | **Live site** | https://status.dunamismax.com serves release `1a44b24` on Node 26.13.1 (`/opt/node-26`), deployed 2026-11-21 17:54 UTC with the contract deploy (2.3); `/healthz` reports that commit. It sends `Strict-Transport-Security: max-age=31536000` (D-13); each run stores 100 services and 14 projects. Releases fix forward (D-12, D-14); the deploy prints its evidence and logs `web-deploy` to the journal, and keeps a pre-migration dump in `/var/backups/status.dunamismax.com/`. No alert webhook or heartbeat is configured. |
 | **`main`** | `1a44b24` is deployed; this evidence commit follows it. `main` pushes to GitHub and Codeberg together. |
@@ -669,6 +669,23 @@ pages stay script-free.
   including the root disk at 73%. The overview's headline reads all public
   endpoints operational, with no script.
 
+### 3.7 RiverMind Poker's health response
+
+- [x] Read RiverMind Poker's `/healthz` as what it now sends, with a test.
+  Evidence (2026-11-21, owner request, on the VM with Node 26.13.1 and pnpm
+  12.18.0): `rivermindpoker-com` had read `degraded` on 42 runs since 16:07
+  UTC ("expected RiverMind Poker web server health response was missing")
+  while the site was healthy. Its deploy at 16:04 UTC moved `/healthz` to the
+  host contract's JSON (`status`, `revision`, `database`), and the check still
+  required a body of exactly `ok`. The check now requires `status` and
+  `database` to be `ok`, as C From The Ground Up's does, so a database problem
+  shows as degraded and a bare `ok` no longer passes; the target ID, the probe
+  URL and the states are unchanged. `pnpm run check` 0/0, `db:check` clean,
+  `pnpm test` 30 passed and 2 PostgreSQL-only skipped, `tests/postgres.sh`
+  32/32, build, shell and Python syntax, `git diff --check`.
+- [ ] Deploy with `deploy/build.sh` and `deploy/deploy.sh`; the next scheduled
+  run stores `rivermindpoker-com` as operational.
+
 ## Phase 4 · Final cleanup
 
 The owner's decision of 2026-11-21 (D-12): no rollbacks, and nothing kept from
@@ -882,6 +899,18 @@ changes scope, when you pick it up.
 
 Newest first. Keep eight.
 
+- **2026-11-21 · RiverMind Poker's health check (3.7).** Owner request after
+  a host reboot review: the overview had read "some public endpoints are
+  degraded" since 16:07 UTC for one check, `rivermindpoker-com`, although the
+  site was healthy. RiverMind's `/healthz` has answered the host contract's
+  JSON since its 16:04 UTC deploy and the check still wanted a bare `ok`. It
+  now requires `status` and `database` to be `ok`. Checks run: `pnpm run
+  check`, `db:check`, `pnpm test` (30 passed, 2 skipped), `tests/postgres.sh`
+  (32/32), build, shell and Python syntax, `git diff --check`. Noticed and not
+  changed: `docs/production.md` and an inventory test comment still say Day by
+  Word and Field Cadence run in Docker, and the inventory has no unit check
+  for `fieldcadence.service` or `daybyword-web.service`; both sites moved to
+  systemd units on 2026-11-21. Next action: deploy 3.7, then 2.1 as before.
 - **2026-11-21 · Alert destinations chosen (2.3).** A host review confirmed
   that nothing off the server reports an outage: no webhook, no heartbeat,
   and the GitHub-hosted probe started 121 runs in 29 days (median gap 5.8
@@ -947,7 +976,3 @@ Newest first. Keep eight.
   the backup checkout that reads dirty between snapshots, and Field Cadence's
   missing backup job and health route (all in the ideas inbox). Next: the 1.2
   backup drill after 07:35 UTC.
-- **2026-11-21 · 3.4 deployed.** `bf56806` deployed at 02:55 UTC on the owner's
-  instruction; smoke, grants and the phone layout check passed and scheduled runs
-  resumed at 03:01 UTC. Phase 3 is complete. Next: the 1.2 backup drill after
-  07:35 UTC. Watch the root disk (83%).

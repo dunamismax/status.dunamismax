@@ -1,4 +1,4 @@
-import { azerothStatus, cfromthegroundupHealth, imagingHealth, installerRange, lorehallowHealth, plainOk, type HttpEvidence } from './http-evidence.js';
+import { azerothStatus, cfromthegroundupHealth, imagingHealth, installerRange, lorehallowHealth, rivermindHealth, type HttpEvidence } from './http-evidence.js';
 
 export interface HttpTarget { id:string; name:string; publicUrl:string; probeUrl:string; expectedStatus:number; bodyToken?:string; evidence?:HttpEvidence; range?:string }
 export interface UnitTarget {id:string; unit:string; group:string; oneShot?:boolean; maxAgeMinutes?:number}
@@ -19,7 +19,7 @@ export const httpTargets:HttpTarget[] = [
  {id:'cfromthegroundup-com',name:'C From The Ground Up',publicUrl:'https://cfromthegroundup.com/',probeUrl:'https://cfromthegroundup.com/healthz',expectedStatus:200,evidence:cfromthegroundupHealth},
  {id:'cfromthegroundup-analytics',name:'C From The Ground Up analytics',publicUrl:'https://cfromthegroundup.com/',probeUrl:'https://cfromthegroundup.com/stats/script.js',expectedStatus:200,bodyToken:'/api/send'},
  {id:'daybyword-com',name:'Day by Word',publicUrl:'https://daybyword.com/',probeUrl:'https://daybyword.com/',expectedStatus:200,bodyToken:'<title>Day by Word</title>'},
- {id:'rivermindpoker-com',name:'RiverMind Poker',publicUrl:'https://rivermindpoker.com/',probeUrl:'https://rivermindpoker.com/healthz',expectedStatus:200,evidence:plainOk('RiverMind Poker web server')},
+ {id:'rivermindpoker-com',name:'RiverMind Poker',publicUrl:'https://rivermindpoker.com/',probeUrl:'https://rivermindpoker.com/healthz',expectedStatus:200,evidence:rivermindHealth},
  {id:'rivermindpoker-api',name:'RiverMind Poker table server',publicUrl:'https://rivermindpoker.com/',probeUrl:'https://rivermindpoker.com/api/config',expectedStatus:200,bodyToken:'"seat_counts":'},
  {id:'vincentsawyer-org',name:'vincentsawyer.org',publicUrl:'https://vincentsawyer.org/',probeUrl:'https://vincentsawyer.org/',expectedStatus:200,bodyToken:'<link rel="canonical" href="https://vincentsawyer.org/"'}
 ];

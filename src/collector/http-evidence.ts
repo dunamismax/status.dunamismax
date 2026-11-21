@@ -50,12 +50,24 @@ export const azerothStatus: HttpEvidence = (body, _headers, now) => {
   return ['operational', 'tracker returned fresh data for all four regions'];
 };
 
-/** A health endpoint whose whole body is `ok`, as Lorehallow and RiverMind Poker answer. */
+/** A health endpoint whose whole body is `ok`, as Lorehallow's game server answers. */
 export const plainOk = (label: string): HttpEvidence => body => body.toString('utf8').trim() === 'ok'
   ? ['operational', `${label} health response is OK`]
   : ['degraded', `expected ${label} health response was missing`];
 
 export const lorehallowHealth: HttpEvidence = plainOk('game server');
+
+/**
+ * RiverMind Poker's `/healthz` has answered as the host's web platform contract
+ * asks since its 2026-11-21 deploy: JSON with the web server's status, the
+ * release revision and a database check, in place of a bare `ok`.
+ */
+export const rivermindHealth: HttpEvidence = body => {
+  const data = jsonObject(body);
+  if (data?.status !== 'ok') return ['degraded', 'expected RiverMind Poker web server health response was missing'];
+  if (data.database !== 'ok') return ['degraded', 'RiverMind Poker health response reported a database problem'];
+  return ['operational', 'RiverMind Poker web server and database health responses are OK'];
+};
 
 /** C From The Ground Up's `/healthz` reports the app and its database separately. */
 export const cfromthegroundupHealth: HttpEvidence = body => {

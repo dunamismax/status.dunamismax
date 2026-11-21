@@ -9,7 +9,7 @@ import type { Source } from '../src/lib/source.js';
 import { command } from '../src/collector/command.js';
 import { evaluateMemory,evaluateCertificate,evaluateHttp,evaluateUnit,evaluateCaddy,evaluateDdns,evaluateDisk,evaluateGit,buildProgress,httpProbe,parseFacts,evaluateBackupSize } from '../src/collector/probes.js';
 import { httpTargets, units, projects, redirectHosts, certificateHosts } from '../src/collector/inventory.js';
-import { cfromthegroundupHealth, plainOk } from '../src/collector/http-evidence.js';
+import { cfromthegroundupHealth, plainOk, rivermindHealth } from '../src/collector/http-evidence.js';
 import { properties } from '../src/lib/catalog.js';
 import { indexHistory, track, percent, sites, segments, anchor, buildNext, categories, attentionLimit } from '../src/lib/view.js';
 import { estDay, addDays, type DailyCount } from '../src/lib/model.js';
@@ -269,6 +269,19 @@ test('new site health evidence: database-aware health JSON and plain ok bodies',
  assert.equal(cfromthegroundupHealth(Buffer.from('<html>'), new Headers(), now)[0], 'degraded');
  assert.equal(plainOk('web')(Buffer.from('ok\n'), new Headers(), now)[0], 'operational');
  assert.equal(plainOk('web')(Buffer.from('nope'), new Headers(), now)[0], 'degraded');
+});
+
+test('RiverMind Poker health: the contract JSON with its database, not a bare ok', () => {
+ const json = (v: unknown) => Buffer.from(JSON.stringify(v));
+ const live = {status:'ok',revision:'7116e1d43d8654da509ff8c7cc4f4e7c5e5ec6f0',database:'ok'};
+ assert.deepEqual(rivermindHealth(json(live), new Headers(), now), ['operational', 'RiverMind Poker web server and database health responses are OK']);
+ assert.match(rivermindHealth(json({...live, database:'error'}), new Headers(), now)[1], /database/);
+ assert.equal(rivermindHealth(json({...live, database:'error'}), new Headers(), now)[0], 'degraded');
+ assert.equal(rivermindHealth(json({status:'starting'}), new Headers(), now)[0], 'degraded');
+ // The body it sent before the contract, and anything that is not the health JSON, are not evidence of health.
+ for (const body of ['ok\n', '<html>', '', '[]']) assert.equal(rivermindHealth(Buffer.from(body), new Headers(), now)[0], 'degraded');
+ assert.equal(httpTargets.find(t => t.id === 'rivermindpoker-com')?.evidence, rivermindHealth);
+ assert.equal(httpTargets.find(t => t.id === 'rivermindpoker-com')?.probeUrl, 'https://rivermindpoker.com/healthz');
 });
 
 test('daily history: EST days, worst state per day, empty days and rounded-down uptime', () => {
