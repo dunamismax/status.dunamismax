@@ -11,8 +11,8 @@ a contract: see [Format contract](#format-contract).
 
 | | |
 | --- | --- |
-| **Current phase** | [Phase 1 · SvelteKit 3, Svelte 5 and Tailwind CSS 4](#phase-1--sveltekit-3-svelte-5-and-tailwind-css-4): two acceptance steps open. [Phase 3](#phase-3--full-inventory-site-view-and-daily-history) is complete and deployed, including 3.5 (second reconciliation) and 3.6 (a retired unit removed from the inventory) |
-| **Next step** | **1.2** encrypted backup and restore drill (its scheduled ubuntu-vm-backup run on 2026-11-21 07:35 UTC has passed, so it is due; it now restores release `cadc299`), then the **1.2** rollback rehearsal. **2.1** waits on the owner (Q-1). |
+| **Current phase** | [Phase 1 · SvelteKit 3, Svelte 5 and Tailwind CSS 4](#phase-1--sveltekit-3-svelte-5-and-tailwind-css-4): one acceptance step open (the rollback rehearsal). [Phase 3](#phase-3--full-inventory-site-view-and-daily-history) is complete and deployed, including 3.5 (second reconciliation) and 3.6 (a retired unit removed from the inventory) |
+| **Next step** | **1.2** rollback rehearsal to the last Astro release; plan it first for the renamed units and rollback directory (see the step). **2.1** waits on the owner (Q-1). |
 | **In progress** | None. |
 | **Blockers** | None. Phase 2 waits on owner-approved destinations. |
 | **Live site** | https://status.dunamismax.com serves release `cadc299`, deployed 2026-11-21 13:14 UTC over `fefd9ea` (rollback directory `/root/status-rollback-20261121T131405Z`); each run stores 96 services and 14 projects, all operational at 13:20 UTC. `fefd9ea` went live at 05:02 UTC over `bf56806` (rollback directory `/root/status-rollback-20261121T050258Z`), `bf56806` at 02:55 UTC over `35c43d1` (rollback directory `/root/status-rollback-20261121T025518Z`) and `35c43d1` at 01:33 UTC over `1da4095` (rollback directory `/root/status-rollback-20261121T013320Z`). The SvelteKit cutover was `8c72b37` at 2026-11-20 13:45 UTC over Astro `cc3fc21` (rollback directory `/root/status-astro-rollback-20261120T134532Z`). Root disk was at 81% (degraded) at 01:33 UTC, 83% at 03:32 UTC and 82% at 05:03 UTC; after the owner-approved cleanup at 13:09 UTC it is 73% and operational. From 06:52 to 13:10 UTC the overview read down for RiverMind Poker's retired table server unit, which 3.6 removed. No alert webhook or heartbeat is configured. |
@@ -102,7 +102,7 @@ Use each default until the owner decides otherwise.
 | --- | --- | --- |
 | Baseline | PHP and MySQL to Astro, strict TypeScript and PostgreSQL | Complete 2026-10-22 |
 | 0 | Drizzle ORM adopts the existing PostgreSQL history | Complete 2026-11-02 |
-| 1 | Web layer to SvelteKit 3, Svelte 5 and Tailwind CSS 4 | Deployed 2026-11-20; two acceptance steps open |
+| 1 | Web layer to SvelteKit 3, Svelte 5 and Tailwind CSS 4 | Deployed 2026-11-20; one acceptance step open |
 | 2 | Live alert delivery and heartbeat | Waiting on the owner (Q-1) |
 | 3 | Full inventory, site view and daily history | Complete and deployed 2026-11-21 |
 
@@ -416,9 +416,23 @@ References: [SvelteKit 3 migration](https://svelte.dev/docs/kit/migrating-to-sve
   of all 147 overview elements and their `::before` markers match the Astro
   stylesheet in light and dark at 1280 px and 375 px (same markup and classes, so
   focus styles and the skip link are unchanged).
-- [ ] Encrypted backup and restore drill (`bin/backup`, `restore
+- [x] Encrypted backup and restore drill (`bin/backup`, `restore
   applications-verify`) serving the SvelteKit release with its restricted web
   role; first due with the scheduled ubuntu-vm-backup run on 2026-11-21 07:35 UTC.
+  Evidence (2026-11-21): the scheduled `bin/backup --push` ran 07:41 to 07:44
+  UTC with release `fefd9ea` live. Its restore verification passed before it
+  committed snapshot `5effb83`, and both mirrors verified that commit. Run again
+  by hand against that snapshot at 13:23 UTC, on the owner's instruction:
+  `bin/restore check` decrypted 133 files with 0 failures, and `bin/restore
+  applications-verify` passed in about a minute (18 artifacts, 13 databases).
+  It restored this database into a disposable cluster on a private Unix socket
+  with no TCP listener (owner, archive digest, constraints, ACL replay and table
+  reads passed), started the recovered `fefd9ea` release from `dist/index.js`
+  in its own network namespace as the restricted web role, and got HTTP 200
+  with `checked_at` from `/api/status.json`. The cluster was removed on exit,
+  the backup checkout was left unchanged and live readiness stayed `ready`.
+  The snapshot predates `cadc299`, which differs only in the collector's
+  inventory; the next scheduled run (2026-11-22 07:31 UTC) covers it.
 
 ## Phase 2 · Live alert delivery
 
@@ -682,6 +696,13 @@ changes scope, when you pick it up.
 
 Newest first. Keep eight.
 
+- **2026-11-21 · Backup drill (1.2).** The owner asked for the overdue drill.
+  The scheduled encrypted backup at 07:41 UTC had already restored and probed
+  release `fefd9ea`; `restore check` and `restore applications-verify` run by
+  hand at 13:23 UTC passed against the same snapshot, with the recovered release
+  serving the API as the restricted web role from a disposable cluster. No code
+  or production change. Next: the 1.2 rollback rehearsal, which needs a plan
+  for the renamed units first.
 - **2026-11-21 · Disk cleanup and 3.6.** The owner approved clearing old build
   candidates and the Docker build cache: the root disk went from 82% to 73% and
   its check is operational (details in the ideas inbox). The follow-up check
@@ -727,7 +748,3 @@ Newest first. Keep eight.
   settled decisions, open questions, Phase 2 (alert delivery, owner gated) and
   this log, with every earlier step and its evidence kept, and the host names
   from `1da4095`. No code or production change. Next: the 1.2 backup drill after 2026-11-21 07:35 UTC.
-- **2026-11-20 · Host rename (`1da4095`).** Units, runtime, settings, candidate
-  and rollback paths moved off the `astro-` names, CI's runtime wrapper became
-  `node-runtime`, and the inventory gained five application units. Deployment
-  state not recorded here.
