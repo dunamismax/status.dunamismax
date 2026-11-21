@@ -94,16 +94,16 @@ src/app.css              Tailwind entry: @theme tokens, component rules
 src/collector/           inventory, command runner, probes, HTTP evidence, alerts, writer, CLI
 src/db/                  Drizzle schema, catalog check, owner-only migration runner
 drizzle/                 reviewed migrations, Kit metadata, baseline-catalog.json
-database/schema.sql      legacy schema for older releases and history tooling
+database/schema.sql      original schema: database tests and baseline adoption of restored dumps
 scripts/                 history digests, permission acceptance, public probes (Python)
 tests/                   core.test.ts (built server), database.test.ts (disposable PostgreSQL)
-deploy/                  build, deploy, rollback, run-command, smoke, backup, units, Caddy fragment
+deploy/                  build, deploy, run-command, smoke, backup, units, Caddy fragment
 docs/                    architecture, production operations, migration evidence
 ```
 
 Output directories: adapter-node writes `dist/` (entry `dist/index.js`); the
-collector's `tsc` owns `build/`. Never commit either, `.svelte-kit/`, `.astro/`,
-env files, dumps, private snapshots or `node_modules`.
+collector's `tsc` owns `build/`. Never commit either, `.svelte-kit/`, env files,
+dumps, private snapshots or `node_modules`.
 
 ## 5. Boundaries that must hold
 
@@ -190,8 +190,8 @@ unreviewed changes. Migrations run only through the owner-only runner
 (`npm run db:migrate`) inside a deploy, where `deploy/deploy.sh` brackets it
 with every-row digests; never `drizzle-kit push`, never on startup. The journal
 `app.drizzle_migrations` stays private to the owner, apart from the legacy
-`app.schema_migrations`. An incompatible change needs a rehearsed lossless
-reverse adapter before activation.
+`app.schema_migrations`. There is no rollback (section 9), so keep a schema
+change compatible with the release that is live while it deploys.
 
 ## 8. Verification
 
@@ -206,7 +206,7 @@ npm test             # builds, then drives dist/server in-process (2 PostgreSQL 
 bash tests/postgres.sh  # disposable socket-only, UTC PostgreSQL 18 cluster, all tests
 npm run build
 for f in deploy/*.sh tests/postgres.sh; do bash -n "$f"; done
-python3 -m py_compile deploy/history-transfer.py
+python3 -m py_compile scripts/external-probe.py scripts/http3-probe.py
 git diff --check
 ```
 
@@ -222,8 +222,8 @@ pushing.
 
 For a production change, also verify: failures stay redacted, the web role's
 grants (`scripts/verify-permissions.ts`), process env and file separation,
-timers, a fresh snapshot, static bytes, headers, API compatibility, rollback with
-data reconciliation, and an encrypted backup restore.
+timers, a fresh snapshot, static bytes, headers, API compatibility, and an
+encrypted backup restore.
 
 ## 9. Production changes
 
@@ -239,15 +239,20 @@ on 127.0.0.1:4313, candidates on 127.0.0.1:14313. Units:
 - **Build outside the lock.** `deploy/build.sh` builds and tests an exact Git
   archive as sawyer.
 - **One transaction for shared changes.** Every systemd, Caddy, ACL, role,
-  schema, release and rollback mutation runs in one VM transaction under
+  schema and release mutation runs in one VM transaction under
   `with-deploy-lock`, reusing the inherited FD 9; never nest acquisitions.
   Recheck current state, back up files and data, validate the candidate on
   loopback, switch atomically, validate Caddy with the custom binary and reload,
   then smoke the public site.
-- **History stays authoritative.** Stop both writers for history reconciliation
-  and reverse migration. Never restore an old dump over newer writes.
-- **Keep what recovery needs.** Old services, releases, MySQL data and backups
-  stay until the host's final cleanup.
+- **No rollback, fix forward.** The owner retired every rollback tool on
+  2026-11-21. A deployment that fails stops where it is, says what is live and
+  where its records are, and is repaired by hand or by deploying a fix. Do not
+  add rollback scripts, rehearsals or retained fallback releases.
+- **History stays authoritative.** Never restore an old dump over newer writes;
+  the dump each deployment takes is for inspection and disaster recovery.
+- **The host's final cleanup is done.** No earlier-framework, PHP or MySQL
+  release, data or tooling remains on the host or in this repository. Do not
+  bring any back.
 - **Backups stay PostgreSQL.** Nightly `pg_dump` with roles, ACLs and settings,
   encrypted off-host copies and isolated restores. SQLite and Litestream are not
   requirements here.
@@ -281,7 +286,7 @@ Keep docs current in the same change as the code.
   evidence and the handoff log. Its format is parsed by the collector.
 - [docs/architecture.md](docs/architecture.md): boundaries and how the web
   layer and the schema work.
-- [docs/production.md](docs/production.md): host layout, releases, rollback,
+- [docs/production.md](docs/production.md): host layout, releases, deploys,
   backups, monitoring policy and alert delivery.
 - [docs/migration.md](docs/migration.md): acceptance evidence, never private
   files.

@@ -11,12 +11,12 @@ a contract: see [Format contract](#format-contract).
 
 | | |
 | --- | --- |
-| **Current phase** | [Phase 1 · SvelteKit 3, Svelte 5 and Tailwind CSS 4](#phase-1--sveltekit-3-svelte-5-and-tailwind-css-4): one acceptance step open (the rollback rehearsal). [Phase 3](#phase-3--full-inventory-site-view-and-daily-history) is complete and deployed, including 3.5 (second reconciliation) and 3.6 (a retired unit removed from the inventory) |
-| **Next step** | **1.2** rollback rehearsal to the last Astro release; plan it first for the renamed units and rollback directory (see the step). **2.1** waits on the owner (Q-1). |
-| **In progress** | None. |
+| **Current phase** | [Phase 1 · SvelteKit 3, Svelte 5 and Tailwind CSS 4](#phase-1--sveltekit-3-svelte-5-and-tailwind-css-4): complete. [Phase 4](#phase-4--final-cleanup) (no rollback tooling, nothing from earlier stacks) is built and waits on its deploy. [Phase 3](#phase-3--full-inventory-site-view-and-daily-history) is complete and deployed, including 3.5 (second reconciliation) and 3.6 (a retired unit removed from the inventory) |
+| **Next step** | **4.2** deploy with the rewritten deploy script. **2.1** waits on the owner (Q-1). |
+| **In progress** | **4.2** deploy · 2026-11-21. |
 | **Blockers** | None. Phase 2 waits on owner-approved destinations. |
-| **Live site** | https://status.dunamismax.com serves release `cadc299`, deployed 2026-11-21 13:14 UTC over `fefd9ea` (rollback directory `/root/status-rollback-20261121T131405Z`); each run stores 96 services and 14 projects, all operational at 13:20 UTC. `fefd9ea` went live at 05:02 UTC over `bf56806` (rollback directory `/root/status-rollback-20261121T050258Z`), `bf56806` at 02:55 UTC over `35c43d1` (rollback directory `/root/status-rollback-20261121T025518Z`) and `35c43d1` at 01:33 UTC over `1da4095` (rollback directory `/root/status-rollback-20261121T013320Z`). The SvelteKit cutover was `8c72b37` at 2026-11-20 13:45 UTC over Astro `cc3fc21` (rollback directory `/root/status-astro-rollback-20261120T134532Z`). Root disk was at 81% (degraded) at 01:33 UTC, 83% at 03:32 UTC and 82% at 05:03 UTC; after the owner-approved cleanup at 13:09 UTC it is 73% and operational. From 06:52 to 13:10 UTC the overview read down for RiverMind Poker's retired table server unit, which 3.6 removed. No alert webhook or heartbeat is configured. |
-| **`main`** | `cadc299` (3.6 retired unit) is deployed; this evidence commit follows it. `main` pushes to GitHub and Codeberg together. |
+| **Live site** | https://status.dunamismax.com serves release `cadc299`, deployed 2026-11-21 13:14 UTC; each run stores 96 services and 14 projects, all operational at 13:36 UTC. Root disk 68% after the final cleanup (4.1). There is no rollback tooling (D-12); a deployment's records are in the directory named by `/root/status-latest-deploy`. No alert webhook or heartbeat is configured. |
+| **`main`** | `cadc299` is deployed; the Phase 4 commit follows it and is not deployed yet. `main` pushes to GitHub and Codeberg together. |
 | **Last updated** | 2026-11-21 |
 
 ## How to work this file
@@ -79,12 +79,13 @@ owner's approval, and record the change here.
 | D-3 | **Stack** (Phase 1, 2026-11-20): SvelteKit 3 · Svelte 5 · TypeScript · Tailwind CSS 4 · PostgreSQL 18 + Drizzle ORM · Node (adapter-node) · Caddy. Every page is server-rendered with `csr = false` and ships no browser JavaScript. Prerendering and adapter-static are for content-only sites, not this live observer. |
 | D-4 | **Database** (Phase 0, 2026-11-02): native, loopback-only PostgreSQL 18, database `status_dunamismax`, schema `app`, with separate owner (NOLOGIN), migration, web and collector roles. Drizzle owns the schema through reviewed migrations and the owner-only runner, never `drizzle-kit push` or startup migrations. The web role reads exactly four models, and future tables get no default web access. |
 | D-5 | **Collector** stays the TypeScript CLI on a host systemd timer: no Python rewrite, no Docker access and no wider repository ACLs. Existing Python recovery and probe utilities stay. |
-| D-6 | **Hosting** stays on ubuntu-vm under systemd: immutable releases in `/srv/www/status.dunamismax.com/releases/<commit>` with an atomic `current`, web on 127.0.0.1:4313, candidates on 127.0.0.1:14313. Units are `status-dunamismax.service` and `status-dunamismax-collector.{timer,service}`, on the shared runtime `/opt/node-runtime`, with role env in `/etc/web-apps/status_dunamismax/` and settings in `/etc/status-dunamismax/` (renamed from the `astro-` host names in `1da4095`). No Compose or container migration. |
+| D-6 | **Hosting** stays on ubuntu-vm under systemd: immutable releases in `/srv/www/status.dunamismax.com/releases/<commit>` with an atomic `current`, web on 127.0.0.1:4313, candidates on 127.0.0.1:14313. Units are `status-dunamismax.service` and `status-dunamismax-collector.{timer,service}`, on the shared runtime `/opt/node-runtime`, with role env in `/etc/web-apps/status_dunamismax/` and settings in `/etc/status-dunamismax/`. No Compose or container migration. |
 | D-7 | **Caddy and DNS.** DNS is owner-managed, DNS-only Cloudflare records pointing at the server; Caddy obtains its own Let's Encrypt certificates with the custom binary `/usr/local/lib/caddy/caddy`. There is no Cloudflare DNS challenge, plugin, token or proxy work, and agents never change Cloudflare settings. |
 | D-8 | **Conditional additions.** Hydration, form actions, remote functions or shadcn-svelte need a concrete interactive feature plus a CSP and smoke review. Better Auth only for requested accounts, the Vercel AI SDK only for a needed LLM feature, Swift only for a requested Apple client (which would call the HTTPS APIs), Python with uv and ruff only where it is the right tool. None is needed now. |
 | D-9 | **Privacy.** The source stays private. Public routes never show private paths, arguments, environment values, credentials, topology, database names, logs or stack traces. |
 | D-10 | **History.** Check rows expire after 30 days by default; rollups, incidents, maintenance, deployments and alert history are kept indefinitely, with their original IDs and timestamps. Incidents and maintenance are written by the operator in SQL. |
 | D-11 | **Alert semantics.** Two matching observations within 20 minutes confirm a failure or a recovery; 60-minute repeat window; at most five deliveries per run; a delivered failure gets one confirmed recovery. Alerts are tested only against mock or loopback endpoints, or with `--dry-run` or `--no-notify`. |
+| D-12 | **No rollback, SvelteKit only** (owner, 2026-11-21). Every site on the host runs well on SvelteKit and stays on it. There are no rollbacks: no rollback script, rehearsal or retained fallback release, and a deployment that fails is fixed forward. The host's final cleanup removed every earlier-framework, PHP and MySQL release, the retired MySQL data and the old rollback directories. Do not bring any of it back. |
 
 ## Open questions
 
@@ -100,13 +101,14 @@ Use each default until the owner decides otherwise.
 
 | Phase | What | State |
 | --- | --- | --- |
-| Baseline | PHP and MySQL to Astro, strict TypeScript and PostgreSQL | Complete 2026-10-22 |
+| Baseline | Migration to strict TypeScript and PostgreSQL | Complete 2026-10-22 |
 | 0 | Drizzle ORM adopts the existing PostgreSQL history | Complete 2026-11-02 |
-| 1 | Web layer to SvelteKit 3, Svelte 5 and Tailwind CSS 4 | Deployed 2026-11-20; one acceptance step open |
+| 1 | Web layer to SvelteKit 3, Svelte 5 and Tailwind CSS 4 | Complete 2026-11-21 |
 | 2 | Live alert delivery and heartbeat | Waiting on the owner (Q-1) |
 | 3 | Full inventory, site view and daily history | Complete and deployed 2026-11-21 |
+| 4 | Final cleanup: no rollback tooling, nothing from earlier stacks | Built 2026-11-21; deploy open |
 
-## Baseline · PHP and MySQL to Astro and PostgreSQL
+## Baseline · Migration to PostgreSQL
 
 Complete 2026-10-22. Results are in [docs/migration.md](docs/migration.md).
 Rollups are kept indefinitely; incident and maintenance authoring stays an
@@ -130,11 +132,9 @@ operator SQL task (D-10, Q-3).
 ## Phase 0 · Drizzle ORM on the existing PostgreSQL history
 
 Complete 2026-11-02. Add typed Drizzle schemas, queries and reviewed migrations
-to the live database without rebuilding its history, keeping the then-current
-Astro Node server, native PostgreSQL, host systemd deployment and UI. The text
-records the Astro-era decisions as they were made; Phase 1 replaced only the web
-framework choices in 0.3. The file-by-file plan for the Astro-era sources is in
-this file's history (`2d7199b`).
+to the live database without rebuilding its history, keeping native PostgreSQL,
+host systemd deployment and the UI. The text records the decisions as they were
+made; Phase 1 replaced only the web framework choices in 0.3.
 
 ### 0.1 Review reality and preserve contracts
 
@@ -330,9 +330,9 @@ boundary, UTC in the APIs and fixed UTC-05:00 EST on pages.
 
 ## Phase 1 · SvelteKit 3, Svelte 5 and Tailwind CSS 4
 
-Replace Astro 7 with SvelteKit (adapter-node) and the hand-written stylesheet
-pipeline with Tailwind CSS 4, keeping PostgreSQL and Drizzle, the collector,
-roles, units, Caddy and every public contract from 0.1. Deployed 2026-11-20.
+Move the web layer to SvelteKit (adapter-node) and Tailwind CSS 4, keeping
+PostgreSQL and Drizzle, the collector, roles, units, Caddy and every public
+contract from 0.1. Deployed 2026-11-20; complete 2026-11-21.
 References: [SvelteKit 3 migration](https://svelte.dev/docs/kit/migrating-to-sveltekit-3),
 [adapter-node](https://svelte.dev/docs/kit/adapter-node),
 [Tailwind CSS preflight](https://tailwindcss.com/docs/preflight).
@@ -404,13 +404,11 @@ References: [SvelteKit 3 migration](https://svelte.dev/docs/kit/migrating-to-sve
   the web process env holds only web keys. Caddy, PostgreSQL and the other three
   site services kept their PIDs. The first scheduled run (13:51 UTC) stored 56
   services and 6 projects with 0 alerts.
-- [ ] Rehearse rollback to the last Astro release (unit and fragment restored
-  from the backup; the new smoke passes against it), then roll forward, keeping
-  every write made in between.
-  Remaining: since `1da4095`, `rollback.sh` accepts only `/root/status-rollback-*`
-  directories and installs the renamed units, while the cutover's directory is
-  `/root/status-astro-rollback-20261120T134532Z` with the `astro-` unit files.
-  Plan the rehearsal for that difference before running it.
+
+Dropped by the owner on 2026-11-21 (D-12): the rollback rehearsal that stood
+here as this step's one unfinished item. It was never run; the release, unit
+files and rollback directory it needed were deleted in step 4.1.
+
 - [x] Verify the no-script UI and unchanged icon and robots bytes.
   Evidence: icon and robots SHA-256 identical before and after; computed styles
   of all 147 overview elements and their `::before` markers match the Astro
@@ -645,6 +643,48 @@ pages stay script-free.
   including the root disk at 73%. The overview's headline reads all public
   endpoints operational, with no script.
 
+## Phase 4 · Final cleanup
+
+The owner's decision of 2026-11-21 (D-12): no rollbacks, and nothing kept from
+the stacks before SvelteKit, on the host or in the repositories.
+
+### 4.1 Remove rollback tooling and old releases
+
+- [x] Delete the earlier-framework, PHP and MySQL leftovers and superseded
+  deploy snapshots on the host, with the owner's confirmation of the list.
+  Evidence (2026-11-21 13:33 UTC, one script under `with-deploy-lock`, explicit
+  paths, after checking that no unit, Caddy site, process, pointer file or
+  backup configuration named any of them): 81 paths removed. They were the last
+  pre-SvelteKit release of this site and four of Azeroth Trail's, the old
+  rollback and migration directories for them in root's home, the original PHP
+  releases of three sites and four early XrayService releases with their
+  pointer files, the retired MySQL data directory (2.4 GB) and its unused
+  account, an old incident log folder, every superseded per-deploy snapshot
+  (the newest one per site was kept), 1.4 GB of migration rehearsal data and old
+  build candidates. Live releases and the releases the kept snapshots name were
+  protected by the script. The root disk went from 73% to 68%; no unit failed,
+  the external probe passed all twelve sites and the next two collector runs
+  stored 96 services, all operational. The encrypted copies of the old MySQL
+  dumps in the backup repository were not touched.
+- [x] Remove rollback and earlier-stack tooling from this repository.
+  Evidence: deleted `deploy/rollback.sh` and the MySQL history transfer tool;
+  `deploy/deploy.sh` no longer copies units and settings for a rollback or calls
+  one, keeps a root-only record directory (`/root/status-deploy-<time>`) with the
+  pre-deployment dump, digests and logs, and on failure removes only its
+  temporary units and prints what is live; `deploy/smoke.sh` accepts only the
+  SvelteKit stylesheet. README, AGENTS.md and the architecture and production
+  docs no longer describe rollback, legacy recovery or the earlier framework,
+  and the rollback rehearsal left open in 1.2 is dropped. Completed steps keep
+  their evidence as written. Checks on macOS with Node 24.22.3: `npm run check`
+  0/0, `db:check` clean, `npm test` 28 passed and 2 PostgreSQL-only skipped,
+  `tests/postgres.sh` 30/30 on Homebrew PostgreSQL 18, build, shell and Python
+  syntax, `git diff --check`; the new smoke script passed against the live site.
+
+### 4.2 Deploy with the new script
+
+- [ ] Deploy under `with-deploy-lock` with the rewritten `deploy/deploy.sh`; it
+  completes, leaves a record directory and the site stays operational.
+
 ## Ideas inbox
 
 Not planned or counted. Triage an idea into a phase, with the owner where it
@@ -670,18 +710,11 @@ changes scope, when you pick it up.
 - **Repositories in the attention panel.** The overview's attention list covers
   service checks only; a degraded repository shows only as a chip on its site
   card and on `/projects`, although it counts toward the API's `overall_state`.
-- **Root disk.** 73% (85 GB of 124 GB) since 2026-11-21 13:09 UTC; it warns at
-  80% and fails at 90%, and was at 81% to 83% earlier that day. With the owner's
-  go-ahead, 32 spare build candidates under `/home/sawyer/web-work` (9.4 GB)
-  were removed under the deploy lock, keeping each live release's candidate and
-  one built but undeployed XrayService candidate, and the unused Docker build
-  cache (1.95 GB) was pruned; no release, rollback directory, image or volume
-  was touched and every site passed the external probe afterwards. The largest
-  holders left: vincentsawyer.org's shared media in `/srv/www` (25 GB),
-  `/var/backups` (4.3 GB) and the retired MySQL data (2.4 GB). The daily cleanup
-  job removes candidates only after 14 days, so busy deploy days fill the disk
-  again; a shorter window for candidates is host work in ubuntu-vm-backup and
-  the owner's call.
+- **Root disk.** 68% (79 GB of 124 GB) since the final cleanup on 2026-11-21;
+  it warns at 80% and fails at 90%. The largest holder left is
+  vincentsawyer.org's shared media in `/srv/www` (25 GB). The daily cleanup job
+  removes build candidates only after 14 days, so busy deploy days fill the disk
+  again; a shorter window is host work in ubuntu-vm-backup and the owner's call.
 - **Field Cadence host evidence.** It has no backup job, no installed jobs
   timer and no health route that touches its database, so the status page can
   only vouch for its static page and certificates. When the project adds them,
@@ -696,6 +729,14 @@ changes scope, when you pick it up.
 
 Newest first. Keep eight.
 
+- **2026-11-21 · Final cleanup (Phase 4).** Owner decision D-12: no rollbacks,
+  SvelteKit only, and nothing kept from earlier stacks. With the owner's
+  confirmation, 81 old paths were deleted on the host (earlier-framework, PHP
+  and MySQL releases and data, superseded deploy snapshots; root disk 68%).
+  This repository lost its rollback script, MySQL history tool and every doc
+  passage about rollback or legacy recovery; the 1.2 rollback rehearsal is
+  dropped. All checks pass. Next: 4.2, a deploy that proves the rewritten
+  deploy script.
 - **2026-11-21 · Backup drill (1.2).** The owner asked for the overdue drill.
   The scheduled encrypted backup at 07:41 UTC had already restored and probed
   release `fefd9ea`; `restore check` and `restore applications-verify` run by
@@ -742,9 +783,3 @@ Newest first. Keep eight.
   history from rollups and the redesign; all checks pass locally and the
   PostgreSQL suite passes on the VM. Not deployed. Next: 3.3 with the owner's
   go-ahead, then the 1.2 backup drill.
-
-- **2026-11-20 · Documentation.** README, BUILD.md and AGENTS.md rewritten around
-  the live SvelteKit service: BUILD.md gained **Now**, the format contract,
-  settled decisions, open questions, Phase 2 (alert delivery, owner gated) and
-  this log, with every earlier step and its evidence kept, and the host names
-  from `1da4095`. No code or production change. Next: the 1.2 backup drill after 2026-11-21 07:35 UTC.

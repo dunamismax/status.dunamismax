@@ -4,9 +4,8 @@ base=${1:-https://status.dunamismax.com}
 home=$(curl -fsS --retry 15 --retry-connrefused --retry-delay 1 --max-time 10 "$base/")
 # Pages are server-rendered with no browser JavaScript.
 [[ $home != *'<script'* ]]
-# SvelteKit releases link a content-hashed /_app/immutable/ stylesheet; retained
-# Astro releases (rollback targets) link /assets/status.css.
-stylesheet=$(grep -Eo 'href="/(_app/immutable/assets/[A-Za-z0-9._-]+|assets/status)\.css"' <<<"$home" | head -n 1)
+# The page links one content-hashed stylesheet under /_app/immutable/.
+stylesheet=$(grep -Eo 'href="/_app/immutable/assets/[A-Za-z0-9._-]+\.css"' <<<"$home" | head -n 1)
 stylesheet=${stylesheet#href=\"}; stylesheet=${stylesheet%\"}
 [[ -n $stylesheet ]]
 for path in / /services /projects /incidents /deployments /healthz /readyz /api/status.json /api/incidents.json "$stylesheet" /icon.svg /robots.txt; do
@@ -23,8 +22,7 @@ printf 'Route smoke passed: %s\n' "$base"
 if [[ $base == https://* ]]; then
  python3 - "$base" "$stylesheet" <<'HEADERS'
 import urllib.request,sys
-css='public,max-age=31536000,immutable' if sys.argv[2].startswith('/_app/immutable/') else 'public, max-age=300, must-revalidate'
-for path,expected in [(sys.argv[2],css),('/robots.txt','public, max-age=300, must-revalidate'),('/icon.svg','public, max-age=86400')]:
+for path,expected in [(sys.argv[2],'public,max-age=31536000,immutable'),('/robots.txt','public, max-age=300, must-revalidate'),('/icon.svg','public, max-age=86400')]:
  req=urllib.request.Request(sys.argv[1]+path,method='HEAD')
  with urllib.request.urlopen(req,timeout=10) as response:
   assert response.headers.get_all('Cache-Control') == [expected], 'Static cache policy mismatch'

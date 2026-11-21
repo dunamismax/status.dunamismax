@@ -16,14 +16,11 @@ if [[ -d $release ]]; then
  ( cd "$release" && sha256sum --quiet --check MANIFEST.sha256 )
  if [[ $previous == "$release" ]]; then "$release/deploy/smoke.sh" https://status.dunamismax.com; exit 0; fi
 fi
-backup="/root/status-rollback-$(date -u +%Y%m%dT%H%M%SZ)"
-mkdir -m 0700 "$backup"
-printf '%s\n' "$previous" > "$backup/previous"
-cp -a /etc/caddy/sites/status.dunamismax.com.caddy "$backup/site.caddy"
-cp -a /etc/systemd/system/status-dunamismax-* "$backup/"
-cp -a /etc/systemd/system/status-dunamismax.service "$backup/"
-cp -a /usr/local/sbin/status-dunamismax-backup "$backup/backup.sh"
-cp -a /etc/status-dunamismax "$backup/settings"
+# Root-only records of this deployment: what it replaced, a database dump taken
+# before any change, the every-row digests and the migration and Caddy logs.
+record="/root/status-deploy-$(date -u +%Y%m%dT%H%M%SZ)"
+mkdir -m 0700 "$record"
+printf '%s\n' "$previous" > "$record/previous"
 ( cd "$candidate" && sha256sum --quiet --check MANIFEST.sha256 )
 if [[ ! -d $release ]]; then
  install -d -m 0755 "$release"
@@ -31,27 +28,36 @@ if [[ ! -d $release ]]; then
  chown -R root:root "$release"
  chmod -R a-w "$release"
 fi
-failed() { code=$?; trap - ERR; echo 'Cutover failed; restoring previous release' >&2; "$release/deploy/rollback.sh" "$backup" || echo 'Rollback failed; inspect root-only diagnostics' >&2; exit "$code"; }
+# There is no rollback: a failed deployment stops where it is and is repaired by
+# hand. Only this script's temporary units are removed.
+failed() {
+ code=$?; trap - ERR
+ systemctl stop status-candidate.service 2>/dev/null || true
+ rm -f /run/systemd/system/status-candidate.service /run/systemd/system/status-dunamismax-collector.service.d/migration.conf
+ systemctl daemon-reload || true
+ echo "Deployment of $commit failed; nothing was rolled back. Live release: $(readlink -f "$base/current") (before: $previous). The collector timer may be stopped. Records and the pre-deployment database dump: $record" >&2
+ exit "$code"
+}
 trap failed ERR
 # Ordinary SvelteKit deployment: PostgreSQL is authoritative; no legacy writer/import.
 systemctl stop status-dunamismax-collector.timer 2>/dev/null || true
 while [[ $(systemctl show status-dunamismax-collector.service -p ActiveState --value) =~ ^(active|activating|deactivating|reloading)$ ]]; do sleep 1; done
-runuser -u postgres -- pg_dump -Fc --create status_dunamismax > "$backup/pre-postgresql.dump"
+runuser -u postgres -- pg_dump -Fc --create status_dunamismax > "$record/pre-postgresql.dump"
 set -a; source /etc/web-apps/status_dunamismax/migration.env; set +a
 # Reviewed Drizzle migrations through the owner-only runner (never schema push).
 # An existing schema without a journal is adopted only on an exact catalog match;
 # every-row digests prove adoption/no-op runs leave history untouched.
 node=/opt/node-runtime/bin/node
-"$node" "$release/build/scripts/history.js" digest > "$backup/pre-digest.json"
+"$node" "$release/build/scripts/history.js" digest > "$record/pre-digest.json"
 # The NOINHERIT migration login has no USAGE on app; probe the catalog instead.
 # A failed probe must abort (ERR trap), never fall through to adoption.
 journal=$(psql -X -At -v ON_ERROR_STOP=1 -c "SELECT EXISTS (SELECT 1 FROM pg_catalog.pg_class c JOIN pg_catalog.pg_namespace n ON n.oid=c.relnamespace WHERE n.nspname='app' AND c.relname='drizzle_migrations')")
 [[ $journal == t || $journal == f ]]
 adopt=()
 [[ $journal == t ]] || adopt=(--adopt-baseline)
-"$node" "$release/build/src/db/migrate.js" "${adopt[@]}" > "$backup/migration.log" 2>&1
-"$node" "$release/build/scripts/history.js" digest > "$backup/post-digest.json"
-if grep -q 'applied=none' "$backup/migration.log"; then cmp -s "$backup/pre-digest.json" "$backup/post-digest.json"; fi
+"$node" "$release/build/src/db/migrate.js" "${adopt[@]}" > "$record/migration.log" 2>&1
+"$node" "$release/build/scripts/history.js" digest > "$record/post-digest.json"
+if grep -q 'applied=none' "$record/migration.log"; then cmp -s "$record/pre-digest.json" "$record/post-digest.json"; fi
 unset PGPASSWORD DATABASE_URL PGUSER PGDATABASE PGHOST PGPORT
 # Each role keeps its own settings file on the host; secrets never enter the release.
 for role in web collector; do
@@ -76,7 +82,7 @@ mv -Tf "$base/current.next" "$base/current"
 systemctl enable --now status-dunamismax.service
 systemctl restart status-dunamismax.service
 install -m 0644 "$release/deploy/Caddyfile" /etc/caddy/sites/status.dunamismax.com.caddy
-runuser -u caddy -- /usr/local/lib/caddy/caddy validate --config /etc/caddy/Caddyfile > "$backup/caddy-validation.log" 2>&1
+runuser -u caddy -- /usr/local/lib/caddy/caddy validate --config /etc/caddy/Caddyfile > "$record/caddy-validation.log" 2>&1
 systemctl reload caddy
 # Any timer-triggered verification run is also notification-free.
 install -d /run/systemd/system/status-dunamismax-collector.service.d
@@ -89,5 +95,5 @@ systemctl start status-dunamismax-collector.service
 rm /run/systemd/system/status-dunamismax-collector.service.d/migration.conf
 systemctl daemon-reload
 trap - ERR
-printf '%s\n' "$backup" > /root/status-latest-rollback
-printf 'Deployed %s; rollback: %s/deploy/rollback.sh %s\n' "$commit" "$release" "$backup"
+printf '%s\n' "$record" > /root/status-latest-deploy
+printf 'Deployed %s; records: %s\n' "$commit" "$record"

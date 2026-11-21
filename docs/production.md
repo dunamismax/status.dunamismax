@@ -2,17 +2,16 @@
 
 The active service is SvelteKit 3 (adapter-node) with native PostgreSQL 18,
 Drizzle, systemd and Caddy, deployed November 20, 2026 ([BUILD.md Phase 1](../BUILD.md)).
-That cutover changed the web entry point and stylesheet path only, not the
-database, roles, collector or timers. The last Astro release (`cc3fc21`) and its
-rollback directory `/root/status-astro-rollback-20261120T134532Z` are retained,
-but the current `deploy/rollback.sh` accepts only `/root/status-rollback-*`
-directories and installs the renamed units, so a rollback that far needs the
-rehearsal still open in BUILD.md step 1.2. Deployment applies reviewed Drizzle
-migrations through the owner-only runner; `database/schema.sql` is retained for
-older releases and history tooling only.
+Deployment applies reviewed Drizzle migrations through the owner-only runner;
+`database/schema.sql` is kept for the database tests and baseline adoption only.
+
+There is no rollback tooling (owner decision, 2026-11-21): no rollback script,
+no rehearsal and no fallback release. The host's final cleanup the same day
+removed every earlier-framework, PHP and MySQL release, the retired MySQL data
+and the old rollback directories. A deployment that fails is fixed forward.
 
 Read `/home/sawyer/github/ubuntu-vm-backup/docs/web-platform.md` (host runbook) first.
-Every shared mutation, schema migration, release switch and rollback must run
+Every shared mutation, schema migration and release switch must run
 on the VM under `/usr/local/sbin/with-deploy-lock`. The wrappers acquire it or
 reuse inherited descriptor 9; never nest separate acquisitions.
 
@@ -22,9 +21,8 @@ reuse inherited descriptor 9; never nest separate acquisitions.
   immutable, with atomic `current`. Build outside the lock as sawyer.
 - Web: `status-dunamismax.service` (retained unit name), `status-dunamismax-web`,
   loopback 4313. SvelteKit releases run `dist/index.js` under `node --permission`
-  with `HOST`, `PORT` and `ORIGIN=https://status.dunamismax.com`; Astro releases ran
-  `dist/server/entry.mjs`. Each release's unit file is installed with it and backed
-  up for rollback, so a rollback restores the matching entry point.
+  with `HOST`, `PORT` and `ORIGIN=https://status.dunamismax.com`. Each release's
+  unit file is installed with it.
 - Collector: `status-dunamismax-collector.timer` → `.service`, existing
   `status-dunamismax` account, every five minutes plus up to 30s jitter, 4min cap.
 - PostgreSQL: `status_dunamismax`, owner schema `app`. Role files remain root-only
@@ -34,9 +32,6 @@ reuse inherited descriptor 9; never nest separate acquisitions.
   maximum notifications, retention and repo root), root 0600. Changes need an
   owning Node service restart or take effect on the next collector run.
 - Private collector HOME/state: `/var/lib/status-dunamismax-collector`, 0700.
-- Retired PHP/MySQL data, credentials and old releases are archival recovery
-  material under the host runbook. Never reactivate their services/collector for
-  ordinary rollback; keep the current PostgreSQL backup timer.
 
 ## Release
 
@@ -52,24 +47,30 @@ previous=$(readlink -f /srv/www/status.dunamismax.com/current)
 sudo deploy/deploy.sh "$candidate" "$previous"
 ```
 
-The deploy helper rechecks current state inside the lock, saves rollback copies,
-drains the owning collector, takes a PostgreSQL safety archive and applies reviewed
-Drizzle migrations through the owner-only runner (see Drizzle operations below),
-bracketed by every-row digests. The first PHP cutover/import is historical;
-current deployments must not reimport legacy history.
+The deploy helper rechecks current state inside the lock, opens a root-only
+record directory (`/root/status-deploy-<time>`, named in
+`/root/status-latest-deploy`), drains the owning collector, takes a PostgreSQL
+safety dump into it and applies reviewed Drizzle migrations through the
+owner-only runner (see Drizzle operations below), bracketed by every-row digests.
 It validates a separate candidate on loopback 14313, atomically switches current,
 records a notification-free snapshot, changes only this Caddy fragment, validates
 as caddy with the custom binary, reloads Caddy and tests public routes. It records
-one deployment and enables the successor timer. Failure invokes rollback inside
-the same lock. Same-commit release retries validate the retained release digest.
+one deployment and enables the successor timer. Same-commit release retries
+validate the retained release digest.
+
+A failure stops the deployment where it is: nothing is rolled back. The script
+removes only its temporary candidate unit and collector drop-in, then prints the
+live release, the release it started from and the record directory. Before the
+switch the previous release is still live; in either case the collector timer may
+be stopped. Read the error, fix the cause and deploy again, then check that
+`status-dunamismax-collector.timer` is active.
 
 `/healthz`, `/readyz`, HTML, APIs, static bytes, HEAD/405, private paths and operator
 failure are checked by `deploy/smoke.sh`. It also requires a script-free home page
-and finds the linked stylesheet: a SvelteKit `/_app/immutable/assets/*.css` (expected
-`public,max-age=31536000,immutable` from adapter-node, with no Caddy override) or a
-retained Astro release's `/assets/status.css` (Caddy's five-minute policy from that
-release's fragment), so the new smoke also validates a rollback target. An intentionally stale snapshot degrades
-readiness; never change its timestamp just to make a check green.
+and finds the linked stylesheet, `/_app/immutable/assets/*.css` (expected
+`public,max-age=31536000,immutable` from adapter-node, with no Caddy override).
+An intentionally stale snapshot degrades readiness; never change its timestamp
+just to make a check green.
 
 ## Operating commands
 
@@ -84,36 +85,8 @@ journalctl -u status-dunamismax-collector.service -n 10 --no-pager
 
 `collect` without either safety flag performs configured webhook and heartbeat delivery.
 Use the isolated tests for failure injection. The deployment wrapper holds the shared lock
-also for manual commands, preventing a manual deployment record racing history
-transfer. Toolworks uses these owning wrappers instead of legacy Rust/PHP commands.
-
-## Historical reconciliation and rollback
-
-The PHP export/reverse-migration flow in this section records the original cutover.
-After host retirement it is recovery documentation for an isolated legacy host;
-ordinary active rollback keeps PostgreSQL and uses a compatible application release.
-
-The first cutover exports all seven MySQL tables in one consistent transaction,
-including previously imported Rust history. Original IDs, every timestamp,
-metadata, JSON payload and sent/suppression rows are reconciled before activation.
-Private source files and count/digest manifests remain in the root-only rollback
-directory; never commit or publish them. A populated destination requires explicit
-`history import DIRECTORY --replace`, valid only with both writers stopped and a
-verified safety archive. Import failure rolls back the entire destination change.
-
-The latest rollback directory is recorded in `/root/status-latest-rollback`.
-Run the **new release's** `deploy/rollback.sh DIRECTORY` as root. The wrapper takes
-the shared lock and stops the owning Node collector first. For a PHP rollback it
-writes a fresh PG safety dump, streams all current PG history back to the retained
-MySQL database transactionally, exports MySQL again and verifies every row against
-PostgreSQL. Only then does it restore the old release, Caddy fragment, backup helper
-and units and resume the legacy timer. A later code rollback (SvelteKit or Astro release) keeps PG as the
-source of truth and restarts only the owning Node service/timer. No shared database
-server is stopped. No old dump is restored over later writes.
-
-If reverse reconciliation fails, keep both writers stopped and inspect the private
-archives and manifests. Do not force the old writer online or discard later rows.
-After recovery verify routes, timer state, freshness and the other shared services.
+also for manual commands, so a manual deployment record cannot race a deployment.
+Toolworks uses these owning wrappers.
 
 ## Backups and restore
 
@@ -121,8 +94,7 @@ The existing daily `status-dunamismax-backup.timer` remains. Its replacement hel
 acquires the shared lock, saves a custom-format PG dump with roles/ownership/ACLs,
 role credentials, application settings, Caddy, units and release.
 It restores PostgreSQL into a temporary private Unix-socket cluster before publishing
-the root-only archive and SHA256. Legacy archives are preserved; migration safety
-archives remain until explicitly retired. Credentials must never be published.
+the root-only archive and SHA256. Credentials must never be published.
 
 ```sh
 sudo systemctl start status-dunamismax-backup.service
@@ -132,23 +104,13 @@ sudo /home/sawyer/github/ubuntu-vm-backup/bin/restore postgres-verify
 ```
 
 The shared encrypted backup already captures this database in full, the
-`status-dunamismax*` units, both credential locations and the retained legacy
-recovery configuration.
+`status-dunamismax*` units and both credential locations.
 For an empty replacement host, restore role/config secrets first, verify the encrypted
 archive with the shared runbook, reconstruct the pinned runtime, restore roles and
 `pg_restore --create --exit-on-error` into an empty target, restore the immutable
 release/current and units, validate Caddy, then verify routes and timer freshness.
 Never use a live database as a restore-test destination.
 
-
-## Host runtime retirement
-
-After the final host cleanup, ordinary deployments and backups need PostgreSQL
-only. PHP/MySQL target IDs remain in historical tables but are not probed. Legacy
-rollback records are archival: recover them only in an isolated legacy host.
-Use a compatible retained release (SvelteKit, or Astro up to the Phase 1 cutover)
-for code rollback and retain current PG data.
-The host recovery runbook owns the preserved final full MySQL archive.
 
 ## Monitoring policy
 
@@ -296,8 +258,8 @@ web/collector logins and requires a provisioned schema `app`. When
 executes no DDL: it records `0000_baseline` only if the live structural catalog
 equals `drizzle/baseline-catalog.json` (CHECK text is compared in its dump/restore
 form, so restored databases adopt too), otherwise it prints the private differences
-and the whole deployment rolls back. `history.js digest` writes every-row counts/
-SHA256 and sequence positions before and after into the root-only rollback
+and the deployment stops. `history.js digest` writes every-row counts/
+SHA256 and sequence positions before and after into the root-only record
 directory; when no migration was applied they must be byte-identical.
 
 ```sh
@@ -323,10 +285,9 @@ current and validate/reload custom Caddy as needed. Resume exactly one collector
 verify fresh evidence and record deployment without notifications during acceptance.
 No shared PostgreSQL restart, other-site change or listener relocation is needed.
 
-Rollback keeps current PostgreSQL history using a compatible retained release.
-Verify later writes and alert state survive. If schema changes break compatibility,
-rehearse a lossless reverse adapter before activation; never restore an old dump
-over subsequent writes. Keep journals/roles private and retain recovery archives.
+There is no rollback. Keep a schema change compatible with the release that is
+live while it deploys, and never restore an old dump over subsequent writes. Keep
+journals and roles private.
 
 Nightly pg_dump, roles/ACLs/settings, encrypted off-host dual copies and isolated
 restore remain required. Update the shared ubuntu-vm-backup and Toolworks consumers
@@ -344,7 +305,7 @@ challenge, plugin or token; any binary/module adjustment belongs to the shared
 host runbook.
 
 Deployment now uses these Drizzle commands; acceptance evidence for the November 2,
-2026 adoption (production restore rehearsal, adoption, no-op redeploy, live
-rollback/roll-forward, injected failed activation and encrypted restore) is in
+2026 adoption (production restore rehearsal, adoption, no-op redeploy and
+encrypted restore) is in
 [migration evidence](migration.md). Earlier PostgreSQL migration results remain
 historical. No credentials, roles, units or timers changed during adoption.

@@ -18,17 +18,15 @@ missing or old evidence as unknown or stale, and never invents uptime.
 
 ## Status
 
-**Live, on SvelteKit since November 20, 2026.** The web layer moved from Astro 7
-to SvelteKit 3, Svelte 5 and Tailwind CSS 4 with every route, JSON field and
-header contract kept ([BUILD.md Phase 1](BUILD.md#phase-1--sveltekit-3-svelte-5-and-tailwind-css-4)).
+**Live on SvelteKit 3, Svelte 5 and Tailwind CSS 4 since November 20, 2026**
+([BUILD.md Phase 1](BUILD.md#phase-1--sveltekit-3-svelte-5-and-tailwind-css-4)).
 Drizzle ORM has owned the PostgreSQL 18 schema since November 2, 2026
 ([Phase 0](BUILD.md#phase-0--drizzle-orm-on-the-existing-postgresql-history),
 [evidence](docs/migration.md)).
 
-**Still open from the cutover:** a rollback rehearsal to the last Astro release.
-The first encrypted backup and restore drill of the SvelteKit release passed on
-November 21, 2026. **Then:** live alert delivery, once the owner approves the
-destinations.
+The encrypted backup and restore drill passed on November 21, 2026. There is no
+rollback tooling: a deployment that fails stops and is fixed forward.
+**Next:** live alert delivery, once the owner approves the destinations.
 
 ## How it works
 
@@ -173,11 +171,11 @@ status.dunamismax/
 │   ├── collector/      # Probes, command runner, alerts, writer and CLI
 │   └── db/             # Drizzle schema, catalog check and owner-only migration runner
 ├── drizzle/            # Reviewed migrations, Kit metadata and the baseline catalog
-├── database/schema.sql # Legacy schema, kept for older releases and history tools
+├── database/schema.sql # Original schema, kept for the database tests and baseline adoption
 ├── scripts/            # History digests, permission check, public probes
 ├── tests/              # Built-server tests and the disposable PostgreSQL suite
 ├── static/             # icon.svg and robots.txt
-├── deploy/             # Build, deploy, rollback, smoke, backup, units and Caddy fragment
+├── deploy/             # Build, deploy, smoke, backup, units and Caddy fragment
 └── docs/               # Architecture, production operations, migration evidence
 ```
 
@@ -213,8 +211,8 @@ schema workflow and every rule for changing this repository.
 
 - [Architecture](docs/architecture.md): process, data and access boundaries; the
   SvelteKit web layer and the Drizzle adoption.
-- [Production operations](docs/production.md): releases, deploys, rollback,
-  backups, monitoring policy and alert delivery.
+- [Production operations](docs/production.md): releases, deploys, backups,
+  monitoring policy and alert delivery.
 - [Migration evidence](docs/migration.md): acceptance results for the PostgreSQL
   migration and the Drizzle adoption.
 

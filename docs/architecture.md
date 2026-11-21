@@ -2,8 +2,8 @@
 
 The stack is SvelteKit 3 · Svelte 5 · TypeScript · Tailwind CSS 4 · PostgreSQL 18 +
 Drizzle ORM · Node (adapter-node) · Caddy. Drizzle was adopted in production on
-November 2, 2026 ([BUILD.md Phase 0](../BUILD.md)); the web layer moved from Astro
-to SvelteKit in [BUILD.md Phase 1](../BUILD.md), described below.
+November 2, 2026 ([BUILD.md Phase 0](../BUILD.md)); the SvelteKit web layer went
+live in [BUILD.md Phase 1](../BUILD.md), described below.
 
 SvelteKit's adapter-node server serves the exact routes. Pages are Svelte 5
 components rendered on the server only; JSON, health and readiness are `+server.ts`
@@ -82,9 +82,8 @@ prerendering/adapter-static remain choices for content-only sites.
   loading) is imported only by server modules. Components import only
   `src/lib/model.ts` and `src/lib/view.ts`, which are pure.
 - Svelte escapes all text and attributes; `safeUrl` still allows only absolute
-  http(s) links. At the cutover the markup matched the Astro renderer; the
-  2026-11-20 redesign then changed the HTML pages (JSON and readiness bodies are
-  unchanged).
+  http(s) links. The 2026-11-20 redesign changed the HTML pages; JSON and
+  readiness bodies are unchanged.
 - The overview groups checks by site or app using `src/lib/catalog.ts`, a pure
   list of target IDs per property that a test checks against the collector
   inventory. Daily history comes from `PostgresSource.history()`: one query
@@ -110,8 +109,8 @@ prerendering/adapter-static remain choices for content-only sites.
 
 ## Drizzle adoption (Phase 0)
 
-Phase 0 kept the then-current Astro Node standalone server; its Drizzle work is
-framework-independent and carried into Phase 1 unchanged. No container migration,
+The Drizzle work is independent of the web framework and carried into Phase 1
+unchanged. No container migration,
 native target or Python collector rewrite is needed.
 
 Implemented: `src/db/schema.ts` declares all seven history tables plus legacy
