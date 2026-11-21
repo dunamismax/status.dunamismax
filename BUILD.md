@@ -11,12 +11,12 @@ a contract: see [Format contract](#format-contract).
 
 | | |
 | --- | --- |
-| **Current phase** | [Phase 1 · SvelteKit 3, Svelte 5 and Tailwind CSS 4](#phase-1--sveltekit-3-svelte-5-and-tailwind-css-4): complete. [Phase 4](#phase-4--final-cleanup) (no rollback tooling, nothing from earlier stacks) is built and waits on its deploy. [Phase 3](#phase-3--full-inventory-site-view-and-daily-history) is complete and deployed, including 3.5 (second reconciliation) and 3.6 (a retired unit removed from the inventory) |
-| **Next step** | **4.2** deploy with the rewritten deploy script. **2.1** waits on the owner (Q-1). |
-| **In progress** | **4.2** deploy · 2026-11-21. |
+| **Current phase** | [Phase 1 · SvelteKit 3, Svelte 5 and Tailwind CSS 4](#phase-1--sveltekit-3-svelte-5-and-tailwind-css-4): complete. [Phase 4](#phase-4--final-cleanup) (no rollback tooling, nothing from earlier stacks) is complete and deployed. [Phase 3](#phase-3--full-inventory-site-view-and-daily-history) is complete and deployed, including 3.5 (second reconciliation) and 3.6 (a retired unit removed from the inventory) |
+| **Next step** | None in this repository until the owner decides on alert destinations (**2.1**, Q-1). Open with the owner: whether Lorehallow and the five repositories with uncommitted work also lose their rollback tooling (4.3). **2.1** waits on the owner (Q-1). |
+| **In progress** | None. |
 | **Blockers** | None. Phase 2 waits on owner-approved destinations. |
-| **Live site** | https://status.dunamismax.com serves release `cadc299`, deployed 2026-11-21 13:14 UTC; each run stores 96 services and 14 projects, all operational at 13:36 UTC. Root disk 68% after the final cleanup (4.1). There is no rollback tooling (D-12); a deployment's records are in the directory named by `/root/status-latest-deploy`. No alert webhook or heartbeat is configured. |
-| **`main`** | `cadc299` is deployed; the Phase 4 commit follows it and is not deployed yet. `main` pushes to GitHub and Codeberg together. |
+| **Live site** | https://status.dunamismax.com serves release `a8e9b08`, deployed 2026-11-21 13:39 UTC with the rewritten deploy script; each run stores 96 services and 14 projects, all operational at 13:51 UTC. Root disk 70% after the final cleanup (4.1). There is no rollback tooling (D-12); a deployment's records are in the directory named by `/root/status-latest-deploy`. No alert webhook or heartbeat is configured. |
+| **`main`** | `a8e9b08` (Phase 4) is deployed; this evidence commit follows it. `main` pushes to GitHub and Codeberg together. |
 | **Last updated** | 2026-11-21 |
 
 ## How to work this file
@@ -106,7 +106,7 @@ Use each default until the owner decides otherwise.
 | 1 | Web layer to SvelteKit 3, Svelte 5 and Tailwind CSS 4 | Complete 2026-11-21 |
 | 2 | Live alert delivery and heartbeat | Waiting on the owner (Q-1) |
 | 3 | Full inventory, site view and daily history | Complete and deployed 2026-11-21 |
-| 4 | Final cleanup: no rollback tooling, nothing from earlier stacks | Built 2026-11-21; deploy open |
+| 4 | Final cleanup: no rollback tooling, nothing from earlier stacks | Complete and deployed 2026-11-21 |
 
 ## Baseline · Migration to PostgreSQL
 
@@ -682,8 +682,41 @@ the stacks before SvelteKit, on the host or in the repositories.
 
 ### 4.2 Deploy with the new script
 
-- [ ] Deploy under `with-deploy-lock` with the rewritten `deploy/deploy.sh`; it
+- [x] Deploy under `with-deploy-lock` with the rewritten `deploy/deploy.sh`; it
   completes, leaves a record directory and the site stays operational.
+  Evidence (2026-11-21): `deploy/build.sh` built `a8e9b08` on the VM with 30/30
+  tests including PostgreSQL 18, and CI passed on the same commit. The rewritten
+  `deploy/deploy.sh` ran from `cadc299` between 13:39 and 13:40 UTC: candidate
+  and public smoke and the static cache checks passed with the SvelteKit-only
+  smoke script, the migration was a no-op, and the deployment was recorded. It
+  left `/root/status-deploy-20261121T133937Z` (pre-deployment dump, both
+  digests, migration and Caddy logs, the release it replaced), named by
+  `/root/status-latest-deploy`; the last old rollback directory and its pointer
+  were then deleted. No temporary unit or drop-in was left, the web unit is
+  active with 0 restarts, the collector timer is active, readiness is `ready`
+  and Caddy and PostgreSQL kept their PIDs. The scheduled runs at 13:46 and
+  13:51 UTC each stored 96 services and 14 projects, all operational, and the
+  external probe passed all twelve sites.
+
+### 4.3 Other repositories
+
+- [x] Retire rollback tooling in the owner's other clean repositories.
+  Evidence (2026-11-21, each on `main` and pushed to its remotes): the backup
+  repository lost its host rollback helper and its record of the earlier
+  stack, and its docs no longer say the MySQL data is on the host. Azeroth
+  Trail, C From The Ground Up, Grace and Footnotes, Imaging Services and
+  XrayService each lost their website rollback script; their cutover scripts
+  now record what they replace, stop on failure and print what is live.
+  XrayService also lost its old Go updater units, and the card bot's runbook
+  lost its rollback procedure. Where a repository has tests they pass
+  (Imaging Services 20, XrayService 23, Grace and Footnotes 17), and two CI
+  failures caused by these edits (a formatting check and a pinned checksum)
+  were fixed the same hour. None of those sites was redeployed: no served code
+  changed, so each one's next deploy is the first with its new cutover script.
+  Not changed: Lorehallow (its three deploy scripts and `make rollback-*`
+  targets), and the five repositories with other sessions' uncommitted work
+  (Day by Word, dunamismax.com, RiverMind Poker, Field Cadence,
+  vincentsawyer.org).
 
 ## Ideas inbox
 
@@ -692,9 +725,6 @@ changes scope, when you pick it up.
 
 - **Drizzle 1.0.** Its `pull --init` baseline would replace the runner's own
   baseline recording; see Q-2.
-- **Host records.** The host's `final-integration.md` listed an older status
-  release (`51cb1c1`) at Phase 0; check it names the current release, and fix it
-  in ubuntu-vm-backup if not.
 - **Completion markers for the newer backup jobs.** The C From The Ground Up,
   vincentsawyer.org and Day by Word jobs do not write `/var/lib/ops-success`
   markers, so after a reboot they read unknown until their next run. Adding the
@@ -710,7 +740,7 @@ changes scope, when you pick it up.
 - **Repositories in the attention panel.** The overview's attention list covers
   service checks only; a degraded repository shows only as a chip on its site
   card and on `/projects`, although it counts toward the API's `overall_state`.
-- **Root disk.** 68% (79 GB of 124 GB) since the final cleanup on 2026-11-21;
+- **Root disk.** 70% (82 GB of 124 GB) after the final cleanup on 2026-11-21;
   it warns at 80% and fails at 90%. The largest holder left is
   vincentsawyer.org's shared media in `/srv/www` (25 GB). The daily cleanup job
   removes build candidates only after 14 days, so busy deploy days fill the disk
@@ -735,8 +765,12 @@ Newest first. Keep eight.
   and MySQL releases and data, superseded deploy snapshots; root disk 68%).
   This repository lost its rollback script, MySQL history tool and every doc
   passage about rollback or legacy recovery; the 1.2 rollback rehearsal is
-  dropped. All checks pass. Next: 4.2, a deploy that proves the rewritten
-  deploy script.
+  dropped. `a8e9b08` deployed at 13:39 UTC with the rewritten deploy script and
+  every check stayed operational. The backup repository and six other clean
+  repositories lost their rollback tooling too (4.3). Not changed, and open
+  with the owner: Lorehallow and the five repositories with other sessions'
+  uncommitted work. Next: alert delivery (2.1) when the owner names
+  destinations.
 - **2026-11-21 · Backup drill (1.2).** The owner asked for the overdue drill.
   The scheduled encrypted backup at 07:41 UTC had already restored and probed
   release `fefd9ea`; `restore check` and `restore applications-verify` run by
