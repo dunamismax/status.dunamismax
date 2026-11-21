@@ -11,12 +11,12 @@ a contract: see [Format contract](#format-contract).
 
 | | |
 | --- | --- |
-| **Current phase** | [Phase 1 · SvelteKit 3, Svelte 5 and Tailwind CSS 4](#phase-1--sveltekit-3-svelte-5-and-tailwind-css-4): complete. [Phase 4](#phase-4--final-cleanup) (no rollback tooling, nothing from earlier stacks) is complete and deployed. [Phase 5](#phase-5--hsts) (an HSTS header, D-13) is complete and deployed. [Phase 6](#phase-6--host-platform-contract) (pnpm, Node 26 and fix-forward candidate deploys, D-14) is complete and deployed. [Phase 3](#phase-3--full-inventory-site-view-and-daily-history) is complete and deployed, including 3.5 (second reconciliation) and 3.6 (a retired unit removed from the inventory) |
+| **Current phase** | [Phase 1 · SvelteKit 3, Svelte 5 and Tailwind CSS 4](#phase-1--sveltekit-3-svelte-5-and-tailwind-css-4): complete. [Phase 4](#phase-4--final-cleanup) (no rollback tooling, nothing from earlier stacks) is complete and deployed. [Phase 5](#phase-5--hsts) (an HSTS header, D-13) is complete and deployed. [Phase 6](#phase-6--host-platform-contract) (pnpm, Node 26 and fix-forward candidate deploys, D-14) is complete and deployed. [Phase 3](#phase-3--full-inventory-site-view-and-daily-history) is complete and deployed, including 3.5 (second reconciliation) and 3.6 (a retired unit removed from the inventory) and 3.7 (RiverMind Poker's health check reads the contract's JSON) |
 | **Next step** | **2.1**: the owner supplies the healthchecks.io ping URL and the Discord webhook URL; then the test alert, a deliberately missed heartbeat and its recovery, and the production settings (2.2). Open with the owner: whether the four repositories with uncommitted work also lose their rollback tooling (4.3; dunamismax.com lost its own in its M.5, 2026-11-21). |
-| **In progress** | 3.7 (RiverMind Poker's health check reads the contract's JSON): committed, waiting for its deploy, 2026-11-21. |
+| **In progress** | None. |
 | **Blockers** | None. Phase 2 waits on the two destination URLs from the owner. |
-| **Live site** | https://status.dunamismax.com serves release `1a44b24` on Node 26.13.1 (`/opt/node-26`), deployed 2026-11-21 17:54 UTC with the contract deploy (2.3); `/healthz` reports that commit. It sends `Strict-Transport-Security: max-age=31536000` (D-13); each run stores 100 services and 14 projects. Releases fix forward (D-12, D-14); the deploy prints its evidence and logs `web-deploy` to the journal, and keeps a pre-migration dump in `/var/backups/status.dunamismax.com/`. No alert webhook or heartbeat is configured. |
-| **`main`** | `1a44b24` is deployed; this evidence commit follows it. `main` pushes to GitHub and Codeberg together. |
+| **Live site** | https://status.dunamismax.com serves release `f941edc` on Node 26.13.1 (`/opt/node-26`), deployed 2026-11-21 20:03 UTC with the contract deploy (3.7: RiverMind Poker's health check); `/healthz` reports that commit. It sends `Strict-Transport-Security: max-age=31536000` (D-13); each run stores 100 services and 14 projects. Releases fix forward (D-12, D-14); the deploy prints its evidence and logs `web-deploy` to the journal, and keeps a pre-migration dump in `/var/backups/status.dunamismax.com/`. No alert webhook or heartbeat is configured. |
+| **`main`** | `f941edc` is deployed; this evidence commit follows it. `main` pushes to GitHub and Codeberg together. |
 | **Last updated** | 2026-11-21 |
 
 ## How to work this file
@@ -683,8 +683,21 @@ pages stay script-free.
   URL and the states are unchanged. `pnpm run check` 0/0, `db:check` clean,
   `pnpm test` 30 passed and 2 PostgreSQL-only skipped, `tests/postgres.sh`
   32/32, build, shell and Python syntax, `git diff --check`.
-- [ ] Deploy with `deploy/build.sh` and `deploy/deploy.sh`; the next scheduled
+- [x] Deploy with `deploy/build.sh` and `deploy/deploy.sh`; the next scheduled
   run stores `rivermindpoker-com` as operational.
+  Evidence (2026-11-21): `deploy/build.sh` built `f941edc` on the VM with
+  32/32 tests including PostgreSQL 18, and CI (Verify and the external public
+  probe) passed on the same commit. `deploy/deploy.sh` finished at 20:03 UTC:
+  no migration, history digests unchanged, journal 1 of 1, route smoke passed
+  on the candidate (port 4400), on 4313 and on the public URL, static cache
+  and HSTS checks passed; `web-live` reports `releases/f941edc…` on
+  `/opt/node-v26.13.1-linux-x64/bin/node`, state `current`. The deploy's own
+  run (20:03:23 UTC) and the first scheduled run (20:08:45 UTC) stored
+  `rivermindpoker-com` as operational ("RiverMind Poker web server and
+  database health responses are OK") with every other check operational; the
+  overview reads "All monitored public endpoints are operational", with no
+  script. Caddy and PostgreSQL were not restarted; the web unit is active
+  with 0 restarts, `/healthz` reports `f941edc` and `/readyz` is ready.
 
 ## Phase 4 · Final cleanup
 
@@ -910,7 +923,10 @@ Newest first. Keep eight.
   changed: `docs/production.md` and an inventory test comment still say Day by
   Word and Field Cadence run in Docker, and the inventory has no unit check
   for `fieldcadence.service` or `daybyword-web.service`; both sites moved to
-  systemd units on 2026-11-21. Next action: deploy 3.7, then 2.1 as before.
+  systemd units on 2026-11-21. Deployed `f941edc` at 20:03 UTC; the deploy's
+  run and the next scheduled run both stored the check as operational and the
+  overview reads all operational (evidence under 3.7). Next action: 2.1 as
+  before.
 - **2026-11-21 · Alert destinations chosen (2.3).** A host review confirmed
   that nothing off the server reports an outage: no webhook, no heartbeat,
   and the GitHub-hosted probe started 121 runs in 29 days (median gap 5.8
