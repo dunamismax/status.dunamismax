@@ -15,8 +15,8 @@ a contract: see [Format contract](#format-contract).
 | **Next step** | **2.1**: the owner supplies the healthchecks.io ping URL and the Discord webhook URL; then the test alert, a deliberately missed heartbeat and its recovery, and the production settings (2.2). Open with the owner: whether the four repositories with uncommitted work also lose their rollback tooling (4.3; dunamismax.com lost its own in its M.5, 2026-11-21). |
 | **In progress** | None. |
 | **Blockers** | None. Phase 2 waits on the two destination URLs from the owner. |
-| **Live site** | https://status.dunamismax.com serves release `980d897` on Node 26.13.1 (`/opt/node-26`), deployed 2026-11-21 15:57 UTC with the contract deploy (6.1); `/healthz` reports that commit. It sends `Strict-Transport-Security: max-age=31536000` (D-13); each run stores 96 services and 14 projects. Releases fix forward (D-12, D-14); the deploy prints its evidence and logs `web-deploy` to the journal, and keeps a pre-migration dump in `/var/backups/status.dunamismax.com/`. No alert webhook or heartbeat is configured. |
-| **`main`** | `980d897` is deployed; this evidence commit follows it. `main` pushes to GitHub and Codeberg together. |
+| **Live site** | https://status.dunamismax.com serves release `1a44b24` on Node 26.13.1 (`/opt/node-26`), deployed 2026-11-21 17:54 UTC with the contract deploy (2.3); `/healthz` reports that commit. It sends `Strict-Transport-Security: max-age=31536000` (D-13); each run stores 100 services and 14 projects. Releases fix forward (D-12, D-14); the deploy prints its evidence and logs `web-deploy` to the journal, and keeps a pre-migration dump in `/var/backups/status.dunamismax.com/`. No alert webhook or heartbeat is configured. |
+| **`main`** | `1a44b24` is deployed; this evidence commit follows it. `main` pushes to GitHub and Codeberg together. |
 | **Last updated** | 2026-11-21 |
 
 ## How to work this file
@@ -477,7 +477,13 @@ into live backup, DDNS or Caddy to test delivery.
   each with its timer, on the vincentsawyer.org card.
   Evidence: inventory, catalog and the inventory test; both jobs write a
   completion marker in `/var/lib/ops-success`.
-- [ ] Deployed, and the first scheduled run stores the four new checks.
+- [x] Deployed, and the first scheduled run stores the four new checks.
+  Evidence: `1a44b24` deployed 2026-11-21 17:54 UTC with the contract deploy
+  (candidate on 4400, no migration, history digests unchanged, smoke on the
+  candidate, on 4313 and on the public site); `/healthz` reports that commit.
+  The 17:55 UTC run stored 100 services and 14 projects, with `media-backup`,
+  `media-backup-verify` and both timers operational. No destination is set, so
+  no alert or heartbeat has been sent.
 
 ## Phase 3 · Full inventory, site view and daily history
 
