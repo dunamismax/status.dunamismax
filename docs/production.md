@@ -24,8 +24,8 @@ inherited descriptor 9; never nest separate acquisitions.
   production `node_modules/`, `deploy/`, `drizzle/`), with atomic `current`.
   Build work: `/home/sawyer/web-work/status.dunamismax.com-<commit>/`.
 - Web: `status-dunamismax.service`, `status-dunamismax-web`, loopback 4313. It
-  runs `dist/index.js` under `node --permission` with `HOST`, `PORT` and
-  `ORIGIN=https://status.dunamismax.com`. Candidates take the first free port in
+  runs `dist/index.js` under `node --permission --allow-net` (reads limited to
+  the site tree) with `HOST`, `PORT` and `ORIGIN=https://status.dunamismax.com`. Candidates take the first free port in
   4400–4499.
 - Collector: `status-dunamismax-collector.timer` → `.service`, existing
   `status-dunamismax` account, every five minutes plus up to 30s jitter, 4min cap.

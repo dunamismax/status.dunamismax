@@ -799,6 +799,11 @@ configuration are left as they are (a separate task).
   files moved unchanged to `/etc/web-apps/status_dunamismax/app.env` and
   `collector-settings.env`.
 - [ ] Deploy with the new scripts; the site and the collector run on Node 26.
+  The first attempt (`9dbd2a9`, 15:51 UTC) stopped at the candidate: under
+  Node 26 `--permission` also denies the network, so the candidate could not
+  listen (`ERR_ACCESS_DENIED`). The live release was untouched, the migration
+  was a no-op and the paused collector timer was resumed by hand. Fixed forward
+  with `--allow-net` in the web unit.
   Remaining: the deployment.
 
 ## Ideas inbox

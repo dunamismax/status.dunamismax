@@ -10,7 +10,10 @@ WorkingDirectory=/srv/www/status.dunamismax.com/current
 Environment=NODE_ENV=production HOST=127.0.0.1 PORT=4313 ORIGIN=https://status.dunamismax.com
 EnvironmentFile=/etc/web-apps/status_dunamismax/web.env
 EnvironmentFile=/etc/web-apps/status_dunamismax/app.env
-ExecStart=/opt/node-26/bin/node --permission --allow-fs-read=/srv/www/status.dunamismax.com /srv/www/status.dunamismax.com/current/dist/index.js
+# Node's permission model: reads only the site tree, no writes, subprocesses or workers.
+# Since Node 25 it also restricts the network, which the server needs to listen and to
+# reach PostgreSQL; systemd's RestrictAddressFamilies and Caddy still bound it.
+ExecStart=/opt/node-26/bin/node --permission --allow-net --allow-fs-read=/srv/www/status.dunamismax.com /srv/www/status.dunamismax.com/current/dist/index.js
 Restart=on-failure
 RestartSec=3
 TimeoutStopSec=30

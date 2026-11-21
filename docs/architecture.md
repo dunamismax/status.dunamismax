@@ -26,7 +26,9 @@ Owner-created future tables do not automatically become web-readable.
 The web systemd unit uses the existing isolated nologin web account, ProtectHome,
 a read-only filesystem and Node's permission model. It receives neither collector
 credentials nor migration credentials; Node cannot spawn subprocesses or write
-files. Permission mode is defense in depth, alongside OS and database controls.
+files, and reads only the site tree. It runs with `--allow-net` because Node 25
+and later also restrict networking under `--permission`, and the server must
+listen and reach PostgreSQL. Permission mode is defense in depth, alongside OS and database controls.
 The release/build contains no environment files.
 
 The collector uses a distinct nologin user and existing read-only repository
