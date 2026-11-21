@@ -9,7 +9,8 @@ SvelteKit's adapter-node server serves the exact routes. Pages are Svelte 5
 components rendered on the server only; JSON, health and readiness are `+server.ts`
 endpoints. `src/hooks.server.ts` applies no-store, CSP, nosniff, referrer and
 permissions headers to every application response. Static files retain their Caddy
-cache policies. `/healthz` does not access the database. Error responses never
+cache policies. The Caddy fragment adds `Strict-Transport-Security:
+max-age=31536000` to every response (BUILD.md D-13). `/healthz` does not access the database. Error responses never
 include exception messages, database URLs, command output or private paths.
 Only authenticated `/operator` renders repository paths, without reading them.
 

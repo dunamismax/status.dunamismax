@@ -11,12 +11,12 @@ a contract: see [Format contract](#format-contract).
 
 | | |
 | --- | --- |
-| **Current phase** | [Phase 1 · SvelteKit 3, Svelte 5 and Tailwind CSS 4](#phase-1--sveltekit-3-svelte-5-and-tailwind-css-4): complete. [Phase 4](#phase-4--final-cleanup) (no rollback tooling, nothing from earlier stacks) is complete and deployed. [Phase 3](#phase-3--full-inventory-site-view-and-daily-history) is complete and deployed, including 3.5 (second reconciliation) and 3.6 (a retired unit removed from the inventory) |
-| **Next step** | None in this repository until the owner decides on alert destinations (**2.1**, Q-1). Open with the owner: whether Lorehallow and the five repositories with uncommitted work also lose their rollback tooling (4.3). **2.1** waits on the owner (Q-1). |
+| **Current phase** | [Phase 1 · SvelteKit 3, Svelte 5 and Tailwind CSS 4](#phase-1--sveltekit-3-svelte-5-and-tailwind-css-4): complete. [Phase 4](#phase-4--final-cleanup) (no rollback tooling, nothing from earlier stacks) is complete and deployed. [Phase 5](#phase-5--hsts) (an HSTS header, D-13) is built and not yet deployed. [Phase 3](#phase-3--full-inventory-site-view-and-daily-history) is complete and deployed, including 3.5 (second reconciliation) and 3.6 (a retired unit removed from the inventory) |
+| **Next step** | **5.1** deploy the HSTS header with `deploy/build.sh` and `deploy/deploy.sh`. After that, none in this repository until the owner decides on alert destinations (**2.1**, Q-1). Open with the owner: whether Lorehallow and the five repositories with uncommitted work also lose their rollback tooling (4.3). **2.1** waits on the owner (Q-1). |
 | **In progress** | None. |
 | **Blockers** | None. Phase 2 waits on owner-approved destinations. |
 | **Live site** | https://status.dunamismax.com serves release `a8e9b08`, deployed 2026-11-21 13:39 UTC with the rewritten deploy script; each run stores 96 services and 14 projects, all operational at 13:51 UTC. Root disk 70% after the final cleanup (4.1). There is no rollback tooling (D-12); a deployment's records are in the directory named by `/root/status-latest-deploy`. No alert webhook or heartbeat is configured. |
-| **`main`** | `a8e9b08` (Phase 4) is deployed; this evidence commit follows it. `main` pushes to GitHub and Codeberg together. |
+| **`main`** | `a8e9b08` (Phase 4) is deployed. The 5.1 commit (HSTS header and its smoke check, D-13) follows the Phase 4 evidence commit and is not deployed yet. `main` pushes to GitHub and Codeberg together. |
 | **Last updated** | 2026-11-21 |
 
 ## How to work this file
@@ -86,6 +86,7 @@ owner's approval, and record the change here.
 | D-10 | **History.** Check rows expire after 30 days by default; rollups, incidents, maintenance, deployments and alert history are kept indefinitely, with their original IDs and timestamps. Incidents and maintenance are written by the operator in SQL. |
 | D-11 | **Alert semantics.** Two matching observations within 20 minutes confirm a failure or a recovery; 60-minute repeat window; at most five deliveries per run; a delivered failure gets one confirmed recovery. Alerts are tested only against mock or loopback endpoints, or with `--dry-run` or `--no-notify`. |
 | D-12 | **No rollback, SvelteKit only** (owner, 2026-11-21). Every site on the host runs well on SvelteKit and stays on it. There are no rollbacks: no rollback script, rehearsal or retained fallback release, and a deployment that fails is fixed forward. The host's final cleanup removed every earlier-framework, PHP and MySQL release, the retired MySQL data and the old rollback directories. Do not bring any of it back. |
+| D-13 | **HSTS** (owner, 2026-11-21). The Caddy fragment sends `Strict-Transport-Security: max-age=31536000` on every response, without `includeSubDomains` or `preload`. Every other site on the host already sent that value, some with `includeSubDomains`. `deploy/smoke.sh` requires exactly one such header on the public site. |
 
 ## Open questions
 
@@ -107,6 +108,7 @@ Use each default until the owner decides otherwise.
 | 2 | Live alert delivery and heartbeat | Waiting on the owner (Q-1) |
 | 3 | Full inventory, site view and daily history | Complete and deployed 2026-11-21 |
 | 4 | Final cleanup: no rollback tooling, nothing from earlier stacks | Complete and deployed 2026-11-21 |
+| 5 | HSTS header from the Caddy fragment | Built 2026-11-21; deployment open |
 
 ## Baseline · Migration to PostgreSQL
 
@@ -718,6 +720,32 @@ the stacks before SvelteKit, on the host or in the repositories.
   (Day by Word, dunamismax.com, RiverMind Poker, Field Cadence,
   vincentsawyer.org).
 
+## Phase 5 · HSTS
+
+The owner's decision of 2026-11-21 (D-13). A review of the host found this was
+the only site on it that sent no `Strict-Transport-Security` header.
+
+### 5.1 Send an HSTS header
+
+- [x] Add the header to the Caddy fragment, with a smoke check.
+  Evidence (2026-11-21 14:00 UTC): `deploy/Caddyfile` sets
+  `Strict-Transport-Security "max-age=31536000"` in its existing header block,
+  so it applies to every response; nothing else in the fragment changed.
+  `deploy/smoke.sh` now requires exactly one such header on `/`,
+  `/api/status.json` and `/robots.txt` when it runs against the public site.
+  Caddy 2.11.9 adapts the fragment with the header in the same deferred handler
+  as the other three. Run against the live site before deployment, the new
+  smoke passed its route and cache checks and failed only the HSTS assertion,
+  as expected; the same assertion passed against another site on the host that
+  already sends the value. Checks on macOS with Node 24.22.3: `npm run check`
+  0/0, `db:check` clean, `npm test` 28 passed and 2 PostgreSQL-only skipped,
+  `tests/postgres.sh` 30/30 on Homebrew PostgreSQL 18, build, shell and Python
+  syntax, `git diff --check`, `npm audit` clean.
+- [ ] Deploy under `with-deploy-lock` with `deploy/build.sh` and
+  `deploy/deploy.sh`; the public site sends the header once and every other
+  header is unchanged.
+  Remaining: the deployment itself, which needs this commit first.
+
 ## Ideas inbox
 
 Not planned or counted. Triage an idea into a phase, with the owner where it
@@ -734,9 +762,6 @@ changes scope, when you pick it up.
   2026-11-20, six to nine hours apart, all passing. `http3-probe.yml` is manual
   only and last ran 2026-10-23. If an outside view within minutes matters, it
   needs a second scheduler, which is an owner decision (it may need an account).
-- **HSTS.** The Caddy fragment sends no `Strict-Transport-Security` header.
-  Headers are a contract, so adding one is the owner's call; check what the
-  other sites on the host send first.
 - **Repositories in the attention panel.** The overview's attention list covers
   service checks only; a degraded repository shows only as a chip on its site
   card and on `/projects`, although it counts toward the API's `overall_state`.
@@ -759,6 +784,12 @@ changes scope, when you pick it up.
 
 Newest first. Keep eight.
 
+- **2026-11-21 · HSTS (5.1).** The owner approved the header after a host
+  review found this the only site without one (D-13, moved out of the ideas
+  inbox into Phase 5). The Caddy fragment now sets
+  `Strict-Transport-Security: max-age=31536000` and the public smoke requires
+  it. All checks pass, including PostgreSQL locally. Not deployed. Next: the
+  5.1 deployment.
 - **2026-11-21 · Final cleanup (Phase 4).** Owner decision D-12: no rollbacks,
   SvelteKit only, and nothing kept from earlier stacks. With the owner's
   confirmation, 81 old paths were deleted on the host (earlier-framework, PHP
@@ -811,9 +842,3 @@ Newest first. Keep eight.
 - **2026-11-21 · Phase 3 deployed.** `35c43d1` deployed at 01:33 UTC with the
   owner's go-ahead; smoke passed and the first scheduled run stored 85 services
   and 13 projects. Next: the 1.2 backup drill after 07:35 UTC.
-- **2026-11-21 · Phase 3 built.** Owner request: monitor everything self-hosted
-  and improve the site. Host inventory reconciled (7 HTTP checks, 4 units, 4 jobs
-  with timers, 7 repositories added), the sites and apps view, 90-day daily
-  history from rollups and the redesign; all checks pass locally and the
-  PostgreSQL suite passes on the VM. Not deployed. Next: 3.3 with the owner's
-  go-ahead, then the 1.2 backup drill.

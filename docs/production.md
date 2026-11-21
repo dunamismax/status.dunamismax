@@ -69,6 +69,9 @@ be stopped. Read the error, fix the cause and deploy again, then check that
 failure are checked by `deploy/smoke.sh`. It also requires a script-free home page
 and finds the linked stylesheet, `/_app/immutable/assets/*.css` (expected
 `public,max-age=31536000,immutable` from adapter-node, with no Caddy override).
+Against the public site it also requires exactly one
+`Strict-Transport-Security: max-age=31536000` header, which the Caddy fragment
+sends (BUILD.md D-13).
 An intentionally stale snapshot degrades readiness; never change its timestamp
 just to make a check green.
 

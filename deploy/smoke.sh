@@ -27,5 +27,11 @@ for path,expected in [(sys.argv[2],'public,max-age=31536000,immutable'),('/robot
  with urllib.request.urlopen(req,timeout=10) as response:
   assert response.headers.get_all('Cache-Control') == [expected], 'Static cache policy mismatch'
 print('Static cache policies passed without duplicate upstream headers.')
+# The Caddy fragment sends HSTS once, on every response (BUILD.md D-13).
+for path in ['/','/api/status.json','/robots.txt']:
+ req=urllib.request.Request(sys.argv[1]+path,method='HEAD')
+ with urllib.request.urlopen(req,timeout=10) as response:
+  assert response.headers.get_all('Strict-Transport-Security') == ['max-age=31536000'], 'HSTS policy mismatch'
+print('HSTS policy passed.')
 HEADERS
 fi
