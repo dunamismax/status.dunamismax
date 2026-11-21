@@ -12,8 +12,9 @@ EnvironmentFile=/etc/web-apps/status_dunamismax/web.env
 EnvironmentFile=/etc/web-apps/status_dunamismax/app.env
 # Node's permission model: reads only the site tree, no writes, subprocesses or workers.
 # Since Node 25 it also restricts the network, which the server needs to listen and to
-# reach PostgreSQL; systemd's RestrictAddressFamilies and Caddy still bound it.
-ExecStart=/opt/node-26/bin/node --permission --allow-net --allow-fs-read=/srv/www/status.dunamismax.com /srv/www/status.dunamismax.com/current/dist/index.js
+# reach PostgreSQL; systemd's RestrictAddressFamilies and Caddy still bound it. Node 26
+# marks --allow-net experimental and would log that on every start.
+ExecStart=/opt/node-26/bin/node --permission --allow-net --disable-warning=ExperimentalWarning --allow-fs-read=/srv/www/status.dunamismax.com /srv/www/status.dunamismax.com/current/dist/index.js
 Restart=on-failure
 RestartSec=3
 TimeoutStopSec=30
