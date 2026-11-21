@@ -89,6 +89,7 @@ src/lib/components/      Svelte 5 components (import only model.ts and view.ts)
 src/lib/view.ts          pure view helpers
 src/lib/model.ts         read-model types and rollup logic (pure)
 src/lib/{web,source,db,config}.ts  server-only: routes, read-only source, pool, settings
+src/lib/catalog.ts       pure site and app catalog: target IDs per property (tested against the inventory)
 src/app.css              Tailwind entry: @theme tokens, component rules
 src/collector/           inventory, command runner, probes, HTTP evidence, alerts, writer, CLI
 src/db/                  Drizzle schema, catalog check, owner-only migration runner
@@ -143,8 +144,11 @@ it.
   binary, and `permission=unknown` when access is denied.
 - **Repositories are read-only.** Never fetch, pull, clean or reset a monitored
   repository. Raw outputs are never persisted.
-- **Inventory changes** go in `src/collector/inventory.ts` with a test, and in
-  README's "What it watches" and the monitoring policy in `docs/production.md`.
+- **Inventory changes** go in `src/collector/inventory.ts` with a test, in
+  `src/lib/catalog.ts` when the check belongs to a site or app, and in README's
+  "What it watches" and the monitoring policy in `docs/production.md`. Reconcile
+  against the host (running units, timers, Caddy sites, containers, listening
+  ports and `~/github`) rather than memory.
 - **Alerts** are tested only with mock or loopback endpoints, or with
   `--dry-run` or `--no-notify`. Never send to a destination the owner has not
   approved.

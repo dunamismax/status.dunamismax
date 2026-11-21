@@ -5,11 +5,15 @@
   import { displayTime } from '#lib/model.js';
   import { nav, pageTitle, siteTitle } from '#lib/view.js';
   let { children }: { children: Snippet } = $props();
+  // Pages ship no JavaScript, so live pages reload themselves once per collector interval.
   const notice = $derived(page.data.notice ?? null);
   const title = $derived(page.error ? (page.status === 404 ? 'Not found' : 'Unavailable') : (page.data.title ?? siteTitle));
 </script>
 
-<svelte:head><title>{pageTitle(title)}</title></svelte:head>
+<svelte:head>
+  <title>{pageTitle(title)}</title>
+  {#if page.data.refresh && !page.error}<meta http-equiv="refresh" content="300">{/if}
+</svelte:head>
 
 <a class="skip" href="#main">Skip to status</a>
 <header class="site-header">
@@ -37,5 +41,8 @@
   {@render children()}
 </main>
 <footer class="site-footer">
-  <div class="site-footer-inner"><span>status.dunamismax.com</span><a href="/api/status.json">JSON</a></div>
+  <div class="site-footer-inner">
+    <p>Checked every five minutes by a read-only collector. Times are EST (UTC&minus;05:00). Unknown means no current evidence, never assumed healthy.</p>
+    <p class="footer-links"><a href="/api/status.json">Status JSON</a><a href="/api/incidents.json">Incidents JSON</a><a href="/readyz">Readiness</a></p>
+  </div>
 </footer>

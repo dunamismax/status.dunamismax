@@ -9,6 +9,7 @@ import { config } from '../src/lib/config.js';
 import { snapshot } from '../src/lib/model.js';
 import { recordSnapshot,recordDeployment,sendAlerts,prune } from '../src/collector/writer.js';
 import { PostgresSource } from '../src/lib/source.js';
+import { estDay, type DailyCount } from '../src/lib/model.js';
 import { service as fixtureService } from './fixtures.js';
 import { drizzle } from 'drizzle-orm/node-postgres';
 import { desc } from 'drizzle-orm';
@@ -37,6 +38,11 @@ test('isolated PostgreSQL: schema, privileges, transactions, history, alert supp
   pending=snapshot([service('down','hysteresis')]);await recordSnapshot(db,pending);assert.equal(await sendAlerts(db,pending,confirming,sink),1);
   pending=snapshot([service('operational','hysteresis')]);await recordSnapshot(db,pending);assert.equal(await sendAlerts(db,pending,confirming,sink),0);
   pending=snapshot([service('operational','hysteresis')]);await recordSnapshot(db,pending);assert.equal(await sendAlerts(db,pending,confirming,sink),1);
+  // Daily history: the web role aggregates rollups by EST day; completed days come from the cache.
+  const byDay=(rows:DailyCount[],id:string)=>Object.fromEntries(rows.filter(r=>r.target_id===id).map(r=>[r.day+':'+r.state,r.samples]));
+  const today=estDay(Date.now()),expected={[today+':down']:2,[today+':operational']:2};
+  for(const at of [Date.now(),Date.now()+86400000,Date.now()+86400000])assert.deepEqual(byDay(await read.history(90,at),'hysteresis'),expected);
+  assert.deepEqual(await read.history(90,Date.now()+200*86400000),[]);
   const rollupsBefore=(await db.query('SELECT count(*) FROM app.rollups')).rows[0].count;
   await db.query("UPDATE app.check_runs SET checked_at=now()-interval '60 days'");assert.ok((await prune(db,30))!>0);assert.equal((await db.query('SELECT count(*) FROM app.rollups')).rows[0].count,rollupsBefore);
   await admin.query(`INSERT INTO app.incidents(title,state,started_at,public_notes) VALUES('Incident é','investigating','2026-01-01T00:00:00.123456Z','line 1'||chr(10)||'line 2'); INSERT INTO app.maintenance_windows(title,state,starts_at,ends_at,affected_targets) VALUES('Window','scheduled',now(),now()+interval '1 day','["test"]');`);

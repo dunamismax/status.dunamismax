@@ -70,8 +70,8 @@ systemd timer (5 min) ──▶ TypeScript collector ──▶ bounded probes
 
 | Route | Contract |
 | --- | --- |
-| `/` | Public HTTP availability, backup and maintenance health, infrastructure, and check details |
-| `/services` | Every service check and its evidence timestamp |
+| `/` | Public HTTP availability, backup and maintenance health, infrastructure, what needs attention, every site and app with its related checks and a 90-day daily history bar, and a 90-day bar per check category |
+| `/services` | Every service check by category, with its evidence timestamp, the category's 90-day bar and each check's 90-day operational share |
 | `/projects` | Branch, upstream, ahead/behind, dirty state, commit age and BUILD.md progress |
 | `/incidents` | Incidents and recent or upcoming maintenance |
 | `/deployments` | The latest 50 deployment records |
@@ -94,20 +94,28 @@ show times in fixed UTC-05:00 (EST); the APIs use UTC.
 The reviewed inventory is [`src/collector/inventory.ts`](src/collector/inventory.ts).
 It covers:
 
-- **Public HTTPS:** each site, the Azeroth Trail tracker and its freshness,
-  Lorehallow's website and game-server health, and the XrayService Windows
-  installer (a two-byte range request that checks the executable signature).
-- **Host services:** the application services, PostgreSQL, Caddy (including
-  parse and reload evidence), Docker, access services, DDNS recency, RustDesk's
-  three TCP listeners (connect only) and every maintenance and backup job with
-  its timer.
+- **Public HTTPS:** every site on the host: dunamismax.com, Azeroth Trail (and
+  its tracker's freshness), Lorehallow (website and game-server health), RiverMind
+  Poker (web server health and the table server's public config), C From The
+  Ground Up (health with its database, and its Umami analytics script), Day by
+  Word, vincentsawyer.org, Grace and Footnotes, XrayService (site, email assets
+  and the Windows installer, a two-byte range request that checks the executable
+  signature), the Imaging Services demo and this status page.
+- **Host services:** every application unit (including both Lorehallow units,
+  both RiverMind Poker units and Umami), PostgreSQL, Caddy (including parse and
+  reload evidence), Docker, access services, DDNS recency, RustDesk's three TCP
+  listeners (connect only) and every maintenance, backup and restore-check job
+  with its timer. Day by Word runs in Docker, which the collector cannot see by
+  design, so it is covered by its public check and its backup jobs.
 - **Host health:** root disk, available memory and memory pressure, certificate
   expiry and the size of the backup Git store.
-- **Repositories:** the six active application checkouts, read-only: branch,
-  upstream, dirty state, commit age and BUILD.md progress. Quiet repositories
-  stay healthy.
+- **Repositories:** the thirteen checkouts behind running sites, apps and backups,
+  read-only: branch, upstream, dirty state, commit age and BUILD.md progress.
+  Quiet repositories stay healthy.
 
-Backup jobs count as fresh only from a recorded successful completion, never
+Which checks belong to which site or app is the presentation catalog in
+[`src/lib/catalog.ts`](src/lib/catalog.ts); a test keeps it in step with the
+inventory. Backup jobs count as fresh only from a recorded successful completion, never
 from an enabled timer. Thresholds and windows are listed in
 [production operations](docs/production.md#monitoring-policy).
 
@@ -122,6 +130,13 @@ window and at most five deliveries per run. A failed delivery fails the run and
 is retried later. An optional heartbeat to an off-site dead-man receiver follows
 each successful run. No delivery destination is configured yet
 ([setup and tests](docs/production.md#offsite-alerts-and-heartbeat)).
+
+The daily history bars come from the stored rollups: each cell is one EST day,
+colored by the worst state any check recorded that day, and empty when nothing
+was recorded. The percentage is the share of recorded checks that were
+operational, rounded down, so a missed collector run is never counted as uptime.
+Pages reload themselves every five minutes with a meta refresh, still without
+any JavaScript.
 
 ## Technology
 
@@ -145,7 +160,7 @@ status.dunamismax/
 ├── src/
 │   ├── hooks.server.ts # Method gate, operator bearer check, response headers
 │   ├── routes/         # Pages (+page.server.ts loads) and endpoints (+server.ts)
-│   ├── lib/            # Read models, view helpers, config and the read-only source
+│   ├── lib/            # Read models, view helpers, site catalog, config and the read-only source
 │   │   └── components/ # Svelte 5 components
 │   ├── app.css         # Tailwind CSS 4 entry: tokens and component rules
 │   ├── collector/      # Probes, command runner, alerts, writer and CLI

@@ -32,5 +32,13 @@ export function timestamp(raw: string): string {
   const fraction=Number(micro)===0?'':Number(micro)%1000===0?'.'+micro.slice(0,3):'.'+micro;
   return iso+fraction+'Z';
 }
+/** Recorded samples of one target in one state on one EST (UTC-05:00) calendar day, from stored rollups. */
+export interface DailyCount { day: string; target_id: string; state: State; samples: number }
+/** The EST calendar day (YYYY-MM-DD) containing an instant. */
+export const estDay = (ms: number): string => new Date(ms - 5*3600000).toISOString().slice(0, 10);
+/** Calendar arithmetic on YYYY-MM-DD strings. */
+export const addDays = (day: string, n: number): string => new Date(Date.parse(day + 'T00:00:00Z') + n*86400000).toISOString().slice(0, 10);
+/** The UTC instant at which an EST calendar day starts. */
+export const estDayStart = (day: string): string => new Date(Date.parse(day + 'T05:00:00Z')).toISOString();
 export const displayTime = (s: string) => new Date(Date.parse(s)-5*3600000).toISOString().slice(0,19).replace('T',' ')+' EST';
 export type Freshness = ReturnType<typeof freshness>;

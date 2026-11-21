@@ -11,13 +11,13 @@ a contract: see [Format contract](#format-contract).
 
 | | |
 | --- | --- |
-| **Current phase** | [Phase 1 · SvelteKit 3, Svelte 5 and Tailwind CSS 4](#phase-1--sveltekit-3-svelte-5-and-tailwind-css-4): deployed, two acceptance steps open |
-| **Next step** | **1.2** encrypted backup and restore drill of the SvelteKit release, due with the scheduled ubuntu-vm-backup run on 2026-11-21 07:35 UTC; then **1.2** rollback rehearsal to the last Astro release and roll forward. After Phase 1, **2.1** waits on the owner (Q-1). |
+| **Current phase** | [Phase 3 · Full inventory, site view and daily history](#phase-3--full-inventory-site-view-and-daily-history): built and verified, not deployed. [Phase 1](#phase-1--sveltekit-3-svelte-5-and-tailwind-css-4) still has two acceptance steps open |
+| **Next step** | **3.3** deploy the Phase 3 release (owner's go-ahead) and confirm the first scheduled run. Then **1.2** encrypted backup and restore drill, due with the scheduled ubuntu-vm-backup run on 2026-11-21 07:35 UTC, and **1.2** rollback rehearsal. **2.1** waits on the owner (Q-1). |
 | **In progress** | None. |
 | **Blockers** | None. The drill waits on its schedule; Phase 2 waits on owner-approved destinations. |
-| **Live site** | https://status.dunamismax.com serves SvelteKit release `8c72b37`, deployed 2026-11-20 13:45 UTC over Astro `cc3fc21` (rollback directory `/root/status-astro-rollback-20261120T134532Z`). The first scheduled collector run after it stored 56 services and 6 projects with no alerts. No alert webhook or heartbeat is configured. |
-| **`main`** | `2d7199b` recorded the cutover. `1da4095` then moved the host names off `astro-` (units, `/opt/node-runtime`, `/etc/web-apps`, settings files, candidate and rollback directories, the `web-platform.md` runbook) and added five application units to the inventory; this file does not record whether it is deployed, so check `current` on the VM before relying on either. `main` pushes to GitHub and Codeberg together. |
-| **Last updated** | 2026-11-20 |
+| **Live site** | https://status.dunamismax.com serves release `1da4095` (checked 2026-11-21 01:10 UTC: `current` points at it), which stores 61 services and 6 projects per run. The SvelteKit cutover was `8c72b37` at 2026-11-20 13:45 UTC over Astro `cc3fc21` (rollback directory `/root/status-astro-rollback-20261120T134532Z`). Root disk was at 81% (degraded) at the same check. No alert webhook or heartbeat is configured. |
+| **`main`** | Phase 3 (inventory reconciliation, the sites view, daily history bars and the redesign) is committed on `main` and not yet deployed. `main` pushes to GitHub and Codeberg together. |
+| **Last updated** | 2026-11-21 |
 
 ## How to work this file
 
@@ -104,6 +104,7 @@ Use each default until the owner decides otherwise.
 | 0 | Drizzle ORM adopts the existing PostgreSQL history | Complete 2026-11-02 |
 | 1 | Web layer to SvelteKit 3, Svelte 5 and Tailwind CSS 4 | Deployed 2026-11-20; two acceptance steps open |
 | 2 | Live alert delivery and heartbeat | Waiting on the owner (Q-1) |
+| 3 | Full inventory, site view and daily history | Built and verified 2026-11-21; deployment open |
 
 ## Baseline · PHP and MySQL to Astro and PostgreSQL
 
@@ -446,6 +447,63 @@ into live backup, DDNS or Caddy to test delivery.
 - [ ] README, `docs/production.md` and **Now** no longer say delivery is
   unconfigured, and record which variables are set (never their values).
 
+## Phase 3 · Full inventory, site view and daily history
+
+The owner asked (2026-11-20) for every self-hosted project and site on the host
+to be monitored and for the status site's design and usefulness to improve.
+Contracts from 0.1 stay: no route, JSON field, state, header or grant changes;
+pages stay script-free.
+
+### 3.1 Inventory reconciliation
+
+- [x] Inventory the host read-only (running and enabled units, timers, sockets,
+  Caddy sites, containers, listening ports, `~/github` checkouts and their
+  collector access) and add everything missing to the collector, with tests.
+  Evidence (2026-11-21, read-only over SSH as root): added HTTP checks for
+  cfromthegroundup.com (`/healthz` with its database), its Umami script,
+  daybyword.com, rivermindpoker.com (`/healthz` and the table server's
+  `/api/config`), vincentsawyer.org and data.xrayservice.net, which also adds
+  five certificate checks; units `lorehallow-web`, `lorehallow-server`,
+  `rivermind-poker-web` and `umami`; jobs and timers `cfromthegroundup-backup`,
+  `vincentsawyer-backup`, `daybyword-backup` (26 h) and the monthly
+  `daybyword-restore-check` (32 days); and seven repositories (azerothtrail,
+  lorehallow, c-from-the-ground-up, daybyword, rivermind-poker, vincentsawyer.org,
+  ubuntu-vm-backup), all already readable through the existing default ACL, so no
+  ACL changed. Day by Word's Docker containers stay outside the collector's reach
+  by design. Not added: `fieldcadence` (no running service) and the
+  `dunamismax` profile repository (nothing self-hosted). A test checks every
+  catalogued ID against the inventory and that service and project IDs are unique.
+
+### 3.2 Site view and daily history
+
+- [x] Present each site or app with its related checks, and add daily history
+  from stored rollups without new tables, grants or contract changes.
+  Evidence: `src/lib/catalog.ts` maps 13 sites and apps to their checks and
+  repositories; `PostgresSource.history()` counts samples per EST day, target and
+  state from `rollups` (0.8 s for 90 days of production data, run once per day per
+  process; each request then reads only the current day). A history failure shows
+  "unavailable" and never fails a page (tested). The PostgreSQL suite asserts the
+  web role's aggregation and the completed-day cache.
+- [x] Redesign the pages: overview headline with a state tally and scope, a full
+  width attention panel, site and app cards with a 90-day bar, related-check chips
+  and repository state, a 90-day bar per category; services grouped by category
+  with jump links, a bar per category and a 90-day column; projects with a BUILD
+  progress bar. Five-minute meta refresh on live pages, sticky header on wide
+  screens, 30-day bars on phones. Still no JavaScript, inline style or fonts.
+  Evidence: on macOS with Node 24.22.3, `npm run check` 0/0, `db:check` clean,
+  `npm test` 25 passed and 2 PostgreSQL-only skipped, build, shell and Python
+  syntax, `git diff --check`, `npm audit` clean; on the VM, `bash
+  tests/postgres.sh` 27/27 in a scratch copy as sawyer. Previewed with the live
+  snapshot, fresh public probes and real history at 1280 px dark and 375 px
+  light, with no horizontal page scroll.
+
+### 3.3 Production rollout
+
+- [ ] Deploy under `with-deploy-lock` with `deploy/build.sh` and
+  `deploy/deploy.sh` (candidate smoke, atomic switch, Caddy validation, public
+  smoke, `--no-notify` run, recorded deployment). The first scheduled run stores
+  85 services and 13 projects; the public overview renders the history bars.
+
 ## Ideas inbox
 
 Not planned or counted. Triage an idea into a phase, with the owner where it
@@ -456,12 +514,23 @@ changes scope, when you pick it up.
 - **Host records.** The host's `final-integration.md` listed an older status
   release (`51cb1c1`) at Phase 0; check it names the current release, and fix it
   in ubuntu-vm-backup if not.
+- **Completion markers for the newer backup jobs.** The C From The Ground Up,
+  vincentsawyer.org and Day by Word jobs do not write `/var/lib/ops-success`
+  markers, so after a reboot they read unknown until their next run. Adding the
+  `ExecStartPost` marker is host work in ubuntu-vm-backup.
 - **External probe evidence.** GitHub schedules are best effort. Check that
   `external-probe.yml` and `http3-probe.yml` actually run, and note gaps here.
 
 ## Handoff log
 
 Newest first. Keep eight.
+
+- **2026-11-21 · Phase 3 built.** Owner request: monitor everything self-hosted
+  and improve the site. Host inventory reconciled (7 HTTP checks, 4 units, 4 jobs
+  with timers, 7 repositories added), the sites and apps view, 90-day daily
+  history from rollups and the redesign; all checks pass locally and the
+  PostgreSQL suite passes on the VM. Not deployed. Next: 3.3 with the owner's
+  go-ahead, then the 1.2 backup drill.
 
 - **2026-11-20 · Documentation.** README, BUILD.md and AGENTS.md rewritten around
   the live SvelteKit service: BUILD.md gained **Now**, the format contract,

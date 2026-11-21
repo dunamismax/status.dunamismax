@@ -82,10 +82,22 @@ prerendering/adapter-static remain choices for content-only sites.
   loading) is imported only by server modules. Components import only
   `src/lib/model.ts` and `src/lib/view.ts`, which are pure.
 - Svelte escapes all text and attributes; `safeUrl` still allows only absolute
-  http(s) links. Markup and class names match the previous renderer: on the same
-  data, rendered pages differ from the Astro release only in the stylesheet URL,
-  inter-element whitespace and `>` left literal inside escaped text (`<` and `&` are
-  still escaped); JSON and readiness bodies are byte-identical.
+  http(s) links. At the cutover the markup matched the Astro renderer; the
+  2026-11-20 redesign then changed the HTML pages (JSON and readiness bodies are
+  unchanged).
+- The overview groups checks by site or app using `src/lib/catalog.ts`, a pure
+  list of target IDs per property that a test checks against the collector
+  inventory. Daily history comes from `PostgresSource.history()`: one query
+  expands each rollup's `services` array and counts samples per EST day, target
+  and state, over the four-model web grant (no new table or grant). Completed days
+  are cached in the web process until the EST day or window changes, so each
+  request aggregates only the current day. A history failure renders "unavailable"
+  in place of the bars and never fails the page. Bars are `<ol>` cells colored by
+  class with a `title` per day, hidden from assistive technology behind a text
+  summary; narrow screens show the last 30 cells with CSS only.
+- Snapshot-backed pages (`/`, `/services`, `/projects`) carry
+  `<meta http-equiv="refresh" content="300">`, which keeps them current without
+  JavaScript.
 - Tailwind CSS 4 (`@tailwindcss/vite`) compiles `src/app.css`. The palette, shadow
   and fonts are `@theme` tokens (`--color-*` reset first, so utilities use only this
   palette, e.g. `bg-panel text-muted border-line`); light-mode overrides and the

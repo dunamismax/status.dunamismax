@@ -8,7 +8,11 @@ import { handle } from './web.js';
 import type { Source } from '../src/lib/source.js';
 import { command } from '../src/collector/command.js';
 import { evaluateMemory,evaluateCertificate,evaluateHttp,evaluateUnit,evaluateCaddy,evaluateDdns,evaluateDisk,evaluateGit,buildProgress,httpProbe,parseFacts,evaluateBackupSize } from '../src/collector/probes.js';
-import { httpTargets } from '../src/collector/inventory.js';
+import { httpTargets, units, projects } from '../src/collector/inventory.js';
+import { cfromthegroundupHealth, plainOk } from '../src/collector/http-evidence.js';
+import { properties } from '../src/lib/catalog.js';
+import { indexHistory, track, percent, sites, segments, anchor, buildNext } from '../src/lib/view.js';
+import { estDay, addDays, type DailyCount } from '../src/lib/model.js';
 import { alerts, notify, heartbeat, testAlert } from '../src/collector/alerts.js';
 import { deployment } from '../src/collector/cli.js';
 import { canonical,normalize } from '../scripts/history.js';
@@ -16,14 +20,14 @@ import { createServer } from 'node:http';
 const now=Date.parse('2026-10-22T10:00:00Z');
 import { service } from './fixtures.js';
 const stored=snapshot([service()]);
-const source:Source={latest:async()=>stored,ping:async()=>{},incidents:async()=>[],maintenance:async()=>[],deployments:async()=>[]};
+const source:Source={latest:async()=>stored,ping:async()=>{},incidents:async()=>[],maintenance:async()=>[],deployments:async()=>[],history:async()=>[]};
 const c=config({});
 const request=(path:string,options:RequestInit={})=>new Request('https://status.test'+path,options);
 test('legacy Rust snapshot canonical public shape',async()=>{const fixture=JSON.parse(await readFile('tests/fixtures/rust-status.json','utf8')) as Snapshot;const canonicalSnapshot=snapshot(fixture.services,fixture.projects,fixture.checked_at);const r=await handle(request('/api/status.json'),{...source,latest:async()=>canonicalSnapshot},c,now);assert.deepEqual(await r.json(),JSON.parse(await readFile('tests/fixtures/legacy-api-status.json','utf8')));assert.equal(Object.keys(canonicalSnapshot).join(','),'overall_state,checked_at,summary,services,projects');});
 test('rollup severity, services-only counts and freshness boundary',()=>{assert.equal(worst([]),'unknown');assert.equal(worst(['maintenance','unknown','degraded','down']),'down');assert.equal(freshness(stored,15,now+899999).stale,false);assert.equal(freshness(stored,15,now+900000).stale,true);assert.equal(freshness(null,15,now).dependency,'collector-snapshot-missing');assert.equal(timestamp('2026-10-22 10:00:00.123456+00'),'2026-10-22T10:00:00.123456Z');assert.throws(()=>timestamp('tomorrow'));});
 test('all routes, methods, HEAD, missing and stale snapshots',async()=>{for(const path of ['/','/services','/projects','/incidents','/deployments','/healthz','/readyz','/api/status.json','/api/incidents.json']){assert.equal((await handle(request(path),source,c,now)).status,200);const head=await handle(request(path,{method:'HEAD'}),source,c,now);assert.equal(await head.text(),'');assert.equal((await handle(request(path,{method:'POST'}),source,c,now)).status,405);}assert.equal((await handle(request('/secret'),source,c,now)).status,404);for(const path of ['/','/services','/projects'])assert.match(await (await handle(request(path),source,c,now+900000)).text(),/Stale data/);assert.equal((await readiness({...source,latest:async()=>null},c,now)).status,'degraded');});
 test('database failure is redacted, health does not query; operator denies before data access',async()=>{const bad:Source={...source,latest:async()=>{throw new Error('/private/path password=SECRET');},ping:async()=>{throw new Error('secret');}};assert.equal(await (await handle(request('/healthz'),bad,c,now)).text(),'ok\n');for(const path of ['/','/services','/api/status.json']){const r=await handle(request(path),bad,c,now);assert.equal(r.status,503);assert.doesNotMatch(await r.text(),/SECRET|private\/path|password/);}assert.equal((await readiness(bad,c,now)).database,'unavailable');assert.equal((await handle(request('/operator'),bad,c,now)).status,404);const enabled=config({STATUS_OPERATOR_TOKEN:'a'.repeat(32)});assert.equal((await handle(request('/operator'),bad,enabled,now)).status,401);assert.equal((await handle(request('/operator',{headers:{Authorization:'Bearer '+'a'.repeat(32)}}),source,enabled,now)).status,200);});
-test('XSS notes and names are escaped, no browser scripts',async()=>{const injected=snapshot([{...service(),target:{...service().target,name:'<script>alert(1)</script>',public_url:'javascript:alert(1)'}}]);const text=await (await handle(request('/'),{...source,latest:async()=>injected},c,now)).text();assert.doesNotMatch(text,/<script|javascript:/);assert.match(text,/&lt;script>alert\(1\)&lt;\/script>/);});
+test('XSS notes and names are escaped, no browser scripts',async()=>{const injected=snapshot([{...service(),target:{...service().target,name:'<script>alert(1)</script>',group:'<b>group</b>',public_url:'javascript:alert(1)'}}]);for(const path of ['/','/services']){const text=await (await handle(request(path),{...source,latest:async()=>injected},c,now)).text();assert.doesNotMatch(text,/<script|<b>|javascript:/);assert.match(text,/&lt;b>group&lt;\/b>/);if(path==='/services')assert.match(text,/&lt;script>alert\(1\)&lt;\/script>/);}});
 test('shell-free runner bounds time/output and excludes inherited secrets',async()=>{process.env.STATUS_TEST_SECRET='MUST_NOT_ESCAPE';const secret=await command(process.execPath,['-e','process.stdout.write(process.env.STATUS_TEST_SECRET || "absent")']);assert.equal(secret.stdout,'absent');const literal=await command('/usr/bin/printf',['%s','$(touch /tmp/status-should-not-exist); `false`']);assert.equal(literal.stdout,'$(touch /tmp/status-should-not-exist); `false`');const timed=await command(process.execPath,['-e','setInterval(()=>{},1000)'],{timeoutMs:40});assert.equal(timed.timedOut,true);assert.ok(timed.durationMs<2000);const bounded=await command(process.execPath,['-e','process.stdout.write("a".repeat(30000))'],{maxBytes:100});assert.equal(bounded.stdout.length,100);assert.equal(bounded.truncated,true);assert.equal(bounded.exitCode,null);assert.equal((await command('/does/not/exist',[])).exitCode,null);});
 test('systemd one-shots, restart loops, permission errors, DDNS staleness and disk thresholds',()=>{const t={id:'test',unit:'test.service',group:'test'},f={LoadState:'loaded',ActiveState:'inactive',Result:'success',ExecMainStatus:'0'};assert.equal(evaluateUnit({...t,oneShot:true},f)[0],'operational');assert.equal(evaluateUnit(t,f)[0],'down');assert.equal(evaluateUnit(t,{...f,ActiveState:'active',NRestarts:'5'})[0],'degraded');assert.equal(evaluateCaddy({exitCode:1,stderr:'permission denied',stdout:'',durationMs:1,timedOut:false,truncated:false},null)[0],'unknown');assert.equal(evaluateDdns({...f,InactiveEnterTimestamp:'@'+((now-31*60000)/1000)},now)[0],'degraded');assert.equal(evaluateDisk('Use% Avail\n80% 1048576')[0],'degraded');assert.equal(evaluateDisk('Use% Avail\n90% 1048576')[0],'down');assert.equal(evaluateDisk('nonsense')[0],'unknown');assert.deepEqual(parseFacts('Result=success\nBad\nNRestarts=5'),{Result:'success',NRestarts:'5'});});
 test('git old commits remain healthy; BUILD progress survives',()=>{const b=buildProgress('### First\n- [x] yes\n### Second\n- [ ] no');assert.deepEqual(b,{checked:1,total:2,next_phase:'Second'});assert.equal(evaluateGit({branch:'main',upstream:'origin/main',ahead:0,behind:0,dirty:false,latest_commit_age_days:100,remote_reachable:null},b)[0],'operational');});
@@ -178,4 +182,88 @@ test('response policy headers: 405 Allow, 503 Retry-After, operator noindex and 
  const missing = await handle(request('/nope'), source, c, now);
  assert.equal(missing.status, 404);
  assert.match(await missing.text(), /<title>Not found · Dunamis Status<\/title>/);
+});
+
+test('every catalogued site check and repository exists in the collector inventory', () => {
+ const hosts = new Set(httpTargets.flatMap(t => [new URL(t.publicUrl).hostname, new URL(t.probeUrl).hostname]));
+ const ids = new Set([...httpTargets.map(t => t.id), ...units.map(t => t.id), ...[21115, 21116, 21117].map(p => 'rustdesk-tcp-' + p),
+  ...[...hosts].map(h => 'certificate-' + h), 'caddy-config', 'cloudflare-ddns-update', 'root-disk', 'memory-pressure', 'backup-repository-growth']);
+ const repos = new Set(projects('/repos').map(p => p.id));
+ assert.equal(new Set(properties.map(p => p.id)).size, properties.length);
+ for (const p of properties) {
+  for (const id of [p.primary, ...p.checks]) assert.ok(ids.has(id), `${p.id} names unknown check ${id}`);
+  for (const id of p.projects) assert.ok(repos.has(id), `${p.id} names unknown project ${id}`);
+ }
+ // Target IDs are history keys: they must be unique within services and within projects.
+ const serviceIds = [...httpTargets.map(t => t.id), ...units.map(t => t.id)];
+ assert.equal(new Set(serviceIds).size, serviceIds.length);
+ assert.equal(repos.size, projects('/repos').length);
+ for (const host of ['cfromthegroundup.com', 'daybyword.com', 'rivermindpoker.com', 'vincentsawyer.org', 'data.xrayservice.net']) assert.ok(hosts.has(host));
+ for (const unit of ['lorehallow-server', 'lorehallow-web', 'rivermind-poker-web', 'umami', 'daybyword-backup', 'daybyword-restore-check-timer']) assert.ok(units.some(t => t.id === unit));
+ assert.equal(units.find(t => t.id === 'daybyword-restore-check')?.maxAgeMinutes, 32*24*60);
+ assert.equal(units.find(t => t.id === 'vincentsawyer-backup')?.maxAgeMinutes, 26*60);
+});
+
+test('new site health evidence: database-aware health JSON and plain ok bodies', () => {
+ const json = (v: unknown) => Buffer.from(JSON.stringify(v));
+ assert.equal(cfromthegroundupHealth(json({status:'ok',database:'ok'}), new Headers(), now)[0], 'operational');
+ assert.match(cfromthegroundupHealth(json({status:'ok',database:'down'}), new Headers(), now)[1], /database/);
+ assert.equal(cfromthegroundupHealth(Buffer.from('<html>'), new Headers(), now)[0], 'degraded');
+ assert.equal(plainOk('web')(Buffer.from('ok\n'), new Headers(), now)[0], 'operational');
+ assert.equal(plainOk('web')(Buffer.from('nope'), new Headers(), now)[0], 'degraded');
+});
+
+test('daily history: EST days, worst state per day, empty days and rounded-down uptime', () => {
+ assert.equal(estDay(Date.parse('2026-11-21T04:59:59Z')), '2026-11-20');
+ assert.equal(estDay(Date.parse('2026-11-21T05:00:00Z')), '2026-11-21');
+ assert.equal(addDays('2026-03-01', -1), '2026-02-28');
+ assert.equal(percent(1), '100%');
+ assert.equal(percent(9999/10000), '99.99%');
+ assert.equal(percent(287/288), '99.65%');
+ const rows: DailyCount[] = [
+  {day:'2026-11-20', target_id:'a', state:'operational', samples:287}, {day:'2026-11-20', target_id:'a', state:'degraded', samples:1},
+  {day:'2026-11-19', target_id:'a', state:'operational', samples:288}, {day:'2026-11-20', target_id:'b', state:'down', samples:2}
+ ];
+ const h = indexHistory(rows, '2026-11-20', 3)!;
+ const a = track(h, ['a']);
+ assert.deepEqual(a.days.map(d => d.state), ['none', 'operational', 'degraded']);
+ assert.equal(a.days[2]?.label, 'Nov 20, 2026: 287 of 288 checks operational (1 degraded)');
+ assert.equal(a.days[0]?.label, 'Nov 18, 2026: no checks recorded');
+ assert.equal(a.uptime, '99.82%');
+ assert.match(a.summary, /over 2 recorded days$/);
+ assert.equal(track(h, ['a', 'b']).days[2]?.state, 'down');
+ assert.equal(track(h, ['missing']).uptime, 'No data');
+ assert.equal(indexHistory(null, '2026-11-20'), null);
+ assert.deepEqual(segments(1, 3).filter(Boolean).length, 3);
+ assert.deepEqual(segments(0, 0).filter(Boolean).length, 0);
+ assert.equal(anchor('Network & access'), 'network-access');
+ assert.equal(buildNext({checked:0, total:1, next_phase:null}), 'Open steps outside a numbered phase');
+ assert.equal(buildNext({checked:2, total:2, next_phase:null}), 'Every step is checked');
+ assert.equal(buildNext({checked:1, total:2, next_phase:'2.1 Next'}), 'Next: 2.1 Next');
+});
+
+test('overview shows sites with history bars; a history failure never fails the page', async () => {
+ const site = service('operational', 'lorehallow-com'); site.target.name = 'Lorehallow'; site.target.group = 'Public websites';
+ const game = service('down', 'lorehallow-game'); game.target.name = 'Lorehallow game server'; game.target.group = 'Public websites'; game.check.reason = 'connection refused';
+ const evidence = snapshot([site, game]);
+ const today = estDay(now);
+ const rows: DailyCount[] = [{day: today, target_id: 'lorehallow-com', state: 'operational', samples: 12}];
+ const provider: Source = {...source, latest: async () => evidence, history: async () => rows};
+ const html = await (await handle(request('/'), provider, c, now)).text();
+ const card = html.match(/<article class="site-card is-down" id="lorehallow">[\s\S]*?<\/article>/)?.[0] ?? '';
+ assert.match(card, /Lorehallow game server<span class="sr-only">: down, connection refused/);
+ assert.match(card, /<li class="day day-operational" title="[A-Z][a-z]{2} \d+, \d{4}: 12 of 12 checks operational"><\/li>/);
+ assert.equal((card.match(/class="day /g) ?? []).length, 90);
+ assert.match(html, /<meta http-equiv="refresh" content="300"\/?>/);
+ const sitesView = sites(evidence);
+ assert.equal(sitesView.find(p => p.id === 'daybyword')?.state, 'unknown');
+ const broken = await handle(request('/'), {...provider, history: async () => { throw new Error('/private/path'); }}, c, now);
+ assert.equal(broken.status, 200);
+ const text = await broken.text();
+ assert.match(text, /Daily history is unavailable right now/);
+ assert.doesNotMatch(text, /private\/path/);
+ const services = await (await handle(request('/services'), provider, c, now)).text();
+ assert.match(services, /<section class="section service-group" id="public-websites"/);
+ assert.match(services, /<td class="numeric">100%<\/td>/);
+ assert.doesNotMatch(await (await handle(request('/incidents'), provider, c, now)).text(), /http-equiv="refresh"/);
 });

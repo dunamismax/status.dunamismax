@@ -2,8 +2,8 @@
 // response headers, operator bearer check and snapshot loading. Imported only
 // by hooks.server.ts and server route modules, never by components.
 import { timingSafeEqual } from 'node:crypto';
-import { freshness, snapshot, type Freshness, type Snapshot } from './model.js';
-import { notice, type Notice } from './view.js';
+import { freshness, snapshot, type DailyCount, type Freshness, type Snapshot } from './model.js';
+import { historyDays, notice, type Notice } from './view.js';
 import type { Config } from './config.js';
 import type { Source } from './source.js';
 
@@ -37,4 +37,9 @@ export async function current({ source, config, now }: StatusContext): Promise<{
   const stored = await source.latest();
   const f = freshness(stored, config.stale, now);
   return { snapshot: stored ?? snapshot([], [], new Date(now).toISOString()), freshness: f, notice: notice(stored, f) };
+}
+
+/** Daily state counts for the history bars, or null when they cannot be read: history is supplementary, so its failure never fails a page. */
+export async function history({ source, now }: StatusContext): Promise<DailyCount[] | null> {
+  try { return await source.history(historyDays, now); } catch { return null; }
 }

@@ -50,9 +50,20 @@ export const azerothStatus: HttpEvidence = (body, _headers, now) => {
   return ['operational', 'tracker returned fresh data for all four regions'];
 };
 
-export const lorehallowHealth: HttpEvidence = body => body.toString('utf8').trim() === 'ok'
-  ? ['operational', 'game server health response is OK']
-  : ['degraded', 'expected game server health response was missing'];
+/** A health endpoint whose whole body is `ok`, as Lorehallow and RiverMind Poker answer. */
+export const plainOk = (label: string): HttpEvidence => body => body.toString('utf8').trim() === 'ok'
+  ? ['operational', `${label} health response is OK`]
+  : ['degraded', `expected ${label} health response was missing`];
+
+export const lorehallowHealth: HttpEvidence = plainOk('game server');
+
+/** C From The Ground Up's `/healthz` reports the app and its database separately. */
+export const cfromthegroundupHealth: HttpEvidence = body => {
+  const data = jsonObject(body);
+  if (data?.status !== 'ok') return ['degraded', 'health response did not report ok'];
+  if (data.database !== 'ok') return ['degraded', 'health response reported a database problem'];
+  return ['operational', 'site and database health responses are OK'];
+};
 
 export const installerRange: HttpEvidence = (body, headers) => {
   const length = Number(headers.get('content-range')?.match(/^bytes 0-1\/(\d+)$/i)?.[1]);

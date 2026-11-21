@@ -154,9 +154,18 @@ summary. Stale or missing snapshots make all three current summaries unknown.
 The existing JSON `overall_state` still combines all service and project states,
 and `summary` still counts all service checks.
 
-The collector includes public websites, Astro services, the Python bot,
-PostgreSQL, Docker, Caddy, access services, DDNS and its timer, RustDesk's
-three TCP listeners, cleanup, installer builder and backup jobs and timers.
+The collector includes every public website and app endpoint, every
+application unit (Node, Python and Go services, Umami and the bot), PostgreSQL,
+Docker, Caddy, access services, DDNS and its timer, RustDesk's three TCP
+listeners, cleanup, installer builder, backup and restore-check jobs and timers,
+and the thirteen repositories behind them. The inventory was last reconciled
+against the host's running units, timers, Caddy sites, containers and listening
+ports on 2026-11-20. Day by Word runs in Docker Compose; the collector has no
+Docker access, so its public page and its host backup and monthly restore-check
+jobs are its evidence. Umami serves only C From The Ground Up and is checked
+through that site's `/stats/script.js`. RiverMind Poker's web server answers
+`/healthz` with `ok` and its table server's public `/api/config`; C From The
+Ground Up's `/healthz` must report both the app and its database as `ok`.
 Azeroth Trail checks its homepage and `/api/status`, with usable readings for all
 four regions and a snapshot and readings no older than five minutes. This measures
 tracker health even when the game servers it tracks are offline. Lorehallow checks
@@ -164,9 +173,12 @@ its homepage and verifies the game server's `ok` response on `/healthz`. The
 XrayService `/download` check requires HTTP 206, attachment and valid range headers,
 and the two-byte Windows executable signature. It requests only the first two bytes.
 Successful completion must be within 26 hours for daily jobs, eight days for the
-weekly builder, 30 minutes for DDNS and 15 minutes for the collector. Enabled
+weekly builder, 32 days for Day by Word's monthly restore check, 30 minutes for
+DDNS and 15 minutes for the collector. Enabled
 or active timers alone never prove backup freshness. Root-owned completion
-markers in `/var/lib/ops-success` survive reboot; ExecStartPost records them only
+markers in `/var/lib/ops-success` survive reboot (the C From The Ground Up,
+vincentsawyer.org and Day by Word jobs do not write one yet, so after a reboot
+they read unknown until their next successful run); ExecStartPost records them only
 after successful job exit (the full backup includes restore verification and
 both remote pushes). Failed Results override old success markers. The collector
 is the single backup-failure alert path; no duplicate OnFailure notifier exists.
