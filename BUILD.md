@@ -11,12 +11,12 @@ a contract: see [Format contract](#format-contract).
 
 | | |
 | --- | --- |
-| **Current phase** | [Phase 3](#phase-3--full-inventory-site-view-and-daily-history): step 3.5 (second reconciliation) is built and waits for its deploy. [Phase 1 · SvelteKit 3, Svelte 5 and Tailwind CSS 4](#phase-1--sveltekit-3-svelte-5-and-tailwind-css-4) has two acceptance steps open |
-| **Next step** | **3.5** deploy, then **1.2** encrypted backup and restore drill, due with the scheduled ubuntu-vm-backup run on 2026-11-21 07:35 UTC (it restores whichever release is then current), then **1.2** rollback rehearsal. **2.1** waits on the owner (Q-1). |
+| **Current phase** | [Phase 1 · SvelteKit 3, Svelte 5 and Tailwind CSS 4](#phase-1--sveltekit-3-svelte-5-and-tailwind-css-4): two acceptance steps open. [Phase 3](#phase-3--full-inventory-site-view-and-daily-history) is complete and deployed, including its 3.5 second reconciliation |
+| **Next step** | **1.2** encrypted backup and restore drill, due with the scheduled ubuntu-vm-backup run on 2026-11-21 07:35 UTC (it now restores release `fefd9ea`), then **1.2** rollback rehearsal. **2.1** waits on the owner (Q-1). |
 | **In progress** | None. |
 | **Blockers** | None. The drill waits on its schedule; Phase 2 waits on owner-approved destinations. |
-| **Live site** | https://status.dunamismax.com serves release `bf56806`, deployed 2026-11-21 02:55 UTC over `35c43d1` (rollback directory `/root/status-rollback-20261121T025518Z`); each run stores 85 services and 13 projects. `35c43d1` went live at 01:33 UTC over `1da4095` (rollback directory `/root/status-rollback-20261121T013320Z`). The SvelteKit cutover was `8c72b37` at 2026-11-20 13:45 UTC over Astro `cc3fc21` (rollback directory `/root/status-astro-rollback-20261120T134532Z`). Root disk was at 81% (degraded) at 01:33 UTC, 83% at 03:32 UTC and 81% at 04:51 UTC. No alert webhook or heartbeat is configured. |
-| **`main`** | `bf56806` (3.4 follow-ups) is deployed; the 3.5 commit is ahead of it and not yet deployed. `main` pushes to GitHub and Codeberg together. |
+| **Live site** | https://status.dunamismax.com serves release `fefd9ea`, deployed 2026-11-21 05:02 UTC over `bf56806` (rollback directory `/root/status-rollback-20261121T050258Z`); each run stores 97 services and 14 projects. `bf56806` went live at 02:55 UTC over `35c43d1` (rollback directory `/root/status-rollback-20261121T025518Z`) and `35c43d1` at 01:33 UTC over `1da4095` (rollback directory `/root/status-rollback-20261121T013320Z`). The SvelteKit cutover was `8c72b37` at 2026-11-20 13:45 UTC over Astro `cc3fc21` (rollback directory `/root/status-astro-rollback-20261120T134532Z`). Root disk was at 81% (degraded) at 01:33 UTC, 83% at 03:32 UTC and 82% at 05:03 UTC. No alert webhook or heartbeat is configured. |
+| **`main`** | `fefd9ea` (3.5 second reconciliation) is deployed; this evidence commit follows it. `main` pushes to GitHub and Codeberg together. |
 | **Last updated** | 2026-11-21 |
 
 ## How to work this file
@@ -104,7 +104,7 @@ Use each default until the owner decides otherwise.
 | 0 | Drizzle ORM adopts the existing PostgreSQL history | Complete 2026-11-02 |
 | 1 | Web layer to SvelteKit 3, Svelte 5 and Tailwind CSS 4 | Deployed 2026-11-20; two acceptance steps open |
 | 2 | Live alert delivery and heartbeat | Waiting on the owner (Q-1) |
-| 3 | Full inventory, site view and daily history | Deployed 2026-11-21; step 3.5 built, deploy open |
+| 3 | Full inventory, site view and daily history | Complete and deployed 2026-11-21 |
 
 ## Baseline · PHP and MySQL to Astro and PostgreSQL
 
@@ -568,7 +568,7 @@ pages stay script-free.
   only; it is now checked through `/healthz`, which loads its pages from its
   content store first. A collector run now stores 97 services and 14 projects
   (dry run from a workstation: every HTTP and certificate check operational
-  except the Azeroth Trail tracker, which answered 503 for about 35 seconds
+  except the Azeroth Trail tracker, which answered 503 for about 30 seconds
   while another deployment restarted it under the deploy lock). Tests: the demo
   health evidence, every redirect host maps to a probed site, and every
   certificate check is on a site card. `docs/production.md` no longer claims
@@ -577,9 +577,26 @@ pages stay script-free.
   passed and 2 PostgreSQL-only skipped, `tests/postgres.sh` 30/30 on Homebrew
   PostgreSQL 18, build, shell and Python syntax, `git diff --check`, `npm audit`
   clean.
-- [ ] Deploy under `with-deploy-lock` with `deploy/build.sh` and
+- [x] Deploy under `with-deploy-lock` with `deploy/build.sh` and
   `deploy/deploy.sh`; the first scheduled run stores 97 services and 14 projects
   and the overview shows the Field Cadence card.
+  Evidence (2026-11-21, on the owner's instruction): `deploy/build.sh` built
+  `fefd9ea` on the VM with 30/30 tests including PostgreSQL 18, and CI passed
+  on the same commit. `deploy/deploy.sh` from `bf56806` ran 05:02 to 05:04 UTC,
+  passed candidate and public smoke and Caddy validation, and recorded the
+  deployment (rollback directory `/root/status-rollback-20261121T050258Z`). The
+  migration was a no-op with identical every-row digests. Caddy, PostgreSQL and
+  three other site services kept their PIDs. The web unit runs `dist/index.js`
+  under `--permission` with 0 restarts and only web keys in its environment; the
+  web role passed four reads and 13 denials. Readiness `ready` and fresh;
+  unknown and operator paths 404, POST 405. The overview shows 14 site cards
+  with Field Cadence (page, both certificates and repository operational),
+  `/services` lists 97 checks with the ten `www.` certificates, and the
+  overview, services and projects pages each measure 375 px wide at 375 px with
+  no script. The external probe run from a workstation passed all twelve sites
+  plus collector freshness. The first scheduled run (05:09 UTC) stored 97
+  services and 14 projects with 0 alerts; every check was operational except the
+  root disk at 82% and the backup repository's uncommitted snapshot files.
 
 ## Ideas inbox
 
@@ -634,8 +651,12 @@ Newest first. Keep eight.
   The host was healthy apart from the root disk (81%). Added Field Cadence (site,
   certificate, repository, card, external probe), certificate checks for the ten
   `www.` redirect hosts and a `/healthz` check for the Imaging Services demo; a
-  run now stores 97 services and 14 projects. All checks pass locally. Next: the
-  3.5 deploy, then the 1.2 backup drill after 07:35 UTC.
+  run now stores 97 services and 14 projects. `fefd9ea` deployed at 05:02 UTC;
+  smoke, grants and the phone layout check passed. Phase 3 is complete again.
+  Not fixed, because they are host or other-project work: the root disk (82%),
+  the backup checkout that reads dirty between snapshots, and Field Cadence's
+  missing backup job and health route (all in the ideas inbox). Next: the 1.2
+  backup drill after 07:35 UTC.
 - **2026-11-21 · 3.4 deployed.** `bf56806` deployed at 02:55 UTC on the owner's
   instruction; smoke, grants and the phone layout check passed and scheduled runs
   resumed at 03:01 UTC. Phase 3 is complete. Next: the 1.2 backup drill after
