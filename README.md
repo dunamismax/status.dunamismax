@@ -71,7 +71,7 @@ systemd timer (5 min) ──▶ TypeScript collector ──▶ bounded probes
 | --- | --- |
 | `/` | Public HTTP availability, backup and maintenance health, infrastructure, what needs attention, every site and app with its related checks and a 90-day daily history bar, and a 90-day bar per check category |
 | `/services` | Every service check by category, with its evidence timestamp, the category's 90-day bar and each check's 90-day operational share |
-| `/projects` | Branch, upstream, ahead/behind, dirty state, commit age and BUILD.md progress |
+| `/projects` | Each working checkout's branch, upstream, ahead/behind, dirty state and commit age, the release its site has deployed, and BUILD.md progress |
 | `/incidents` | Incidents and recent or upcoming maintenance |
 | `/deployments` | The latest 50 deployment records |
 | `/operator` | 404 while no token is set; otherwise constant-time bearer check, 401 on failure, `noindex` |
@@ -97,19 +97,18 @@ It covers:
   its tracker's freshness), Lorehallow (website and game-server health), RiverMind
   Poker (health with its database, and the table server's public config), C From The
   Ground Up (health with its database, and its Umami analytics script), Day by
-  Word, vincentsawyer.org, Grace and Footnotes, XrayService (site, email assets
+  Word (health with its database), vincentsawyer.org, Grace and Footnotes, XrayService (site, email assets
   and the Windows installer, a two-byte range request that checks the executable
   signature), the Imaging Services demo (health with its content store), Field
-  Cadence and this status page.
+  Cadence (health with its database) and this status page.
 - **Host services:** every application unit (including both Lorehallow units,
-  RiverMind Poker's web and table server and Umami), PostgreSQL, Caddy
-  (including parse and reload evidence), Docker, access services, DDNS recency,
-  RustDesk's three TCP listeners (connect only) and every maintenance, backup
-  and restore-check job with its timer, including the off-site media backup and
-  its monthly full verification. Day by Word and Field Cadence run in
-  Docker, which the collector cannot see by design: Day by Word is covered by
-  its public check and its backup jobs, Field Cadence by its public check alone
-  until it has host jobs.
+  RiverMind Poker's web server and its table voice service, Day by Word, Field
+  Cadence and Umami), PostgreSQL, Caddy (including parse and reload evidence),
+  Docker, access services, DDNS recency, RustDesk's three TCP listeners
+  (connect only) and every maintenance, backup and restore-check job with its
+  timer, including the off-site media backup and its monthly full
+  verification, and the timer of the daily Caddy release comparison. Docker
+  runs only RustDesk; no site runs in a container.
 - **Certificates:** expiry and a verified handshake for every public host name,
   including the ten `www.` names that only redirect, since each holds its own
   certificate.
@@ -117,7 +116,11 @@ It covers:
   of the backup Git store.
 - **Repositories:** the fourteen checkouts behind running sites, apps and backups,
   read-only: branch, upstream, dirty state, commit age and BUILD.md progress.
-  Quiet repositories stay healthy.
+  Quiet repositories stay healthy. A project's state describes its working
+  checkout on the host. The release a site has deployed is named separately
+  beside it, from the release's own revision file, and never changes the
+  state: a deploy builds from `origin/main`, so a checkout can be behind
+  while the site serves the newest commit.
 
 Which checks belong to which site or app is the presentation catalog in
 [`src/lib/catalog.ts`](src/lib/catalog.ts); a test keeps it in step with the

@@ -156,13 +156,17 @@ Docker, Caddy, access services, DDNS and its timer, RustDesk's three TCP
 listeners, cleanup, installer builder, backup and restore-check jobs and timers,
 and the fourteen repositories behind them. The inventory was last reconciled
 against the host's running units, timers, Caddy sites, containers and listening
-ports on 2026-11-21. Day by Word runs in Docker Compose; the collector has no
-Docker access, so its public page and its host backup and monthly restore-check
-jobs are its evidence. Field Cadence also runs in Docker Compose and has no host
-units yet (its repository's jobs timer is not installed and it has no backup
-job), so its public page, its certificates and its repository are its evidence;
-its page is static, so that check does not exercise its database. Add its jobs
-and backup units to the inventory when they are installed. The Imaging Services
+ports on 2026-11-22. Day by Word (`daybyword-web.service`) and Field Cadence
+(`fieldcadence.service`) have been host units on the host PostgreSQL cluster
+since 2026-11-21: each has a unit check, and each is probed through `/healthz`,
+which must report both the app and its database as `ok`, so the check exercises
+the database. Day by Word also has its backup and monthly restore-check jobs.
+Field Cadence has no jobs timer or backup job of its own yet (the host's daily
+backup covers its database and release); add those units to the inventory when
+they are installed. RiverMind Poker's table voice is its own unit,
+`rivermind-poker-voice.service`; its health route listens on loopback only, so
+the unit check is its evidence. `caddy-release-check.timer` is checked as a
+timer only: its job writes no completion record. The Imaging Services
 demo is checked through `/healthz`, which answers only after loading its pages
 from its content store and must report `ok` and name that store. Every public
 host name gets a certificate check, including the ten `www.` names that only
@@ -174,8 +178,8 @@ through that site's `/stats/script.js`. RiverMind Poker is checked through
 (the host contract's JSON since its 2026-11-21 deploy; a bare `ok` is no longer
 accepted), and through its table server's public `/api/config`; since that
 project's 2026-11-21 cutover one unit, `rivermind-poker-web`, serves the pages, the
-API and the tables, and the old `rivermind-poker.service` is kept stopped and
-disabled, so it is not a check. C From The
+API and the tables, and the old `rivermind-poker.service` is retired, so it is
+not a check. C From The
 Ground Up's `/healthz` must report both the app and its database as `ok`.
 Azeroth Trail checks its homepage and `/api/status`, with usable readings for all
 four regions and a snapshot and readings no older than five minutes. This measures
@@ -188,9 +192,8 @@ weekly builder, 32 days for Day by Word's monthly restore check, 37 days for the
 off-site media verification (first Sunday of the month), 30 minutes for
 DDNS and 15 minutes for the collector. Enabled
 or active timers alone never prove backup freshness. Root-owned completion
-markers in `/var/lib/ops-success` survive reboot (the C From The Ground Up,
-vincentsawyer.org and Day by Word jobs do not write one yet, so after a reboot
-they read unknown until their next successful run); ExecStartPost records them only
+markers in `/var/lib/ops-success` survive reboot (every backup and
+restore-check job writes one since 2026-11-21); ExecStartPost records them only
 after successful job exit (the full backup includes restore verification and
 both remote pushes). Failed Results override old success markers. The collector
 is the single backup-failure alert path; no duplicate OnFailure notifier exists.
@@ -204,6 +207,17 @@ Failed, partial, timed-out or invalid measurements are unknown. The former size
 marker is tied to job completion and is no longer read. The backup job check still
 uses its existing systemd result and success marker to report backup delivery health.
 Service restart evidence is visible, with five restarts indicating degradation.
+
+A project's state describes its working checkout under `/home/sawyer/github`:
+uncommitted changes, or commits ahead of or behind the upstream the checkout
+last recorded (the collector never fetches). That is not what the site serves.
+A deploy builds from `origin/main`, so the checkout can be behind while the
+site runs the newest commit. For the eleven sites with a release directory the
+probe therefore also reads `current/REVISION` and adds a note to the reason:
+the deployed release is the upstream tip, upstream is some commits past it
+(usually the deployment's own evidence commit), or it is not in the recorded
+upstream history. The note never changes the state. `/healthz` on each site
+remains the authority for what is running.
 
 ## Offsite alerts and heartbeat
 

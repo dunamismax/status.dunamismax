@@ -8,7 +8,7 @@
 
 <section class="section first-section">
   <div class="section-heading">
-    <div><h1>Projects</h1><p class="lede">{data.projects.length} repositories, read without fetching: branch, upstream, worktree, latest commit and BUILD.md progress.</p></div>
+    <div><h1>Projects</h1><p class="lede">{data.projects.length} repositories, read without fetching: the working checkout's branch, upstream, worktree and latest commit, the release each site has deployed, and BUILD.md progress.</p></div>
   </div>
   <div class="project-grid">
     {#each data.projects as p}

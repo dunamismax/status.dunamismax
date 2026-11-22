@@ -69,13 +69,20 @@ export const rivermindHealth: HttpEvidence = body => {
   return ['operational', 'RiverMind Poker web server and database health responses are OK'];
 };
 
-/** C From The Ground Up's `/healthz` reports the app and its database separately. */
-export const cfromthegroundupHealth: HttpEvidence = body => {
+/**
+ * The host web platform contract's `/healthz`: the app and its database
+ * reported separately. Day by Word and Field Cadence answer this way too, so
+ * their checks exercise the database, which their home pages do not.
+ */
+export const contractHealth: HttpEvidence = body => {
   const data = jsonObject(body);
   if (data?.status !== 'ok') return ['degraded', 'health response did not report ok'];
   if (data.database !== 'ok') return ['degraded', 'health response reported a database problem'];
   return ['operational', 'site and database health responses are OK'];
 };
+
+/** C From The Ground Up's `/healthz` is the contract's. */
+export const cfromthegroundupHealth: HttpEvidence = contractHealth;
 
 /** The Imaging Services `/healthz` answers only after loading its pages from its content store. */
 export const imagingHealth: HttpEvidence = body => {

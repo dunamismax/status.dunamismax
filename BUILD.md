@@ -11,13 +11,13 @@ a contract: see [Format contract](#format-contract).
 
 | | |
 | --- | --- |
-| **Current phase** | [Phase 1 · SvelteKit 3, Svelte 5 and Tailwind CSS 4](#phase-1--sveltekit-3-svelte-5-and-tailwind-css-4): complete. [Phase 4](#phase-4--final-cleanup) (no rollback tooling, nothing from earlier stacks) is complete and deployed. [Phase 5](#phase-5--hsts) (an HSTS header, D-13) is complete and deployed. [Phase 6](#phase-6--host-platform-contract) (pnpm, Node 26 and fix-forward candidate deploys, D-14) is complete and deployed. [Phase 3](#phase-3--full-inventory-site-view-and-daily-history) is complete and deployed, including 3.5 (second reconciliation) and 3.6 (a retired unit removed from the inventory) and 3.7 (RiverMind Poker's health check reads the contract's JSON) |
-| **Next step** | **2.1**: the owner supplies the healthchecks.io ping URL and the Discord webhook URL; then the test alert, a deliberately missed heartbeat and its recovery, and the production settings (2.2). Open with the owner: whether the four repositories with uncommitted work also lose their rollback tooling (4.3; dunamismax.com lost its own in its M.5, 2026-11-21). |
+| **Current phase** | [Phase 1 · SvelteKit 3, Svelte 5 and Tailwind CSS 4](#phase-1--sveltekit-3-svelte-5-and-tailwind-css-4): complete. [Phase 4](#phase-4--final-cleanup) (no rollback tooling, nothing from earlier stacks) is complete and deployed. [Phase 5](#phase-5--hsts) (an HSTS header, D-13) is complete and deployed. [Phase 6](#phase-6--host-platform-contract) (pnpm, Node 26 and fix-forward candidate deploys, D-14) is complete and deployed. [Phase 3](#phase-3--full-inventory-site-view-and-daily-history) is complete and deployed, including 3.5 (second reconciliation) and 3.6 (a retired unit removed from the inventory) and 3.7 (RiverMind Poker's health check reads the contract's JSON). 3.8 (third reconciliation: three unit checks, two database-aware health checks, deployed release named beside the checkout) is built and waits for its deploy |
+| **Next step** | Deploy **3.8**. Then **2.1**: the owner supplies the healthchecks.io ping URL and the Discord webhook URL; then the test alert, a deliberately missed heartbeat and its recovery, and the production settings (2.2). Open with the owner: whether the four repositories with uncommitted work also lose their rollback tooling (4.3; dunamismax.com lost its own in its M.5, 2026-11-21). |
 | **In progress** | None. |
 | **Blockers** | None. Phase 2 waits on the two destination URLs from the owner. |
 | **Live site** | https://status.dunamismax.com serves release `f941edc` on Node 26.13.1 (`/opt/node-26`), deployed 2026-11-21 20:03 UTC with the contract deploy (3.7: RiverMind Poker's health check); `/healthz` reports that commit. It sends `Strict-Transport-Security: max-age=31536000` (D-13); each run stores 100 services and 14 projects. Releases fix forward (D-12, D-14); the deploy prints its evidence and logs `web-deploy` to the journal, and keeps a pre-migration dump in `/var/backups/status.dunamismax.com/`. No alert webhook or heartbeat is configured. |
-| **`main`** | `f941edc` is deployed; this evidence commit follows it. `main` pushes to GitHub and Codeberg together. |
-| **Last updated** | 2026-11-21 |
+| **`main`** | `f941edc` is deployed; the 3.8 commit follows it and is not yet deployed. `main` pushes to GitHub and Codeberg together. |
+| **Last updated** | 2026-11-22 |
 
 ## How to work this file
 
@@ -699,6 +699,34 @@ pages stay script-free.
   script. Caddy and PostgreSQL were not restarted; the web unit is active
   with 0 restarts, `/healthz` reports `f941edc` and `/readyz` is ready.
 
+### 3.8 Third inventory reconciliation
+
+- [x] Reconcile the host again and add what is missing, with tests; say what
+  is deployed separately from what a working checkout holds.
+  Evidence (2026-11-22, owner request after an outside review of the host, on
+  the VM with Node 26.13.1 and pnpm 12.18.0): the review found three running
+  units with no check and repository warnings that described checkouts, not
+  releases. Added unit checks for `daybyword-web.service` and
+  `fieldcadence.service` (both sites left Docker Compose for host units on
+  2026-11-21) and `rivermind-poker-voice.service` (RiverMind's table voice,
+  live since 2026-11-22 00:35 UTC), each on its site card, and a timer check
+  for `caddy-release-check.timer`. Day by Word and Field Cadence are now
+  probed through `/healthz`, which must report the app and its database as
+  `ok`; their target IDs and public URLs are unchanged. The git probe reads
+  each site's `current/REVISION` and names the deployed release in the
+  reason beside the working checkout's state, which it never changes; reasons
+  say "working checkout" and the probe version is `git-project-v2`. No JSON
+  field, state or target ID changed. A trial run as the collector account
+  without writing read 104 services and 14 projects: the three new units
+  active, both health checks operational, and `daybyword` as "working
+  checkout is 26 behind upstream; deployed release ce22517 is the upstream
+  tip". `pnpm run check` 0/0, `db:check` clean, `pnpm test` 31 passed and 2
+  PostgreSQL-only skipped, `tests/postgres.sh` 33/33, build, shell and Python
+  syntax, `git diff --check`. Docs no longer say either site runs in Docker.
+- [ ] Deploy with `deploy/build.sh` and `deploy/deploy.sh`; the next scheduled
+  run stores 104 services and 14 projects with the three new unit checks
+  operational.
+
 ## Phase 4 · Final cleanup
 
 The owner's decision of 2026-11-21 (D-12): no rollbacks, and nothing kept from
@@ -912,6 +940,20 @@ changes scope, when you pick it up.
 
 Newest first. Keep eight.
 
+- **2026-11-22 · Third reconciliation (3.8).** Owner request: fix what an
+  outside review of the host found. Three running units had no check:
+  `daybyword-web`, `fieldcadence` and `rivermind-poker-voice`; all three are
+  checks now, on their site cards, with a timer check for the Caddy release
+  comparison. Day by Word and Field Cadence are probed through `/healthz`
+  with their database. Repository reasons say "working checkout" and name
+  the deployed release separately, read from each release's revision file;
+  states, IDs and JSON fields are unchanged. Docs no longer describe either
+  site as a Docker workload. All checks pass on Node 26 (31 tests, 33 with
+  PostgreSQL). Also done on the host, outside this repository: the backup
+  manifest gained the voice unit and a boot check of the recovered voice
+  service, and the three checkouts that deploys had left behind were
+  fast-forwarded. Next: deploy 3.8, then 2.1, still waiting on the owner's
+  healthchecks.io ping URL and Discord webhook URL.
 - **2026-11-21 · RiverMind Poker's health check (3.7).** Owner request after
   a host reboot review: the overview had read "some public endpoints are
   degraded" since 16:07 UTC for one check, `rivermindpoker-com`, although the
@@ -981,14 +1023,3 @@ Newest first. Keep eight.
   tables. Step 3.6 removed the unit from the inventory and the site card;
   `cadc299` deployed at 13:14 UTC and the first scheduled run stored 96
   services, all operational. Next: the 1.2 backup drill, which is now due.
-- **2026-11-21 · Second reconciliation (3.5).** Owner request: review the repo
-  and everything live on the server, add what is missing and fix what is found.
-  The host was healthy apart from the root disk (81%). Added Field Cadence (site,
-  certificate, repository, card, external probe), certificate checks for the ten
-  `www.` redirect hosts and a `/healthz` check for the Imaging Services demo; a
-  run now stores 97 services and 14 projects. `fefd9ea` deployed at 05:02 UTC;
-  smoke, grants and the phone layout check passed. Phase 3 is complete again.
-  Not fixed, because they are host or other-project work: the root disk (82%),
-  the backup checkout that reads dirty between snapshots, and Field Cadence's
-  missing backup job and health route (all in the ideas inbox). Next: the 1.2
-  backup drill after 07:35 UTC.

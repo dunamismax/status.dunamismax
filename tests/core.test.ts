@@ -1,15 +1,17 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
-import { readFile,readdir,mkdtemp,symlink,rm } from 'node:fs/promises';
+import { readFile,readdir,mkdtemp,symlink,rm,writeFile } from 'node:fs/promises';
+import { join } from 'node:path';
+import { tmpdir } from 'node:os';
 import { snapshot, freshness, timestamp, worst, type Snapshot } from '../src/lib/model.js';
 import { config } from '../src/lib/config.js';
 import { readiness } from '../src/lib/web.js';
 import { handle } from './web.js';
 import type { Source } from '../src/lib/source.js';
 import { command } from '../src/collector/command.js';
-import { evaluateMemory,evaluateCertificate,evaluateHttp,evaluateUnit,evaluateCaddy,evaluateDdns,evaluateDisk,evaluateGit,buildProgress,httpProbe,parseFacts,evaluateBackupSize } from '../src/collector/probes.js';
+import { evaluateMemory,evaluateCertificate,evaluateHttp,evaluateUnit,evaluateCaddy,evaluateDdns,evaluateDisk,evaluateGit,deployedNote,deployedRevision,buildProgress,httpProbe,parseFacts,evaluateBackupSize } from '../src/collector/probes.js';
 import { httpTargets, units, projects, redirectHosts, certificateHosts } from '../src/collector/inventory.js';
-import { cfromthegroundupHealth, plainOk, rivermindHealth } from '../src/collector/http-evidence.js';
+import { cfromthegroundupHealth, contractHealth, plainOk, rivermindHealth } from '../src/collector/http-evidence.js';
 import { properties } from '../src/lib/catalog.js';
 import { indexHistory, track, percent, sites, segments, anchor, buildNext, categories, attentionLimit } from '../src/lib/view.js';
 import { estDay, addDays, type DailyCount } from '../src/lib/model.js';
@@ -234,7 +236,7 @@ test('every catalogued site check and repository exists in the collector invento
  assert.equal(new Set(serviceIds).size, serviceIds.length);
  assert.equal(repos.size, projects('/repos').length);
  for (const host of ['cfromthegroundup.com', 'daybyword.com', 'rivermindpoker.com', 'vincentsawyer.org', 'data.xrayservice.net']) assert.ok(hosts.has(host));
- for (const unit of ['lorehallow-server', 'lorehallow-web', 'rivermind-poker-web', 'umami', 'daybyword-backup', 'daybyword-restore-check-timer']) assert.ok(units.some(t => t.id === unit));
+ for (const unit of ['lorehallow-server', 'lorehallow-web', 'rivermind-poker-web', 'umami', 'daybyword-backup', 'daybyword-restore-check-timer', 'caddy-release-check-timer']) assert.ok(units.some(t => t.id === unit));
  // The retired Python table server is stopped on purpose (rollback only), so it is not a check.
  assert.ok(!units.some(t => t.unit === 'rivermind-poker.service'));
  assert.equal(units.find(t => t.id === 'daybyword-restore-check')?.maxAgeMinutes, 32*24*60);
@@ -243,9 +245,22 @@ test('every catalogued site check and repository exists in the collector invento
  assert.equal(units.find(t => t.id === 'media-backup')?.maxAgeMinutes, 26*60);
  assert.equal(units.find(t => t.id === 'media-backup-verify')?.maxAgeMinutes, 37*24*60);
  assert.ok(units.some(t => t.id === 'media-backup-timer'));
- // Field Cadence runs in Docker like Day by Word: its page, both certificates and its repository are its evidence.
  for (const host of ['fieldcadence.app', 'www.fieldcadence.app']) assert.ok(hosts.has(host));
  assert.ok(repos.has('fieldcadence'));
+ // Day by Word and Field Cadence have been host units since 2026-11-21, and RiverMind's table voice is a
+ // unit of its own: each is checked directly, is a long-running service, and sits on its site's card.
+ for (const [unit, card] of [['daybyword-web', 'daybyword'], ['fieldcadence', 'fieldcadence'], ['rivermind-poker-voice', 'rivermind-poker']] as const) {
+  const target = units.find(t => t.id === unit);
+  assert.deepEqual(target, {id: unit, unit: unit + '.service', group: 'Application services'});
+  assert.ok(properties.find(p => p.id === card)?.checks.includes(unit), `${unit} is not on the ${card} card`);
+ }
+ // Both sites answer the host contract's health JSON, so their checks exercise the database.
+ for (const [id, host] of [['daybyword-com', 'daybyword.com'], ['fieldcadence-app', 'fieldcadence.app']] as const) {
+  const target = httpTargets.find(t => t.id === id);
+  assert.equal(target?.probeUrl, `https://${host}/healthz`);
+  assert.equal(target?.evidence, contractHealth);
+  assert.equal(target?.publicUrl, `https://${host}/`);
+ }
  assert.equal(httpTargets.find(t => t.id === 'imagingservices-demo')?.probeUrl, 'https://demo.xrayservice.net/healthz');
 });
 
@@ -269,6 +284,37 @@ test('new site health evidence: database-aware health JSON and plain ok bodies',
  assert.equal(cfromthegroundupHealth(Buffer.from('<html>'), new Headers(), now)[0], 'degraded');
  assert.equal(plainOk('web')(Buffer.from('ok\n'), new Headers(), now)[0], 'operational');
  assert.equal(plainOk('web')(Buffer.from('nope'), new Headers(), now)[0], 'degraded');
+});
+
+test('git: the working checkout and the deployed release are reported separately', async () => {
+ const current = {branch:'main',upstream:'origin/main',ahead:0,behind:0,dirty:false,latest_commit_age_days:1,remote_reachable:null};
+ const revision = 'ce225172b67e4cc5312311f106c6d3b127885cf1';
+ // A checkout left behind by a deploy from origin/main: still a warning about the checkout, with the release named beside it.
+ assert.deepEqual(evaluateGit({...current, behind:26}, null, {revision, upstreamPast:0}),
+  ['degraded', 'working checkout is 26 behind upstream; deployed release ce22517 is the upstream tip']);
+ assert.equal(evaluateGit({...current, ahead:2, behind:3}, null)[1], 'working checkout is 2 ahead and 3 behind upstream');
+ assert.equal(evaluateGit({...current, ahead:1, dirty:true}, null)[1], 'working checkout has uncommitted changes; working checkout is 1 ahead of upstream');
+ // The release note is information: it never changes the state.
+ assert.deepEqual(evaluateGit(current, {checked:3,total:4,next_phase:'x'}, {revision, upstreamPast:2}),
+  ['operational', 'working checkout is current; BUILD progress 3/4; upstream is 2 past deployed release ce22517']);
+ assert.equal(evaluateGit(current, null, {revision, upstreamPast:null})[0], 'operational');
+ assert.equal(deployedNote({revision, upstreamPast:null}), 'deployed release ce22517 is not in the recorded upstream history');
+ assert.equal(evaluateGit(current, null)[1], 'working checkout is current; BUILD progress unavailable');
+ // Only a full commit ID in a small REVISION file counts; anything else is no evidence.
+ const dir = await mkdtemp(join(tmpdir(), 'status-release-'));
+ try {
+  assert.equal(await deployedRevision(dir), null);
+  await writeFile(join(dir, 'REVISION'), revision + '\n');
+  assert.equal(await deployedRevision(dir), revision);
+  await writeFile(join(dir, 'REVISION'), 'ce22517\n');
+  assert.equal(await deployedRevision(dir), null);
+  await writeFile(join(dir, 'REVISION'), 'x'.repeat(4096));
+  assert.equal(await deployedRevision(dir), null);
+ } finally { await rm(dir, {recursive:true, force:true}); }
+ // Every release path belongs to a deployed site's repository and names its `current` link.
+ for (const p of projects('/repos')) if (p.release) assert.match(p.release, /^\/srv\/[a-z./-]+\/current$/);
+ assert.equal(projects('/repos').filter(p => p.release).length, 11);
+ assert.equal(projects('/repos').find(p => p.id === 'ubuntu-vm-backup')?.release, undefined);
 });
 
 test('RiverMind Poker health: the contract JSON with its database, not a bare ok', () => {

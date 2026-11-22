@@ -95,18 +95,31 @@ export function evaluateDdns(f:Facts,now=Date.now()):Evaluation {
 export function tcpProbe(port:number,timeoutMs=3000):Promise<Service>{const at=new Date().toISOString(),start=performance.now();return new Promise(resolve=>{let done=false;const s=createConnection({host:'127.0.0.1',port});const finish=(e:Evaluation)=>{if(done)return;done=true;s.destroy();resolve(result('rustdesk-tcp-'+port,port===21115?'RustDesk hbbs NAT test (TCP 21115)':port===21116?'RustDesk hbbs rendezvous (TCP 21116)':'RustDesk hbbr relay (TCP 21117)','Remote access','tcp',e,at,Math.round(performance.now()-start),'tcp-v1'));};s.setTimeout(timeoutMs,()=>finish(['down',`TCP ${port} connection timed out`]));s.on('connect',()=>finish(['operational',`TCP ${port} accepts connections`]));s.on('error',(e:NodeJS.ErrnoException)=>finish(['down',`TCP ${port} ${e.code==='ECONNREFUSED'?'refused the connection':'connection failed'}`]));});}
 export function evaluateDisk(s:string):Evaluation {const m=s.trim().split(/\r?\n/)[1]?.match(/^\s*(\d{1,3})%\s+(\d+)\s*$/);if(!m)return ['unknown','root filesystem usage could not be parsed'];const usage=Number(m[1]),k=Number(m[2]);const space=k>=1048576?Math.round(k/1048576)+'G':k>=1024?Math.round(k/1024)+'M':k+'K';return [usage>=90?'down':usage>=80?'degraded':'operational',`root filesystem is ${usage}% full; ${space} available`];}
 export function buildProgress(s:string):BuildProgress|null {let checked=0,total=0,phase:string|null=null,next:string|null=null,open=false;for(const raw of s.split(/\r?\n/)){const l=raw.trim();if(l.startsWith('### ')){if(open&&next===null)next=phase;phase=l.slice(4);open=false;}else if(/^- \[[xX]\]/.test(l)){checked++;total++;}else if(l.startsWith('- [ ]')){total++;open=true;}}if(open&&next===null)next=phase;return total?{checked,total,next_phase:next}:null;}
-export function evaluateGit(g:GitStatus,b:BuildProgress|null):Evaluation {
+/** The commit a site is serving, and how far the checkout's recorded upstream is past it (null: not in that history). */
+export interface Deployed {revision:string; upstreamPast:number|null}
+export function deployedNote(d:Deployed):string {
+ const release='deployed release '+d.revision.slice(0,7);
+ return d.upstreamPast===null?release+' is not in the recorded upstream history':d.upstreamPast===0?release+' is the upstream tip':`upstream is ${d.upstreamPast} past ${release}`;
+}
+// Two separate facts. The state follows the working checkout on the host, which a
+// deploy from origin/main can leave behind without anything being wrong; the note
+// about the deployed release is information and never changes the state.
+export function evaluateGit(g:GitStatus,b:BuildProgress|null,d:Deployed|null=null):Evaluation {
  if(g.branch===null)return ['unknown','git branch could not be read'];const reasons:string[]=[];
- if(g.dirty)reasons.push('working tree has uncommitted changes');const ahead=g.ahead??0,behind=g.behind??0;
- if(ahead&&behind)reasons.push(`branch is ${ahead} ahead and ${behind} behind upstream`);else if(ahead)reasons.push(`branch is ${ahead} ahead of upstream`);else if(behind)reasons.push(`branch is ${behind} behind upstream`);
- if(g.upstream===null)reasons.push('upstream branch is not configured');const notes=(g.latest_commit_age_days??0)>30?[`latest commit is ${g.latest_commit_age_days} days old`]:[];
- return reasons.length?['degraded',[...reasons,...notes].join('; ')]:['operational',['repository is current',b?`BUILD progress ${b.checked}/${b.total}`:'BUILD progress unavailable',...notes].join('; ')];
+ if(g.dirty)reasons.push('working checkout has uncommitted changes');const ahead=g.ahead??0,behind=g.behind??0;
+ if(ahead&&behind)reasons.push(`working checkout is ${ahead} ahead and ${behind} behind upstream`);else if(ahead)reasons.push(`working checkout is ${ahead} ahead of upstream`);else if(behind)reasons.push(`working checkout is ${behind} behind upstream`);
+ if(g.upstream===null)reasons.push('upstream branch is not configured');const notes=[...(d?[deployedNote(d)]:[]),...((g.latest_commit_age_days??0)>30?[`latest commit is ${g.latest_commit_age_days} days old`]:[])];
+ return reasons.length?['degraded',[...reasons,...notes].join('; ')]:['operational',['working checkout is current',b?`BUILD progress ${b.checked}/${b.total}`:'BUILD progress unavailable',...notes].join('; ')];
+}
+/** A release's REVISION file: a full commit ID, or nothing usable. */
+export async function deployedRevision(release:string):Promise<string|null> {
+ try{const file=release+'/REVISION';if((await stat(file)).size>128)return null;const revision=(await readFile(file,'utf8')).trim();return /^[0-9a-f]{40}$/.test(revision)?revision:null;}catch{return null;}
 }
 async function gitProbe(t:ProjectTarget,home:string):Promise<Project> {
  const at=new Date().toISOString();const g:GitStatus={branch:null,upstream:null,ahead:null,behind:null,dirty:null,latest_commit_age_days:null,remote_reachable:null};let b:BuildProgress|null=null,e:Evaluation=['unknown','repository checkout was not found'];
  const git=async(args:string[])=>{const r=await command('/usr/bin/git',['-c','safe.directory='+t.path,'-C',t.path,...args],{home});return r.exitCode===0?r.stdout.trim():null;};
- try{await stat(t.path+'/.git');g.branch=await git(['rev-parse','--abbrev-ref','HEAD']);g.upstream=await git(['rev-parse','--abbrev-ref','--symbolic-full-name','@{u}']);if(g.upstream){const counts=(await git(['rev-list','--left-right','--count','@{u}...HEAD']))?.match(/^(\d+)\s+(\d+)$/);if(counts){g.ahead=Number(counts[2]);g.behind=Number(counts[1]);}}const dirty=await git(['status','--porcelain=v1']);g.dirty=dirty===null?null:dirty!=='';const age=Date.parse((await git(['log','-1','--format=%cI']))??'');g.latest_commit_age_days=Number.isFinite(age)?Math.floor(Math.max(0,Date.now()-age)/86400000):null;try{const file=await stat(t.path+'/BUILD.md');if(file.size<=1048576)b=buildProgress(await readFile(t.path+'/BUILD.md','utf8'));}catch{}e=evaluateGit(g,b);}catch{}
- return {target:{id:t.id,name:t.repo,repo_name:t.repo,public_url:t.url},state:e[0],checked_at:at,reason:e[1],git:g,build:b,probe_version:'git-project-v1'};
+ try{await stat(t.path+'/.git');g.branch=await git(['rev-parse','--abbrev-ref','HEAD']);g.upstream=await git(['rev-parse','--abbrev-ref','--symbolic-full-name','@{u}']);if(g.upstream){const counts=(await git(['rev-list','--left-right','--count','@{u}...HEAD']))?.match(/^(\d+)\s+(\d+)$/);if(counts){g.ahead=Number(counts[2]);g.behind=Number(counts[1]);}}const dirty=await git(['status','--porcelain=v1']);g.dirty=dirty===null?null:dirty!=='';const age=Date.parse((await git(['log','-1','--format=%cI']))??'');g.latest_commit_age_days=Number.isFinite(age)?Math.floor(Math.max(0,Date.now()-age)/86400000):null;try{const file=await stat(t.path+'/BUILD.md');if(file.size<=1048576)b=buildProgress(await readFile(t.path+'/BUILD.md','utf8'));}catch{}let d:Deployed|null=null;const revision=t.release?await deployedRevision(t.release):null;if(revision){const past=g.upstream&&await git(['merge-base','--is-ancestor',revision,'@{u}'])!==null?await git(['rev-list','--count',revision+'..@{u}']):null;d={revision,upstreamPast:past!==null&&/^\d+$/.test(past)?Number(past):null};}e=evaluateGit(g,b,d);}catch{}
+ return {target:{id:t.id,name:t.repo,repo_name:t.repo,public_url:t.url},state:e[0],checked_at:at,reason:e[1],git:g,build:b,probe_version:'git-project-v2'};
 }
 export async function collect(repoRoot:string,home:string) {
  const services:Service[]=[];for(const t of httpTargets)services.push(await httpProbe(t));for(const t of units)services.push(await unitProbe(t,home));for(const port of [21115,21116,21117])services.push(await tcpProbe(port));

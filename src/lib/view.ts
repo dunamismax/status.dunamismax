@@ -158,7 +158,7 @@ export const segments = (checked: number, total: number): boolean[] =>
 export const projectFacts = (p: Project): [string, string][] => [
   ['Branch', p.git.branch ?? 'unknown'],
   ['Upstream', p.git.upstream ?? 'none'],
-  ['Ahead / behind', `${p.git.ahead ?? 0} / ${p.git.behind ?? 0}`],
+  ['Checkout ahead / behind', `${p.git.ahead ?? 0} / ${p.git.behind ?? 0}`],
   ['Worktree', worktree(p.git.dirty)],
   ['Latest commit', p.git.latest_commit_age_days === null ? 'unknown' : `${p.git.latest_commit_age_days} days`],
   ['Origin', p.git.remote_reachable === null ? 'unknown' : p.git.remote_reachable ? 'reachable' : 'unreachable'],
