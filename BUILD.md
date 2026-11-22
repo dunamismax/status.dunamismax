@@ -82,7 +82,7 @@ owner's approval, and record the change here.
 | D-6 | **Hosting** stays on ubuntu-vm under systemd: immutable releases in `/srv/www/status.dunamismax.com/releases/<commit>` with an atomic `current`, web on 127.0.0.1:4313, candidates on 127.0.0.1:14313. Units are `status-dunamismax.service` and `status-dunamismax-collector.{timer,service}`, on the shared runtime `/opt/node-runtime`, with role env in `/etc/web-apps/status_dunamismax/` and settings in `/etc/status-dunamismax/`. No Compose or container migration. |
 | D-7 | **Caddy and DNS.** DNS is owner-managed, DNS-only Cloudflare records pointing at the server; Caddy obtains its own Let's Encrypt certificates with the custom binary `/usr/local/lib/caddy/caddy`. There is no Cloudflare DNS challenge, plugin, token or proxy work, and agents never change Cloudflare settings. |
 | D-8 | **Conditional additions.** Hydration, form actions, remote functions or shadcn-svelte need a concrete interactive feature plus a CSP and smoke review. Better Auth only for requested accounts, the Vercel AI SDK only for a needed LLM feature, Swift only for a requested Apple client (which would call the HTTPS APIs), Python with uv and ruff only where it is the right tool. None is needed now. |
-| D-9 | **Privacy.** The source stays private. Public routes never show private paths, arguments, environment values, credentials, topology, database names, logs or stack traces. |
+| D-9 | **Privacy.** The source is public on GitHub and Codeberg (owner, 2026-11-22), so nothing private is ever committed. Public routes never show private paths, arguments, environment values, credentials, topology, database names, logs or stack traces. |
 | D-10 | **History.** Check rows expire after 30 days by default; rollups, incidents, maintenance, deployments and alert history are kept indefinitely, with their original IDs and timestamps. Incidents and maintenance are written by the operator in SQL. |
 | D-11 | **Alert semantics.** Two matching observations within 20 minutes confirm a failure or a recovery; 60-minute repeat window; at most five deliveries per run; a delivered failure gets one confirmed recovery. Alerts are tested only against mock or loopback endpoints, or with `--dry-run` or `--no-notify`. |
 | D-12 | **No rollback, SvelteKit only** (owner, 2026-11-21). Every site on the host runs well on SvelteKit and stays on it. There are no rollbacks: no rollback script, rehearsal or retained fallback release, and a deployment that fails is fixed forward. The host's final cleanup removed every earlier-framework, PHP and MySQL release, the retired MySQL data and the old rollback directories. Do not bring any of it back. |
@@ -959,6 +959,12 @@ changes scope, when you pick it up.
 
 Newest first. Keep eight.
 
+- **2026-11-22 · The source is public (D-9).** Owner direction: this
+  repository is meant to be public, and it already was on GitHub and
+  Codeberg, linked from dunamismax.com and the profile README. The README,
+  AGENTS.md and D-9 still said private; they now say public, and the owner
+  gate is any change of visibility. Documentation only: no code, release or
+  deployment changed. Next: 2.1, unchanged.
 - **2026-11-22 · Third reconciliation (3.8).** Owner request: fix what an
   outside review of the host found. Three running units had no check:
   `daybyword-web`, `fieldcadence` and `rivermind-poker-voice`; all three are
@@ -1036,11 +1042,3 @@ Newest first. Keep eight.
   serving the API as the restricted web role from a disposable cluster. No code
   or production change. Next: the 1.2 rollback rehearsal, which needs a plan
   for the renamed units first.
-- **2026-11-21 · Disk cleanup and 3.6.** The owner approved clearing old build
-  candidates and the Docker build cache: the root disk went from 82% to 73% and
-  its check is operational (details in the ideas inbox). The follow-up check
-  found the overview reading down for `rivermind-poker.service`, which that
-  project retired on purpose at 06:50 UTC when its Node server took over the
-  tables. Step 3.6 removed the unit from the inventory and the site card;
-  `cadc299` deployed at 13:14 UTC and the first scheduled run stored 96
-  services, all operational. Next: the 1.2 backup drill, which is now due.

@@ -14,7 +14,7 @@ missing or old evidence as unknown or stale, and never invents uptime.
 | **Live site** | [status.dunamismax.com](https://status.dunamismax.com) |
 | **JSON** | [`/api/status.json`](https://status.dunamismax.com/api/status.json) · [`/api/incidents.json`](https://status.dunamismax.com/api/incidents.json) |
 | **Progress** | [BUILD.md](BUILD.md) (start with **Now**) |
-| **Source** | Private. `main` is pushed to GitHub and Codeberg together |
+| **Source** | [GitHub](https://github.com/dunamismax/status.dunamismax) · [Codeberg](https://codeberg.org/dunamismax/status.dunamismax) |
 
 ## Status
 
@@ -224,5 +224,4 @@ schema workflow and every rule for changing this repository.
 
 ## License
 
-[MIT](LICENSE). The repository is private; the license applies to anyone it is
-shared with.
+[MIT](LICENSE).

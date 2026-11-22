@@ -32,8 +32,9 @@ Priorities, in order:
    rewrite that the project does not actually need.
 
 This is an observer, never a restart panel, deploy orchestrator, remote shell or
-command-output feed. Keep the source private and respect the owner's content and
-access boundaries.
+command-output feed. The source is public, on GitHub and Codeberg: nothing private
+ever goes into a commit, and the owner's content and access boundaries apply to
+the repository as they do to the site.
 
 ## 2. Session workflow
 
@@ -263,7 +264,8 @@ on 127.0.0.1:4313, candidates on the first free port in 127.0.0.1:4400–4499. U
   own Let's Encrypt certificates. Never plan or add a DNS challenge, Caddy DNS
   plugin, token or proxy setting, and never change Cloudflare.
 - **Owner gates.** Alert and heartbeat destinations, anything that costs money
-  or needs a new account or credential, and making the source public.
+  or needs a new account or credential, and changing the repository's
+  visibility.
 
 ## 10. Git
 
