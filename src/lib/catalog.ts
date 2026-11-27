@@ -23,10 +23,6 @@ const job = (id: string) => [id, id + '-timer'];
 export const properties: Property[] = [
   { id: 'dunamismax-com', name: 'dunamismax.com', url: 'https://dunamismax.com', summary: 'Personal site, portfolio and writing',
     primary: 'dunamismax-com', checks: [cert('dunamismax.com'), cert('www.dunamismax.com'), 'dunamismax', ...job('dunamismax-backup')], projects: ['dunamismax-com'] },
-  { id: 'azerothtrail', name: 'Azeroth Trail', url: 'https://azerothtrail.com', summary: 'WoW Classic leveling guides and realm tracker',
-    primary: 'azerothtrail-com', checks: ['azerothtrail-status-api', cert('azerothtrail.com'), cert('www.azerothtrail.com'), 'azerothtrail'], projects: ['azerothtrail'] },
-  { id: 'lorehallow', name: 'Lorehallow', url: 'https://lorehallow.com', summary: 'Pixel-art MMO website and Go game server',
-    primary: 'lorehallow-com', checks: ['lorehallow-game', cert('lorehallow.com'), cert('www.lorehallow.com'), cert('play.lorehallow.com'), 'lorehallow-web', 'lorehallow-server'], projects: ['lorehallow'] },
   { id: 'rivermind-poker', name: 'RiverMind Poker', url: 'https://rivermindpoker.com', summary: 'No-limit poker tables in the browser',
     primary: 'rivermindpoker-com', checks: ['rivermindpoker-api', cert('rivermindpoker.com'), cert('www.rivermindpoker.com'), 'rivermind-poker-web', 'rivermind-poker-voice'], projects: ['rivermind-poker'] },
   { id: 'cfromthegroundup', name: 'C From The Ground Up', url: 'https://cfromthegroundup.com', summary: 'Free 38-lesson C course, with analytics',

@@ -1,4 +1,4 @@
-import { azerothStatus, cfromthegroundupHealth, contractHealth, imagingHealth, installerRange, lorehallowHealth, rivermindHealth, type HttpEvidence } from './http-evidence.js';
+import { cfromthegroundupHealth, contractHealth, imagingHealth, installerRange, rivermindHealth, type HttpEvidence } from './http-evidence.js';
 
 export interface HttpTarget { id:string; name:string; publicUrl:string; probeUrl:string; expectedStatus:number; bodyToken?:string; evidence?:HttpEvidence; range?:string }
 export interface UnitTarget {id:string; unit:string; group:string; oneShot?:boolean; maxAgeMinutes?:number}
@@ -11,10 +11,6 @@ export const httpTargets:HttpTarget[] = [
  ...existingSites,
  {id:'imagingservices-demo',name:'demo.xrayservice.net',publicUrl:'https://demo.xrayservice.net',probeUrl:'https://demo.xrayservice.net/healthz',expectedStatus:200,evidence:imagingHealth},
  {id:'fieldcadence-app',name:'Field Cadence',publicUrl:'https://fieldcadence.app/',probeUrl:'https://fieldcadence.app/healthz',expectedStatus:200,evidence:contractHealth},
- {id:'azerothtrail-com',name:'Azeroth Trail',publicUrl:'https://azerothtrail.com/',probeUrl:'https://azerothtrail.com/',expectedStatus:200,bodyToken:'<title>Azeroth Trail</title>'},
- {id:'azerothtrail-status-api',name:'Azeroth Trail tracker',publicUrl:'https://azerothtrail.com/status/',probeUrl:'https://azerothtrail.com/api/status',expectedStatus:200,evidence:azerothStatus},
- {id:'lorehallow-com',name:'Lorehallow',publicUrl:'https://lorehallow.com/',probeUrl:'https://lorehallow.com/',expectedStatus:200,bodyToken:'<link rel="canonical" href="https://lorehallow.com/">'},
- {id:'lorehallow-game',name:'Lorehallow game server',publicUrl:'https://lorehallow.com/play/',probeUrl:'https://play.lorehallow.com/healthz',expectedStatus:200,evidence:lorehallowHealth},
  {id:'xrayservice-installer',name:'XrayService Windows installer',publicUrl:'https://xrayservice.net/download',probeUrl:'https://xrayservice.net/download',expectedStatus:206,evidence:installerRange,range:'bytes=0-1'},
  {id:'xrayservice-data',name:'XrayService email assets',publicUrl:'https://data.xrayservice.net/robots.txt',probeUrl:'https://data.xrayservice.net/robots.txt',expectedStatus:200,bodyToken:'User-agent:'},
  {id:'cfromthegroundup-com',name:'C From The Ground Up',publicUrl:'https://cfromthegroundup.com/',probeUrl:'https://cfromthegroundup.com/healthz',expectedStatus:200,evidence:cfromthegroundupHealth},
@@ -26,7 +22,7 @@ export const httpTargets:HttpTarget[] = [
 ];
 // Hosts that only redirect to their site. Caddy holds a separate certificate for
 // each, so each gets its own certificate check.
-export const redirectHosts:string[] = ['azerothtrail.com','cfromthegroundup.com','daybyword.com','dunamismax.com','fieldcadence.app','graceandfootnotes.com','lorehallow.com','rivermindpoker.com','vincentsawyer.org','xrayservice.net'].map(host=>'www.'+host);
+export const redirectHosts:string[] = ['cfromthegroundup.com','daybyword.com','dunamismax.com','fieldcadence.app','graceandfootnotes.com','rivermindpoker.com','vincentsawyer.org','xrayservice.net'].map(host=>'www.'+host);
 /** Every public host name served here: the probed ones first, then the redirect-only ones. */
 export const certificateHosts=():string[] => [...new Set([...httpTargets.flatMap(t=>[new URL(t.publicUrl).hostname,new URL(t.probeUrl).hostname]),...redirectHosts])];
 // Daily jobs must have succeeded within 26 hours; the weekly installer build
@@ -40,7 +36,7 @@ export const units:UnitTarget[] = [
  // tables since its 2026-11-21 cutover, and rivermind-poker-voice relays table voice (it has
  // no public HTTP health route, so its unit is its evidence). Day by Word and Field Cadence
  // left Docker Compose for host units on 2026-11-21.
- ...['dunamismax','graceandfootnotes','imagingservices','xrayservice-web','vincentsawyer-web','azerothtrail','cfromthegroundup','daybyword-web','fieldcadence','rivermind-poker-web','rivermind-poker-voice','lorehallow-web','lorehallow-server','umami'].map(id=>({id,unit:id+'.service',group:'Application services'})),
+ ...['dunamismax','graceandfootnotes','imagingservices','xrayservice-web','vincentsawyer-web','cfromthegroundup','daybyword-web','fieldcadence','rivermind-poker-web','rivermind-poker-voice','umami'].map(id=>({id,unit:id+'.service',group:'Application services'})),
  {id:'collector-run',unit:'status-dunamismax-collector.service',group:'Application services',oneShot:true,maxAgeMinutes:15},
  {id:'ddns-timer',unit:'cloudflare-ddns.timer',group:'Network & access'},
  {id:'postgresql',unit:'postgresql@18-main.service',group:'Databases'},
@@ -54,11 +50,11 @@ export const units:UnitTarget[] = [
 ];
 // Where each deployed site keeps its serving release. The git probe reads only its
 // REVISION file, to say what is deployed beside what the working checkout holds.
-const releases:Record<string,string> = {'dunamismax-com':'/srv/www/dunamismax.com','status-dunamismax':'/srv/www/status.dunamismax.com','xrayservice':'/srv/www/xrayservice.net','graceandfootnotes-com':'/srv/www/graceandfootnotes.com','imagingservices':'/srv/www/demo.xrayservice.net','azerothtrail':'/srv/www/azerothtrail.com','c-from-the-ground-up':'/srv/www/cfromthegroundup.com','daybyword':'/srv/www/daybyword.com','rivermind-poker':'/srv/rivermindpoker.com','vincentsawyer-org':'/srv/www/vincentsawyer.org','fieldcadence':'/srv/www/fieldcadence.app'};
+const releases:Record<string,string> = {'dunamismax-com':'/srv/www/dunamismax.com','status-dunamismax':'/srv/www/status.dunamismax.com','xrayservice':'/srv/www/xrayservice.net','graceandfootnotes-com':'/srv/www/graceandfootnotes.com','imagingservices':'/srv/www/demo.xrayservice.net','c-from-the-ground-up':'/srv/www/cfromthegroundup.com','daybyword':'/srv/www/daybyword.com','rivermind-poker':'/srv/rivermindpoker.com','vincentsawyer-org':'/srv/www/vincentsawyer.org','fieldcadence':'/srv/www/fieldcadence.app'};
 export const projects=(root:string):ProjectTarget[] => [
  {id:'dunamismax-com',repo:'dunamismax.com',url:'https://dunamismax.com'}, {id:'mtg-card-bot',repo:'mtg-card-bot',url:null}, {id:'status-dunamismax',repo:'status.dunamismax',url:'https://status.dunamismax.com'},{id:'xrayservice',repo:'xrayservice',url:'https://xrayservice.net'}
 ,{id:'graceandfootnotes-com',repo:'graceandfootnotes.com',url:'https://graceandfootnotes.com'},{id:'imagingservices',repo:'imagingservices',url:'https://demo.xrayservice.net'}
-,{id:'azerothtrail',repo:'azerothtrail',url:'https://azerothtrail.com'},{id:'lorehallow',repo:'lorehallow',url:'https://lorehallow.com'},{id:'c-from-the-ground-up',repo:'c-from-the-ground-up',url:'https://cfromthegroundup.com'}
+,{id:'c-from-the-ground-up',repo:'c-from-the-ground-up',url:'https://cfromthegroundup.com'}
 ,{id:'daybyword',repo:'daybyword',url:'https://daybyword.com'},{id:'rivermind-poker',repo:'rivermind-poker',url:'https://rivermindpoker.com'},{id:'vincentsawyer-org',repo:'vincentsawyer.org',url:'https://vincentsawyer.org'}
 ,{id:'ubuntu-vm-backup',repo:'ubuntu-vm-backup',url:null},{id:'fieldcadence',repo:'fieldcadence',url:'https://fieldcadence.app'}
 ].map(p=>({...p,path:root+'/'+p.repo,...(releases[p.id]?{release:releases[p.id]+'/current'}:{})}));

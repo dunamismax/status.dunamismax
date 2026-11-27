@@ -501,11 +501,11 @@ pages stay script-free.
   cfromthegroundup.com (`/healthz` with its database), its Umami script,
   daybyword.com, rivermindpoker.com (`/healthz` and the table server's
   `/api/config`), vincentsawyer.org and data.xrayservice.net, which also adds
-  five certificate checks; units `lorehallow-web`, `lorehallow-server`,
+  five certificate checks; units of two since-retired sites,
   `rivermind-poker-web` and `umami`; jobs and timers `cfromthegroundup-backup`,
   `vincentsawyer-backup`, `daybyword-backup` (26 h) and the monthly
-  `daybyword-restore-check` (32 days); and seven repositories (azerothtrail,
-  lorehallow, c-from-the-ground-up, daybyword, rivermind-poker, vincentsawyer.org,
+  `daybyword-restore-check` (32 days); and seven repositories (two since
+  retired, c-from-the-ground-up, daybyword, rivermind-poker, vincentsawyer.org,
   ubuntu-vm-backup), all already readable through the existing default ACL, so no
   ACL changed. Day by Word's Docker containers stay outside the collector's reach
   by design. Not added: `fieldcadence` (no running service) and the
@@ -606,7 +606,7 @@ pages stay script-free.
   only; it is now checked through `/healthz`, which loads its pages from its
   content store first. A collector run now stores 97 services and 14 projects
   (dry run from a workstation: every HTTP and certificate check operational
-  except the Azeroth Trail tracker, which answered 503 for about 30 seconds
+  except one since-retired site's tracker, which answered 503 for about 30 seconds
   while another deployment restarted it under the deploy lock). Tests: the demo
   health evidence, every redirect host maps to a probed site, and every
   certificate check is on a site card. `docs/production.md` no longer claims
@@ -758,7 +758,7 @@ the stacks before SvelteKit, on the host or in the repositories.
   Evidence (2026-11-21 13:33 UTC, one script under `with-deploy-lock`, explicit
   paths, after checking that no unit, Caddy site, process, pointer file or
   backup configuration named any of them): 81 paths removed. They were the last
-  pre-SvelteKit release of this site and four of Azeroth Trail's, the old
+  pre-SvelteKit release of this site and four of a since-retired site's, the old
   rollback and migration directories for them in root's home, the original PHP
   releases of three sites and four early XrayService releases with their
   pointer files, the retired MySQL data directory (2.4 GB) and its unused
@@ -806,8 +806,8 @@ the stacks before SvelteKit, on the host or in the repositories.
 - [x] Retire rollback tooling in the owner's other clean repositories.
   Evidence (2026-11-21, each on `main` and pushed to its remotes): the backup
   repository lost its host rollback helper and its record of the earlier
-  stack, and its docs no longer say the MySQL data is on the host. Azeroth
-  Trail, C From The Ground Up, Grace and Footnotes, Imaging Services and
+  stack, and its docs no longer say the MySQL data is on the host. A since-retired
+  site, C From The Ground Up, Grace and Footnotes, Imaging Services and
   XrayService each lost their website rollback script; their cutover scripts
   now record what they replace, stop on failure and print what is live.
   XrayService also lost its old Go updater units, and the card bot's runbook
@@ -816,7 +816,7 @@ the stacks before SvelteKit, on the host or in the repositories.
   failures caused by these edits (a formatting check and a pinned checksum)
   were fixed the same hour. None of those sites was redeployed: no served code
   changed, so each one's next deploy is the first with its new cutover script.
-  Lorehallow followed on the owner's go-ahead the same day: its server, client
+  A since-retired game project followed on the owner's go-ahead the same day: its server, client
   and website deploy scripts stop on a failed check and leave the new release
   live, its `make rollback-*` and rehearsal targets are gone, and its decision
   record 0020 says why. Its BUILD.md, docs and web linters and 50 website
@@ -1031,7 +1031,7 @@ Newest first. Keep eight.
   passage about rollback or legacy recovery; the 1.2 rollback rehearsal is
   dropped. `a8e9b08` deployed at 13:39 UTC with the rewritten deploy script and
   every check stayed operational. The backup repository and six other clean
-  repositories lost their rollback tooling too, Lorehallow included (4.3).
+  repositories lost their rollback tooling too (4.3).
   Not changed, and open with the owner: the five repositories with other
   sessions' uncommitted work. Next: alert delivery (2.1) when the owner names
   destinations.

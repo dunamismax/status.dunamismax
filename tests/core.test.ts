@@ -95,19 +95,11 @@ test('backup size is a current bounded measurement, with invalid and unavailable
  assert.deepEqual(evaluateBackupSize({...output, stdout:'bad'}), ['unknown', 'current backup storage measurement is invalid']);
 });
 
-test('public probes check tracker freshness, game and demo health and the two-byte installer download', async () => {
- const regions = ['us','eu','kr','tw'];
+test('public probes check demo health and the two-byte installer download', async () => {
  const server = createServer((req, res) => {
-  if (req.url?.startsWith('/tracker')) {
-   const time = new Date().toISOString();
-   const old = new Date(Date.now() - 6*60000).toISOString();
-   res.end(JSON.stringify({version:1, generatedAt:req.url === '/tracker-old' ? old : time,
-    regions:regions.map(key => ({key, checkedAt:req.url === '/tracker-missing' ? null : req.url === '/tracker-stale' ? old : time, rulesets:[{online:false}]}))}));
-  } else if (req.url === '/demo-health') res.end(JSON.stringify({status:'ok', storage:'postgres', revision:'abc'}));
+  if (req.url === '/demo-health') res.end(JSON.stringify({status:'ok', storage:'postgres', revision:'abc'}));
   else if (req.url === '/demo-health-failing') res.end(JSON.stringify({status:'error', storage:'postgres'}));
   else if (req.url === '/demo-health-page') res.end('<html>ok</html>');
-  else if (req.url === '/game') res.end('ok\n');
-  else if (req.url === '/game-fallback') res.end('<html>ok</html>');
   else if (req.headers.range === 'bytes=0-1') {
    res.writeHead(206, {'Content-Range':'bytes 0-1/123456', 'Content-Disposition':'attachment; filename="setup.exe"'});
    res.end(req.url === '/bad-installer' ? 'XX' : req.url === '/large-installer' ? 'MZextra' : 'MZ');
@@ -122,12 +114,6 @@ test('public probes check tracker freshness, game and demo health and the two-by
   return (await httpProbe({...target, probeUrl:`http://127.0.0.1:${address.port}${path}`})).check;
  };
  try {
-  assert.equal((await probe('azerothtrail-status-api', '/tracker')).state, 'operational');
-  assert.match((await probe('azerothtrail-status-api', '/tracker-old')).reason, /snapshot is more than five minutes old/);
-  assert.match((await probe('azerothtrail-status-api', '/tracker-stale')).reason, /region readings are more than five minutes old/);
-  assert.match((await probe('azerothtrail-status-api', '/tracker-missing')).reason, /missing usable readings/);
-  assert.equal((await probe('lorehallow-game', '/game')).state, 'operational');
-  assert.equal((await probe('lorehallow-game', '/game-fallback')).state, 'degraded');
   assert.equal((await probe('imagingservices-demo', '/demo-health')).state, 'operational');
   assert.match((await probe('imagingservices-demo', '/demo-health-failing')).reason, /did not report ok/);
   assert.equal((await probe('imagingservices-demo', '/demo-health-page')).state, 'degraded');
@@ -236,7 +222,7 @@ test('every catalogued site check and repository exists in the collector invento
  assert.equal(new Set(serviceIds).size, serviceIds.length);
  assert.equal(repos.size, projects('/repos').length);
  for (const host of ['cfromthegroundup.com', 'daybyword.com', 'rivermindpoker.com', 'vincentsawyer.org', 'data.xrayservice.net']) assert.ok(hosts.has(host));
- for (const unit of ['lorehallow-server', 'lorehallow-web', 'rivermind-poker-web', 'umami', 'daybyword-backup', 'daybyword-restore-check-timer', 'caddy-release-check-timer']) assert.ok(units.some(t => t.id === unit));
+ for (const unit of ['rivermind-poker-voice', 'fieldcadence', 'rivermind-poker-web', 'umami', 'daybyword-backup', 'daybyword-restore-check-timer', 'caddy-release-check-timer']) assert.ok(units.some(t => t.id === unit));
  // The retired Python table server is stopped on purpose (rollback only), so it is not a check.
  assert.ok(!units.some(t => t.unit === 'rivermind-poker.service'));
  assert.equal(units.find(t => t.id === 'daybyword-restore-check')?.maxAgeMinutes, 32*24*60);
@@ -313,7 +299,7 @@ test('git: the working checkout and the deployed release are reported separately
  } finally { await rm(dir, {recursive:true, force:true}); }
  // Every release path belongs to a deployed site's repository and names its `current` link.
  for (const p of projects('/repos')) if (p.release) assert.match(p.release, /^\/srv\/[a-z./-]+\/current$/);
- assert.equal(projects('/repos').filter(p => p.release).length, 11);
+ assert.equal(projects('/repos').filter(p => p.release).length, 10);
  assert.equal(projects('/repos').find(p => p.id === 'ubuntu-vm-backup')?.release, undefined);
 });
 
@@ -360,15 +346,15 @@ test('daily history: EST days, worst state per day, empty days and rounded-down 
 });
 
 test('overview shows sites with history bars; a history failure never fails the page', async () => {
- const site = service('operational', 'lorehallow-com'); site.target.name = 'Lorehallow'; site.target.group = 'Public websites';
- const game = service('down', 'lorehallow-game'); game.target.name = 'Lorehallow game server'; game.target.group = 'Public websites'; game.check.reason = 'connection refused';
+ const site = service('operational', 'rivermindpoker-com'); site.target.name = 'RiverMind Poker'; site.target.group = 'Public websites';
+ const game = service('down', 'rivermindpoker-api'); game.target.name = 'RiverMind Poker table server'; game.target.group = 'Public websites'; game.check.reason = 'connection refused';
  const evidence = snapshot([site, game]);
  const today = estDay(now);
- const rows: DailyCount[] = [{day: today, target_id: 'lorehallow-com', state: 'operational', samples: 12}];
+ const rows: DailyCount[] = [{day: today, target_id: 'rivermindpoker-com', state: 'operational', samples: 12}];
  const provider: Source = {...source, latest: async () => evidence, history: async () => rows};
  const html = await (await handle(request('/'), provider, c, now)).text();
- const card = html.match(/<article class="site-card is-down" id="lorehallow">[\s\S]*?<\/article>/)?.[0] ?? '';
- assert.match(card, /Lorehallow game server<span class="sr-only">: down, connection refused/);
+ const card = html.match(/<article class="site-card is-down" id="rivermind-poker">[\s\S]*?<\/article>/)?.[0] ?? '';
+ assert.match(card, /RiverMind Poker table server<span class="sr-only">: down, connection refused/);
  assert.match(card, /<li class="day day-operational" title="[A-Z][a-z]{2} \d+, \d{4}: 12 of 12 checks operational"><\/li>/);
  assert.equal((card.match(/class="day /g) ?? []).length, 90);
  assert.match(html, /<meta http-equiv="refresh" content="300"\/?>/);

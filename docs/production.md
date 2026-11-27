@@ -181,10 +181,7 @@ project's 2026-11-21 cutover one unit, `rivermind-poker-web`, serves the pages, 
 API and the tables, and the old `rivermind-poker.service` is retired, so it is
 not a check. C From The
 Ground Up's `/healthz` must report both the app and its database as `ok`.
-Azeroth Trail checks its homepage and `/api/status`, with usable readings for all
-four regions and a snapshot and readings no older than five minutes. This measures
-tracker health even when the game servers it tracks are offline. Lorehallow checks
-its homepage and verifies the game server's `ok` response on `/healthz`. The
+The
 XrayService `/download` check requires HTTP 206, attachment and valid range headers,
 and the two-byte Windows executable signature. It requests only the first two bytes.
 Successful completion must be within 26 hours for daily jobs, eight days for the

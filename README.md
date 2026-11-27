@@ -93,16 +93,14 @@ show times in fixed UTC-05:00 (EST); the APIs use UTC.
 The reviewed inventory is [`src/collector/inventory.ts`](src/collector/inventory.ts).
 It covers:
 
-- **Public HTTPS:** every site on the host: dunamismax.com, Azeroth Trail (and
-  its tracker's freshness), Lorehallow (website and game-server health), RiverMind
+- **Public HTTPS:** every site on the host: dunamismax.com, RiverMind
   Poker (health with its database, and the table server's public config), C From The
   Ground Up (health with its database, and its Umami analytics script), Day by
   Word (health with its database), vincentsawyer.org, Grace and Footnotes, XrayService (site, email assets
   and the Windows installer, a two-byte range request that checks the executable
   signature), the Imaging Services demo (health with its content store), Field
   Cadence (health with its database) and this status page.
-- **Host services:** every application unit (including both Lorehallow units,
-  RiverMind Poker's web server and its table voice service, Day by Word, Field
+- **Host services:** every application unit (including RiverMind Poker's web server and its table voice service, Day by Word, Field
   Cadence and Umami), PostgreSQL, Caddy (including parse and reload evidence),
   Docker, access services, DDNS recency, RustDesk's three TCP listeners
   (connect only) and every maintenance, backup and restore-check job with its

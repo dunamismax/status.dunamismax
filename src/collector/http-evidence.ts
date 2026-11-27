@@ -17,45 +17,10 @@ function object(value: unknown): Record<string, unknown> | null {
     : null;
 }
 
-function observationTime(value: unknown, now: number): number | null {
-  if (typeof value !== 'string') return null;
-  try {
-    const measured = Date.parse(timestamp(value));
-    return measured <= now + 60_000 ? measured : null;
-  } catch {
-    return null;
-  }
-}
-
-export const azerothStatus: HttpEvidence = (body, _headers, now) => {
-  const data = jsonObject(body);
-  if (data?.version !== 1 || !Array.isArray(data.regions)) {
-    return ['degraded', 'tracker response did not match the status API'];
-  }
-
-  const generated = observationTime(data.generatedAt, now);
-  if (generated === null) return ['degraded', 'tracker snapshot time is unavailable or invalid'];
-  const maxAge = 5 * 60_000;
-  if (now - generated > maxAge) return ['degraded', 'tracker snapshot is more than five minutes old'];
-
-  const regions = data.regions.map(object);
-  const readings = ['us', 'eu', 'kr', 'tw'].map(key => regions.find(region => region?.key === key));
-  const times = readings.map(region => observationTime(region?.checkedAt, now));
-  if (times.some(time => time === null) || readings.some(region => !Array.isArray(region?.rulesets) || !region.rulesets.length)) {
-    return ['degraded', 'tracker is missing usable readings for one or more regions'];
-  }
-  if (times.some(time => time !== null && now - time > maxAge)) {
-    return ['degraded', 'one or more tracker region readings are more than five minutes old'];
-  }
-  return ['operational', 'tracker returned fresh data for all four regions'];
-};
-
-/** A health endpoint whose whole body is `ok`, as Lorehallow's game server answers. */
+/** A health endpoint whose whole body is `ok`. */
 export const plainOk = (label: string): HttpEvidence => body => body.toString('utf8').trim() === 'ok'
   ? ['operational', `${label} health response is OK`]
   : ['degraded', `expected ${label} health response was missing`];
-
-export const lorehallowHealth: HttpEvidence = plainOk('game server');
 
 /**
  * RiverMind Poker's `/healthz` has answered as the host's web platform contract
