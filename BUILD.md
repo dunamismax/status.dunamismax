@@ -11,13 +11,13 @@ a contract: see [Format contract](#format-contract).
 
 | | |
 | --- | --- |
-| **Current phase** | [Phase 1 · SvelteKit 3, Svelte 5 and Tailwind CSS 4](#phase-1--sveltekit-3-svelte-5-and-tailwind-css-4): complete. [Phase 4](#phase-4--final-cleanup) (no rollback tooling, nothing from earlier stacks) is complete and deployed. [Phase 5](#phase-5--hsts) (an HSTS header, D-13) is complete and deployed. [Phase 6](#phase-6--host-platform-contract) (pnpm, Node 26 and fix-forward candidate deploys, D-14) is complete and deployed. [Phase 3](#phase-3--full-inventory-site-view-and-daily-history) is complete and deployed, including 3.5 (second reconciliation) and 3.6 (a retired unit removed from the inventory) and 3.7 (RiverMind Poker's health check reads the contract's JSON). 3.8 (third reconciliation: three unit checks, two database-aware health checks, deployed release named beside the checkout) is complete and deployed |
+| **Current phase** | [Phase 1 · SvelteKit 3, Svelte 5 and Tailwind CSS 4](#phase-1--sveltekit-3-svelte-5-and-tailwind-css-4): complete. [Phase 4](#phase-4--final-cleanup) (no rollback tooling, nothing from earlier stacks) is complete and deployed. [Phase 5](#phase-5--hsts) (an HSTS header, D-13) is complete and deployed. [Phase 6](#phase-6--host-platform-contract) (pnpm, Node 26 and fix-forward candidate deploys, D-14) is complete and deployed. [Phase 3](#phase-3--full-inventory-site-view-and-daily-history) is complete and deployed, including 3.5 (second reconciliation) and 3.6 (a retired unit removed from the inventory) and 3.7 (RiverMind Poker's health check reads the contract's JSON). 3.8 (third reconciliation: three unit checks, two database-aware health checks, deployed release named beside the checkout) and 3.9 (two retired sites removed from the inventory) are complete and deployed |
 | **Next step** | **2.1**: the owner supplies the healthchecks.io ping URL and the Discord webhook URL; then the test alert, a deliberately missed heartbeat and its recovery, and the production settings (2.2). Open with the owner: whether the four repositories with uncommitted work also lose their rollback tooling (4.3; dunamismax.com lost its own in its M.5, 2026-11-21). |
 | **In progress** | None. |
 | **Blockers** | None. Phase 2 waits on the two destination URLs from the owner. |
-| **Live site** | https://status.dunamismax.com serves release `e8d684f` on Node 26.13.1 (`/opt/node-26`), deployed 2026-11-22 16:11 UTC with the contract deploy (3.8: third reconciliation); `/healthz` reports that commit. It sends `Strict-Transport-Security: max-age=31536000` (D-13); each run stores 104 services and 14 projects. Releases fix forward (D-12, D-14); the deploy prints its evidence and logs `web-deploy` to the journal, and keeps a pre-migration dump in `/var/backups/status.dunamismax.com/`. No alert webhook or heartbeat is configured. |
-| **`main`** | `e8d684f` is deployed; this evidence commit follows it. `main` pushes to GitHub and Codeberg together. |
-| **Last updated** | 2026-11-22 |
+| **Live site** | https://status.dunamismax.com serves release `d8f22fd` on Node 26.13.1 (`/opt/node-26`), deployed 2026-11-27 00:23 UTC with the contract deploy (3.9: two retired sites removed); `/healthz` reports that commit. It sends `Strict-Transport-Security: max-age=31536000` (D-13); each run stores 92 services and 12 projects. Releases fix forward (D-12, D-14); the deploy prints its evidence and logs `web-deploy` to the journal, and keeps a pre-migration dump in `/var/backups/status.dunamismax.com/`. No alert webhook or heartbeat is configured. |
+| **`main`** | `d8f22fd` is deployed; this evidence commit follows it. `main` pushes to GitHub and Codeberg together. |
+| **Last updated** | 2026-11-27 |
 
 ## How to work this file
 
@@ -746,6 +746,29 @@ pages stay script-free.
   PostgreSQL were not restarted; the web unit is active with 0 restarts,
   `/healthz` reports `e8d684f` and `/readyz` is ready.
 
+### 3.9 Retired sites removed
+
+- [x] Remove the checks of the two sites the owner retired, with tests.
+  Evidence (2026-11-27, owner request): the owner retired two game sites and
+  had them taken off the host. Their HTTP, certificate, unit, release and
+  repository checks, their site cards, the two evidence functions only they
+  used and their external probe hosts are gone (`d8f22fd`); the overview and
+  unit tests that used them as fixtures now use RiverMind Poker, and the
+  release count is 10. `pnpm run check`, `make check` (31 passed, 2
+  PostgreSQL-only skipped), `tests/postgres.sh` 33/33 on a Mac with
+  PostgreSQL 18, Python syntax and `git diff --check`.
+- [x] Deploy with `deploy/build.sh` and `deploy/deploy.sh`; the next run stores
+  the smaller inventory with nothing missing.
+  Evidence (2026-11-27): `deploy/build.sh` built `d8f22fd` on the VM.
+  `deploy/deploy.sh` finished at 00:23 UTC before the sites were removed: no
+  migration, history digests unchanged, journal 1 of 1, route smoke passed on
+  the candidate (port 4400), on 4313 and on the public URL, static cache and
+  HSTS checks passed; `web-live` reports `releases/d8f22fd…`, state
+  `current`. The deploy's run (00:23:34 UTC) and the next scheduled run
+  (00:28:53 UTC) stored 92 services and 12 projects; the page and
+  `/api/status.json` name neither site. The two non-operational rows are
+  repository checkout warnings unrelated to this change.
+
 ## Phase 4 · Final cleanup
 
 The owner's decision of 2026-11-21 (D-12): no rollbacks, and nothing kept from
@@ -959,6 +982,11 @@ changes scope, when you pick it up.
 
 Newest first. Keep eight.
 
+- **2026-11-27 · Retired sites removed (3.9).** Owner request: two game sites
+  were retired and taken off the host, so their checks, site cards, evidence
+  functions and probe hosts are gone and their test fixtures moved to
+  RiverMind Poker. Deployed `d8f22fd` before the host removal; runs now store
+  92 services and 12 projects. Next: 2.1, unchanged.
 - **2026-11-22 · The source is public (D-9).** Owner direction: this
   repository is meant to be public, and it already was on GitHub and
   Codeberg, linked from dunamismax.com and the profile README. The README,
@@ -1035,10 +1063,3 @@ Newest first. Keep eight.
   Not changed, and open with the owner: the five repositories with other
   sessions' uncommitted work. Next: alert delivery (2.1) when the owner names
   destinations.
-- **2026-11-21 · Backup drill (1.2).** The owner asked for the overdue drill.
-  The scheduled encrypted backup at 07:41 UTC had already restored and probed
-  release `fefd9ea`; `restore check` and `restore applications-verify` run by
-  hand at 13:23 UTC passed against the same snapshot, with the recovered release
-  serving the API as the restricted web role from a disposable cluster. No code
-  or production change. Next: the 1.2 rollback rehearsal, which needs a plan
-  for the renamed units first.
